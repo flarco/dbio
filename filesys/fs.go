@@ -1,0 +1,697 @@
+package filesys
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/url"
+	"os"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/flarco/dbio/iop"
+
+	"github.com/dustin/go-humanize"
+	"github.com/flarco/dbio/env"
+
+	"github.com/flarco/g"
+	"github.com/spf13/cast"
+)
+
+// FileSysClient is a client to a file systems
+// such as local, s3, hdfs, azure storage, google cloud storage
+type FileSysClient interface {
+	Self() FileSysClient
+	Init(ctx context.Context) (err error)
+	Client() *BaseFileSysClient
+	Context() (context *g.Context)
+	FsType() FileSysType
+	Delete(path string) (err error)
+	GetReader(path string) (reader io.Reader, err error)
+	GetReaders(paths ...string) (readers []io.Reader, err error)
+	GetDatastream(path string) (ds *iop.Datastream, err error)
+	GetWriter(path string) (writer io.Writer, err error)
+	List(path string) (paths []string, err error)
+	ListRecursive(path string) (paths []string, err error)
+	Write(path string, reader io.Reader) (bw int64, err error)
+
+	ReadDataflow(url string) (df *iop.Dataflow, err error)
+	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
+	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error)
+	GetProp(key string) (val string)
+	SetProp(key string, val string)
+	MkdirAll(path string) (err error)
+}
+
+// FileSysType is an int type for enum for the File system Type
+type FileSysType int
+
+const (
+	// LocalFileSys is local file system
+	LocalFileSys FileSysType = iota
+	// HDFSFileSys is HDFS file system
+	HDFSFileSys
+	// S3FileSys is S3 file system
+	S3FileSys
+	// S3cFileSys is S3 compatible file system
+	S3cFileSys
+	// AzureFileSys is Azure file system
+	AzureFileSys
+	// GoogleFileSys is Google file system
+	GoogleFileSys
+	// SftpFileSys is SFTP / SCP / SSH file system
+	SftpFileSys
+	// HTTPFileSys is HTTP / HTTPS file system
+	HTTPFileSys
+)
+
+const defaultConcurencyLimit = 10
+
+// NewFileSysClient create a file system client
+// such as local, s3, azure storage, google cloud storage
+// props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
+func NewFileSysClient(fst FileSysType, props ...string) (fsClient FileSysClient, err error) {
+	return NewFileSysClientContext(context.Background(), fst, props...)
+}
+
+// NewFileSysClientContext create a file system client with context
+// such as local, s3, azure storage, google cloud storage
+// props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
+func NewFileSysClientContext(ctx context.Context, fst FileSysType, props ...string) (fsClient FileSysClient, err error) {
+	concurencyLimit := defaultConcurencyLimit
+	if os.Getenv("DBIO_CONCURENCY_LIMIT") != "" {
+		concurencyLimit = cast.ToInt(os.Getenv("DBIO_CONCURENCY_LIMIT"))
+	}
+
+	switch fst {
+	case LocalFileSys:
+		fsClient = &LocalFileSysClient{}
+		concurencyLimit = 20
+		fsClient.Client().fsType = LocalFileSys
+	case S3FileSys:
+		fsClient = &S3FileSysClient{}
+		fsClient.Client().fsType = S3FileSys
+	case S3cFileSys:
+		fsClient = &S3cFileSysClient{}
+		fsClient.Client().fsType = S3cFileSys
+	case SftpFileSys:
+		fsClient = &SftpFileSysClient{}
+		fsClient.Client().fsType = SftpFileSys
+	// case HDFSFileSys:
+	// 	fsClient = fsClient
+	case AzureFileSys:
+		fsClient = &AzureFileSysClient{}
+		fsClient.Client().fsType = AzureFileSys
+	case GoogleFileSys:
+		fsClient = &GoogleFileSysClient{}
+		fsClient.Client().fsType = GoogleFileSys
+	case HTTPFileSys:
+		fsClient = &HTTPFileSysClient{}
+		fsClient.Client().fsType = HTTPFileSys
+	default:
+		err = g.Error(errors.New("Unrecognized File System"), "")
+		return
+	}
+
+	// set properties
+	for k, v := range g.KVArrToMap(props...) {
+		fsClient.SetProp(k, v)
+	}
+
+	if fsClient.GetProp("DBIO_CONCURENCY_LIMIT") != "" {
+		concurencyLimit = cast.ToInt(fsClient.GetProp("DBIO_CONCURENCY_LIMIT"))
+	}
+
+	for k, v := range env.Vars() {
+		if fsClient.GetProp(k) == "" {
+			fsClient.SetProp(k, v)
+		}
+	}
+
+	// Init Limit
+	err = fsClient.Init(ctx)
+	if err != nil {
+		err = g.Error(err, "Error initiating File Sys Client")
+	}
+	fsClient.Context().SetConcurencyLimit(concurencyLimit)
+
+	return
+}
+
+// NewFileSysClientFromURL returns the proper fs client for the given path
+// props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
+func NewFileSysClientFromURL(url string, props ...string) (fsClient FileSysClient, err error) {
+	return NewFileSysClientFromURLContext(context.Background(), url, props...)
+}
+
+// NewFileSysClientFromURLContext returns the proper fs client for the given path with context
+// props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
+func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...string) (fsClient FileSysClient, err error) {
+	switch {
+	case strings.HasPrefix(url, "s3://"):
+		if v, ok := g.KVArrToMap(props...)["AWS_ENDPOINT"]; ok && v != "" {
+			return NewFileSysClientContext(ctx, S3FileSys, props...)
+		}
+		return NewFileSysClientContext(ctx, S3FileSys, props...)
+	case strings.HasPrefix(url, "sftp://"):
+		props = append(props, "SFTP_URL="+url)
+		return NewFileSysClientContext(ctx, SftpFileSys, props...)
+	case strings.HasPrefix(url, "gs://"):
+		return NewFileSysClientContext(ctx, GoogleFileSys, props...)
+	case strings.Contains(url, ".core.windows.net") || strings.HasPrefix(url, "azure://"):
+		return NewFileSysClientContext(ctx, AzureFileSys, props...)
+	case strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://"):
+		return NewFileSysClientContext(ctx, HTTPFileSys, props...)
+	case strings.Contains(url, "://"):
+		err = g.Error(
+			fmt.Errorf("Unable to determine FileSysClient for "+url),
+			"",
+		)
+		return
+	default:
+		fsClient = &LocalFileSysClient{}
+		props = append(props, g.F("concurencyLimit=%d", 20))
+		return NewFileSysClientContext(ctx, LocalFileSys, props...)
+	}
+}
+
+// ParseURL parses a URL
+func ParseURL(urlStr string) (host string, path string, err error) {
+
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		err = g.Error(err, "Unable to parse URL "+urlStr)
+		return
+	}
+
+	scheme := u.Scheme
+	host = u.Hostname()
+	path = u.Path
+
+	if scheme == "" || host == "" {
+		err = g.Error(errors.New("Invalid URL: "+urlStr), "")
+	}
+
+	return
+}
+
+func getExcelStream(fs FileSysClient, reader io.Reader) (ds *iop.Datastream, err error) {
+	xls, err := NewExcelFromReader(reader)
+	if err != nil {
+		err = g.Error(err, "Unable to open Excel File from reader")
+		return nil, err
+	}
+	xls.Props = fs.Client().properties
+
+	sheetName := fs.GetProp("sheet")
+	if sheetName == "" {
+		sheetName = xls.Sheets[0]
+	}
+
+	sheetRange := fs.GetProp("range")
+	if sheetRange != "" {
+		data, err := xls.GetDatasetFromRange(sheetName, sheetRange)
+		if err != nil {
+			err = g.Error(err, "Unable to get range data for %s!%s", sheetName, sheetRange)
+			return nil, err
+		}
+		ds = data.Stream()
+	} else {
+		data := xls.GetDataset(sheetName)
+		ds = data.Stream()
+	}
+	return ds, nil
+}
+
+////////////////////// BASE
+
+// BaseFileSysClient is the base file system type.
+type BaseFileSysClient struct {
+	FileSysClient
+	properties map[string]string
+	instance   *FileSysClient
+	context    g.Context
+	fsType     FileSysType
+}
+
+// Context provides a pointer to context
+func (fs *BaseFileSysClient) Context() (context *g.Context) {
+	return &fs.context
+}
+
+// Client provides a pointer to itself
+func (fs *BaseFileSysClient) Client() *BaseFileSysClient {
+	return fs
+}
+
+// Instance returns the respective connection Instance
+// This is useful to refer back to a subclass method
+// from the superclass level. (Aka overloading)
+func (fs *BaseFileSysClient) Self() FileSysClient {
+	return *fs.instance
+}
+
+// FsType return the type of the client
+func (fs *BaseFileSysClient) FsType() FileSysType {
+	return fs.fsType
+}
+
+// GetProp returns the value of a property
+func (fs *BaseFileSysClient) GetProp(key string) string {
+	return fs.properties[key]
+}
+
+// SetProp sets the value of a property
+func (fs *BaseFileSysClient) SetProp(key string, val string) {
+	if fs.properties == nil {
+		fs.properties = map[string]string{}
+	}
+	fs.properties[key] = val
+}
+
+// GetDatastream return a datastream for the given path
+func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, err error) {
+
+	ds = iop.NewDatastreamContext(fs.Context().Ctx, nil)
+	ds.SafeInference = true
+	ds.SetConfig(fs.properties)
+
+	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
+		reader, err := fs.Self().GetReader(urlStr)
+		if err != nil {
+			err = g.Error(err, "Error getting Excel reader")
+			return ds, err
+		}
+
+		// Wait for reader to start reading or err
+		for {
+			// Try peeking
+			if b := bufio.NewReader(reader).Size(); b > 0 {
+				// g.P(b)
+				break
+			}
+
+			if fs.Context().Err() != nil {
+				// has errorred
+				return ds, fs.Context().Err()
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		eDs, err := getExcelStream(fs.Self(), reader)
+		if err != nil {
+			err = g.Error(err, "Error consuming Excel reader")
+			return ds, err
+		}
+		return eDs, nil
+	}
+
+	go func() {
+		// manage concurrency
+		defer fs.Context().Wg.Read.Done()
+		fs.Context().Wg.Read.Add()
+
+		reader, err := fs.Self().GetReader(urlStr)
+		if err != nil {
+			fs.Context().CaptureErr(g.Error(err, "Error getting reader"))
+			g.LogError(fs.Context().Err())
+			fs.Context().Cancel()
+			return
+		}
+
+		// Wait for reader to start reading or err
+		for {
+			// Try peeking
+			if b := bufio.NewReader(reader).Size(); b > 0 {
+				// g.P(b)
+				break
+			}
+
+			if fs.Context().Err() != nil {
+				// has errorred
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		err = ds.ConsumeReader(reader)
+		if err != nil {
+			ds.Context.CaptureErr(g.Error(err, "Error consuming reader"))
+			ds.Context.Cancel()
+			fs.Context().CaptureErr(g.Error(err, "Error consuming reader"))
+			// fs.Context().Cancel()
+			g.LogError(fs.Context().Err())
+		}
+
+	}()
+
+	return ds, err
+}
+
+// ReadDataflow read
+func (fs *BaseFileSysClient) ReadDataflow(url string) (df *iop.Dataflow, err error) {
+	if strings.HasSuffix(strings.ToLower(url), ".zip") {
+		localFs, err := NewFileSysClient(LocalFileSys)
+		if err != nil {
+			return df, g.Error(err, "could not initialize localFs")
+		}
+
+		reader, err := fs.Self().GetReader(url)
+		if err != nil {
+			return df, g.Error(err, "could not get zip reader")
+		}
+
+		folderPath, err := ioutil.TempDir("", "dbio_temp_")
+		if err != nil {
+			return df, g.Error(err, "could not get create temp file")
+		}
+
+		zipPath := folderPath + ".zip"
+		_, err = localFs.Write(zipPath, reader)
+		if err != nil {
+			return df, g.Error(err, "could not write to "+zipPath)
+		}
+
+		paths, err := iop.Unzip(zipPath, folderPath)
+		if err != nil {
+			return df, g.Error(err, "Error unzipping")
+		}
+		// delete zip file
+		os.RemoveAll(zipPath)
+
+		// TODO: handle multiple files, yielding multiple schemas
+		df, err = GetDataflow(localFs.Self(), paths...)
+		if err != nil {
+			return df, g.Error(err, "Error making dataflow")
+		}
+
+		// delete unzipped folder when done
+		df.Defer(func() { os.RemoveAll(folderPath) })
+
+		return df, nil
+	}
+
+	paths, err := fs.Self().ListRecursive(url)
+	if err != nil {
+		err = g.Error(err, "Error getting paths")
+		return
+	}
+	df, err = GetDataflow(fs.Self(), paths...)
+	if err != nil {
+		err = g.Error(err, "Error getting dataflow")
+		return
+	}
+
+	df.FsURL = url
+	return
+}
+
+// WriteDataflow writes a dataflow to a file sys.
+func (fs *BaseFileSysClient) WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error) {
+	// handle excel file here, generate reader
+	if strings.Contains(strings.ToLower(url), ".xlsx") {
+		xls := NewExcel()
+
+		sheetName := fs.GetProp("sheet")
+		if sheetName == "" {
+			sheetName = "Sheet1"
+		}
+
+		err = xls.WriteSheet(sheetName, iop.MergeDataflow(df), "overwrite")
+		if err != nil {
+			err = g.Error(err, "error writing to excel file")
+			return
+		}
+
+		pr, pw := io.Pipe()
+		go func() {
+			defer pw.Close()
+			err = xls.WriteToWriter(pw)
+			if err != nil {
+				g.LogError(err, "error writing to excel file")
+			}
+		}()
+
+		bw, err = fs.Self().Write(url, pr)
+		return
+	}
+
+	fileReadyChn := make(chan string, 10000)
+
+	g.Trace("writing dataflow to %s", url)
+	go func() {
+		bw, err = fs.Self().WriteDataflowReady(df, url, fileReadyChn)
+	}()
+
+	for range fileReadyChn {
+		// do nothing, wait for completion
+	}
+
+	return
+}
+
+// GetReaders returns one or more readers from specified paths in specified FileSysClient
+func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, err error) {
+	if len(paths) == 0 {
+		err = fmt.Errorf("Provided 0 files for: %#v", paths)
+		return
+	}
+
+	for _, path := range paths {
+		reader, err := fs.Self().GetReader(path)
+		if err != nil {
+			return nil, g.Error(err, "Unable to process "+path)
+		}
+		readers = append(readers, reader)
+	}
+
+	return readers, nil
+}
+
+// WriteDataflowReady writes to a file sys and notifies the fileReady chan.
+func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
+	fsClient := fs.Self()
+	defer close(fileReadyChn)
+	gzip := strings.ToUpper(fs.GetProp("DBIO_COMPRESSION")) == "GZIP"
+	fileRowLimit := cast.ToInt(fs.GetProp("DBIO_FILE_ROW_LIMIT"))
+
+	if strings.HasSuffix(url, "/") {
+		url = url[:len(url)-1]
+	}
+
+	singleFile := fileRowLimit == 0 && len(df.Streams) == 1
+
+	processStream := func(ds *iop.Datastream, partURL string) {
+		defer df.Context.Wg.Read.Done()
+		conc := runtime.NumCPU()
+		if conc > 7 {
+			conc = 7
+		}
+		localCtx := g.NewContext(ds.Context.Ctx, conc)
+
+		writePart := func(reader io.Reader, partURL string) {
+			defer localCtx.Wg.Read.Done()
+
+			bw0, err := fsClient.Write(partURL, reader)
+			fileReadyChn <- partURL
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err))
+				ds.Context.Cancel()
+				df.Context.Cancel()
+			} else {
+				g.Trace("wrote %s to %s", humanize.Bytes(cast.ToUint64(bw0)), partURL)
+				bw += bw0
+			}
+		}
+
+		// pre-add to WG to not hold next reader in memory while waiting
+		localCtx.Wg.Read.Add()
+		fileCount := 0
+		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit) {
+			// for reader := range ds.NewCsvReaderChnl(fileRowLimit) {
+			fileCount++
+			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
+			if singleFile {
+				subPartURL = partURL
+				if strings.HasSuffix(partURL, ".gz") {
+					gzip = true
+					partURL = strings.TrimSuffix(partURL, ".gz")
+				}
+			}
+
+			if gzip {
+				gzReader := iop.Compress(reader)
+				subPartURL = subPartURL + ".gz"
+				g.Trace("writing compressed stream to " + subPartURL)
+				go writePart(gzReader, subPartURL)
+			} else {
+				go writePart(reader, subPartURL)
+			}
+			localCtx.Wg.Read.Add()
+
+			if df.Err() != nil {
+				break
+			}
+		}
+		if ds.Err() != nil {
+			df.Context.CaptureErr(g.Error(ds.Err()))
+		}
+		localCtx.Wg.Read.Done() // clear that pre-added WG
+		localCtx.Wg.Read.Wait()
+	}
+
+	err = fsClient.Delete(url)
+	if err != nil {
+		err = g.Error(err, "Could not delete url")
+		return
+	}
+
+	if !singleFile && (fsClient.FsType() == LocalFileSys || fsClient.FsType() == SftpFileSys) {
+		err = fsClient.MkdirAll(url)
+		if err != nil {
+			err = g.Error(err, "could not create directory")
+			return
+		}
+	}
+
+	partCnt := 1
+	for ds := range df.StreamCh {
+		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
+		if singleFile {
+			partURL = url
+		}
+		if fsClient.FsType() == AzureFileSys {
+			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
+		}
+		g.Trace("starting process to write %s with file row limit %d", partURL, fileRowLimit)
+
+		df.Context.Wg.Read.Add()
+		go processStream(ds, partURL)
+		partCnt++
+	}
+
+	df.Context.Wg.Read.Wait()
+	if df.Context.Err() != nil {
+		err = g.Error(df.Context.Err())
+	}
+
+	return
+}
+
+// GetDataflow returns a dataflow from specified paths in specified FileSysClient
+func GetDataflow(fs FileSysClient, paths ...string) (df *iop.Dataflow, err error) {
+
+	if len(paths) == 0 {
+		err = fmt.Errorf("Provided 0 files for: %#v", paths)
+		return
+	}
+
+	df = iop.NewDataflow()
+	df.Context = g.NewContext(fs.Context().Ctx)
+	go func() {
+		defer df.Close()
+		dss := []*iop.Datastream{}
+
+		for _, path := range paths {
+			if strings.HasSuffix(path, "/") {
+				g.Debug("skipping %s because is not file", path)
+				continue
+			}
+			g.Debug("reading datastream from %s", path)
+			ds, err := fs.GetDatastream(path)
+			if err != nil {
+				fs.Context().CaptureErr(g.Error(err, "Unable to process "+path))
+				return
+			}
+			dss = append(dss, ds)
+		}
+
+		df.PushStreams(dss...)
+
+	}()
+
+	// wait for first ds to start streaming.
+	// columns need to be populated
+	err = df.WaitReady()
+	if err != nil {
+		return df, err
+	}
+
+	return df, nil
+}
+
+// MakeDatastream create a datastream from a reader
+func MakeDatastream(reader io.Reader) (ds *iop.Datastream, err error) {
+
+	csv := iop.CSV{Reader: reader}
+	ds, err = csv.ReadStream()
+	if err != nil {
+		return nil, err
+	}
+
+	return ds, nil
+}
+
+// WriteDatastream writes a datasream to a writer
+// or use fs.Write(path, ds.NewCsvReader(0))
+func WriteDatastream(writer io.Writer, ds *iop.Datastream) (bw int64, err error) {
+	reader := ds.NewCsvReader(0)
+	return Write(reader, writer)
+}
+
+// Write writer to a writer from a reader
+func Write(reader io.Reader, writer io.Writer) (bw int64, err error) {
+	bw, err = io.Copy(writer, reader)
+	if err != nil {
+		err = g.Error(err, "Error writing from reader")
+	}
+	return
+}
+
+// TestFsPermissions tests read/write permisions
+func TestFsPermissions(fs FileSysClient, pathURL string) (err error) {
+	testString := "abcde"
+
+	// Create file/folder
+	bw, err := fs.Write(pathURL, strings.NewReader(testString))
+	if err != nil {
+		return g.Error(err, "failed testing permissions: Create file/folder")
+	} else if bw == 0 {
+		return g.Error("failed testing permissions: Create file/folder returned 0 bytes")
+	}
+
+	// List File
+	paths, err := fs.List(pathURL)
+	if err != nil {
+		return g.Error(err, "failed testing permissions: List File")
+	} else if len(paths) == 0 {
+		return g.Error("failed testing permissions: List File is zero")
+	}
+
+	// Read File
+	reader, err := fs.GetReader(pathURL)
+	if err != nil {
+		return g.Error(err, "failed testing permissions: Read File")
+	}
+
+	content, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return g.Error(err, "failed testing permissions: Read File, reading reader")
+	}
+
+	if string(content) != testString {
+		return g.Error("failed testing permissions: Read File content mismatch")
+	}
+
+	// Delete file/folder
+	err = fs.Delete(pathURL)
+	if err != nil {
+		return g.Error(err, "failed testing permissions: Delete file/folder")
+	}
+
+	return
+}
