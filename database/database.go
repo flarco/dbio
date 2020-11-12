@@ -6,13 +6,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/flarco/dbio/filesys"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/flarco/dbio/filesys"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/env"
@@ -207,11 +208,11 @@ var (
 )
 
 func init() {
-	if os.Getenv("SLING_SAMPLE_SIZE") != "" {
-		SampleSize = cast.ToInt(os.Getenv("SLING_SAMPLE_SIZE"))
+	if os.Getenv("DBIO_SAMPLE_SIZE") != "" {
+		SampleSize = cast.ToInt(os.Getenv("DBIO_SAMPLE_SIZE"))
 	}
-	if os.Getenv("SLING_FILEPATH_SLUG") != "" {
-		filePathStorageSlug = os.Getenv("SLING_FILEPATH_SLUG")
+	if os.Getenv("DBIO_FILEPATH_SLUG") != "" {
+		filePathStorageSlug = os.Getenv("DBIO_FILEPATH_SLUG")
 	}
 }
 
@@ -314,7 +315,7 @@ func GetSlingEnv() map[string]string {
 		value := strings.ReplaceAll(env, key+"=", "")
 
 		keyUpper := strings.ToUpper(key)
-		if strings.HasPrefix(keyUpper, "SLING_") {
+		if strings.HasPrefix(keyUpper, "DBIO_") {
 			slingEnvs[keyUpper] = value
 		}
 	}
@@ -2395,13 +2396,13 @@ func (conn *BaseConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt 
 // settingMppBulkImportFlow sets settings for MPP databases type
 // for BulkImportFlow
 func settingMppBulkImportFlow(conn Connection) {
-	if cast.ToInt(conn.GetProp("SLING_FILE_ROW_LIMIT")) == 0 {
-		conn.SetProp("SLING_FILE_ROW_LIMIT", "500000")
+	if cast.ToInt(conn.GetProp("DBIO_FILE_ROW_LIMIT")) == 0 {
+		conn.SetProp("DBIO_FILE_ROW_LIMIT", "500000")
 	}
 
-	conn.SetProp("SLING_COMPRESSION", "GZIP")
+	conn.SetProp("DBIO_COMPRESSION", "GZIP")
 
-	conn.SetProp("SLING_PARALLEL", "true")
+	conn.SetProp("DBIO_PARALLEL", "true")
 }
 
 // ToData converts schema objects to tabular format

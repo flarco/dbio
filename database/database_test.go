@@ -851,16 +851,6 @@ func TestLargeDataset(t *testing.T) {
 	ctx.Wg.Write.Wait()
 }
 
-func TestEnvURL(t *testing.T) {
-	os.Setenv("DBIO_DB_PG_HELLO", DBs["postgres"].URL)
-	e := GetEnv()
-	assert.Contains(t, e, "DBIO_DB_PG_HELLO")
-	conn, err := NewConn("PG_HELLO")
-	assert.NoError(t, err)
-	err = conn.Connect()
-	assert.NoError(t, err)
-}
-
 func TestURL(t *testing.T) {
 	url, err := dburl.Parse(os.Getenv("SNOWFLAKE_URL"))
 	if err != nil {
