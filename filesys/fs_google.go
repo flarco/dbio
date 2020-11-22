@@ -120,6 +120,7 @@ func (fs *GoogleFileSysClient) List(path string) (paths []string, err error) {
 			continue
 		}
 		if len(strings.Split(attrs.Name, "/")) == len(keyArr)+1 {
+			// attrs.Updated
 			paths = append(paths, g.F("gs://%s/%s", bucket, attrs.Name))
 		}
 	}

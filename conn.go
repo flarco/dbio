@@ -158,7 +158,7 @@ func (dc *DataConn) GetType() ConnType {
 	case strings.Contains(dc.URL, "://"):
 		return ConnTypeNone
 	default:
-		return ConnTypeNone
+		return ConnTypeFileLocal
 	}
 }
 

@@ -1,6 +1,22 @@
 core:
-  drop_table: drop table {table} cascade constraints purge
-  create_table: create table {table} ({col_types})
+  drop_table: |
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP TABLE {table} cascade constraints purge';
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN
+          RAISE;
+        END IF;
+    END;
+  drop_view: |
+    BEGIN
+      EXECUTE IMMEDIATE 'DROP TABLE {view} cascade constraints purge';
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE != -942 THEN
+          RAISE;
+        END IF;
+    END;
   create_index: create index {index} on {table} ({cols})
   insert: INSERT {options} INTO {table} ({fields}) VALUES ({values})
   alter_columns: alter table {table} modify ({col_ddls})

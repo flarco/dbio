@@ -371,6 +371,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 		}
 
 		for _, obj := range result.Contents {
+			// obj.LastModified
 			paths = append(paths, urlPrefix+*obj.Key)
 		}
 

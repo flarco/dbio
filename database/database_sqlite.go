@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"strings"
 
 	"github.com/flarco/g"
@@ -43,7 +44,14 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		"table", table,
 		"cols", strings.Join(pkFields, ", "),
 	)
-	_, err = conn.Exec(indexSQL)
+
+	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
+	if err != nil {
+		err = g.Error(err, "Could not begin transaction for upsert")
+		return
+	}
+
+	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -71,11 +79,22 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
 		"insert_fields", upsertMap["insert_fields"],
 	)
-	_, err = conn.Exec(sql)
+	res, err := conn.Tx().ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
 	}
-	rowAffCnt = -1
+
+	rowAffCnt, err = res.RowsAffected()
+	if err != nil {
+		rowAffCnt = -1
+	}
+
+	err = conn.Commit()
+	if err != nil {
+		err = g.Error(err, "Could not commit upsert transaction")
+		return
+	}
+
 	return
 }

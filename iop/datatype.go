@@ -32,6 +32,7 @@ type Column struct {
 	DbType      string `json:"db_type"`
 	DbPrecision int    `json:"db_precision"`
 	DbScale     int    `json:"db_scale"`
+	Sourced     bool   `json:"sourced"` // whether is was sourced from a typed source
 	Stats       ColumnStats
 	ColType     *sql.ColumnType
 	goType      reflect.Type

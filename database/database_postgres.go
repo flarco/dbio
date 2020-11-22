@@ -109,13 +109,13 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	}
 
 	colNames := ColumnNames(columns)
-	txn, err := conn.Db().BeginTx(ds.Context.Ctx, &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
+	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
 	if err != nil {
 		err = g.Error(err, "Could not begin transaction")
 		return
 	}
 
-	stmt, err := txn.Prepare(pq.CopyInSchema(schema, table, colNames...))
+	stmt, err := conn.Tx().Prepare(pq.CopyInSchema(schema, table, colNames...))
 	if err != nil {
 		g.Trace("%s: %#v", table, colNames)
 		return count, g.Error(err, "could not prepare statement")
@@ -126,7 +126,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		// Do insert
 		_, err := stmt.Exec(row...)
 		if err != nil {
-			txn.Rollback()
+			conn.Tx().Rollback()
 			ds.Context.Cancel()
 			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)
@@ -138,7 +138,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	_, err = stmt.Exec()
 	if err != nil {
-		txn.Rollback()
+		conn.Tx().Rollback()
 		return count, g.Error(err, "could not execute statement")
 	}
 
@@ -147,7 +147,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		return count, g.Error(err, "could not close transaction")
 	}
 
-	err = txn.Commit()
+	err = conn.Commit()
 	if err != nil {
 		return count, g.Error(err, "could not commit transaction")
 	}
@@ -188,42 +188,25 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	txn, err := conn.Db().BeginTx(conn.Context().Ctx, &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
+	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
 	if err != nil {
 		err = g.Error(err, "Could not begin transaction for upsert")
 		return
 	}
-	_, err = txn.ExecContext(conn.Context().Ctx, indexSQL)
+
+	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
 	}
 
 	sqlTempl := `
-	with src_table as (
-		select {src_fields} from {src_table}
-	)
-	, updates as (
-		update {tgt_table} tgt
-		set {set_fields}
-		from src_table src
-		where {src_tgt_pk_equal}
-		returning tgt.*
-	)
-	, inserts as (
-		insert into {tgt_table}
-		({insert_fields})
-		select {src_fields} from src_table src
-		where not exists (
-			select 1
-			from updates upd
-			where {src_upd_pk_equal}
-		)
-		returning *
-	)
-	select 
-		(select count(1) from updates) as update_cnt,
-		(select count(1) from inserts) as insert_cnt
+	insert into {tgt_table}
+	({insert_fields})
+	select {src_fields} from {src_table} src
+	on conflict ({pk_fields})
+	DO UPDATE 
+	SET {set_fields}
 	`
 
 	sql := g.R(
@@ -234,26 +217,25 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
 		"src_fields", upsertMap["src_fields"],
 		"pk_fields", upsertMap["pk_fields"],
-		"set_fields", upsertMap["set_fields"],
+		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
 		"insert_fields", upsertMap["insert_fields"],
 	)
-	result, err := txn.QueryContext(conn.Context().Ctx, sql)
+	res, err := conn.Tx().ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
 	}
 
-	var updCnt, insCnt int64
-	for result.Next() {
-		result.Scan(&updCnt, &insCnt)
+	rowAffCnt, err = res.RowsAffected()
+	if err != nil {
+		rowAffCnt = -1
 	}
 
-	err = txn.Commit()
+	err = conn.Commit()
 	if err != nil {
 		err = g.Error(err, "Could not commit upsert transaction")
 		return
 	}
 
-	rowAffCnt = updCnt + insCnt
 	return
 }

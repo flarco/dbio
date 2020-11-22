@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"strings"
@@ -78,7 +79,7 @@ type Connection interface {
 	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
 	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
-	Begin() error
+	Begin(options ...*sql.TxOptions) error
 	Commit() error
 	Rollback() error
 	Query(sql string, limit ...int) (iop.Dataset, error)
@@ -93,6 +94,7 @@ type Connection interface {
 	InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	Db() *sqlx.DB
+	Tx() *sqlx.Tx
 	Exec(sql string, args ...interface{}) (result sql.Result, err error)
 	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
 	MustExec(sql string, args ...interface{}) (result sql.Result)
@@ -115,6 +117,7 @@ type Connection interface {
 	GetTables(string) (iop.Dataset, error)
 	GetViews(string) (iop.Dataset, error)
 	GetSQLColumns(sqls ...string) (columns []iop.Column, err error)
+	TableExists(tableFName string) (exists bool, err error)
 	GetColumns(tableFName string, fields ...string) ([]iop.Column, error)
 	GetColumnStats(tableName string, fields ...string) (columns []iop.Column, err error)
 	GetPrimaryKeys(string) (iop.Dataset, error)
@@ -418,6 +421,11 @@ func (conn *BaseConn) Self() Connection {
 // Db returns the sqlx db object
 func (conn *BaseConn) Db() *sqlx.DB {
 	return conn.db
+}
+
+// Tx returns the current sqlx tx object
+func (conn *BaseConn) Tx() *sqlx.Tx {
+	return conn.tx
 }
 
 // String returns the db type string
@@ -872,13 +880,20 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 }
 
 // Begin starts a connection wide transaction
-func (conn *BaseConn) Begin() (err error) {
+func (conn *BaseConn) Begin(options ...*sql.TxOptions) (err error) {
 	if conn.db == nil {
 		return
 	}
-	conn.tx, err = conn.db.BeginTxx(conn.Context().Ctx, &sql.TxOptions{})
-	if err != nil {
-		err = g.Error(err, "could not begin Tx")
+
+	if len(options) == 0 {
+		options = []*sql.TxOptions{&sql.TxOptions{}}
+	}
+
+	if conn.tx == nil {
+		conn.tx, err = conn.db.BeginTxx(conn.Context().Ctx, options[0])
+		if err != nil {
+			err = g.Error(err, "could not begin Tx")
+		}
 	}
 	return
 }
@@ -1089,13 +1104,34 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 			Type = "string" // default as string
 		}
 
-		columns[i] = iop.Column{
+		col := iop.Column{
 			Name:     colType.Name(),
 			Position: i + 1,
 			Type:     Type,
 			DbType:   dbType,
 			ColType:  colType,
 		}
+
+		length, scale, ok := int64(0), int64(0), false
+		if col.IsString() {
+			length, ok = colType.Length()
+		} else if col.IsNumber() {
+			length, scale, ok = colType.DecimalSize()
+		}
+
+		if length == math.MaxInt64 {
+			length = math.MaxInt32
+		}
+
+		col.Stats.MaxLen = cast.ToInt(length)
+		col.Stats.MaxDecLen = cast.ToInt(scale)
+		col.Sourced = ok
+		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
+
+		g.Debug("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
+
+		columns[i] = col
+
 		// g.Trace("%s -> %s (%s)", colType.Name(), Type, dbType)
 	}
 	return columns
@@ -1141,6 +1177,22 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns []iop.Column, err e
 	}
 
 	columns = iop.Columns(columns)
+	return
+}
+
+// TableExists returns true if the table exists
+func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
+
+	sql := getMetadataTableFName(conn, "columns", tableFName)
+
+	colData, err := conn.Self().Query(sql)
+	if err != nil {
+		return false, g.Error(err, "could not check table existence: "+tableFName)
+	}
+
+	if len(colData.Rows) > 0 {
+		exists = true
+	}
 	return
 }
 
@@ -1566,7 +1618,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		txOptions = sql.TxOptions{}
 	}
 
-	tx, err := conn.Db().BeginTx(ds.Context.Ctx, &txOptions)
+	err = conn.Begin(&txOptions)
 	if err != nil {
 		err = g.Error(err, "Could not begin transaction")
 		return
@@ -1578,12 +1630,12 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 
 		// open statement
-		stmt, err := tx.PrepareContext(ds.Context.Ctx, insertTemplate)
+		stmt, err := conn.Tx().PrepareContext(ds.Context.Ctx, insertTemplate)
 		if err != nil {
 			err = g.Error(err, "Error in PrepareContext")
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			tx.Rollback()
+			conn.Tx().Rollback()
 			return conn.Context().Err()
 		}
 
@@ -1610,7 +1662,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 			))
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			tx.Rollback()
+			conn.Tx().Rollback()
 			return conn.Context().Err()
 		}
 
@@ -1623,7 +1675,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 			)
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			tx.Rollback()
+			conn.Tx().Rollback()
 		}
 		return conn.Context().Err()
 	}
@@ -1671,7 +1723,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		return count, g.Error(ds.Err(), "context error")
 	}
 
-	err = tx.Commit()
+	err = conn.Commit()
 	if err != nil {
 		ds.Context.Cancel()
 		return 0, g.Error(err, "could not commit transaction")
@@ -1745,18 +1797,20 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 	tgtTableTemp := tgtTable + "_tmp" + g.RandString(g.AlphaRunesLower, 2)
 	conn.DropTable(tgtTableTemp)
 
-	tx, err := conn.db.Begin()
+	err = conn.Begin()
 	if err != nil {
 		err = g.Error(err, "Could not begin transaction")
 		return
 	}
+	closeTx := func() { conn.Rollback() } // rollback in case of error
+	defer closeTx()
 
 	sql := g.R(
 		conn.GetTemplateValue("core.rename_table"),
 		"table", tgtTable,
 		"new_table", tgtTableTemp,
 	)
-	_, err = tx.Exec(sql)
+	_, err = conn.tx.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+tgtTable)
 	}
@@ -1766,7 +1820,7 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 		"table", srcTable,
 		"new_table", tgtTable,
 	)
-	_, err = tx.Exec(sql)
+	_, err = conn.tx.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+srcTable)
 	}
@@ -1776,14 +1830,16 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 		"table", tgtTableTemp,
 		"new_table", srcTable,
 	)
-	_, err = tx.Exec(sql)
+	_, err = conn.tx.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+tgtTableTemp)
 	}
-	err = tx.Commit()
+	err = conn.tx.Commit()
 	if err != nil {
 		return g.Error(err, "could not commit")
 	}
+
+	closeTx = func() { conn.Commit() } // change to commit
 
 	return
 }
@@ -1845,18 +1901,21 @@ func (conn *BaseConn) getNativeType(col iop.Column) (nativeType string, err erro
 
 	// Add precision as needed
 	if strings.HasSuffix(nativeType, "()") {
-		length := col.Stats.MaxLen * 2
-		if col.Type == "string" {
-			if length < 255 {
-				length = 255
+		length := col.Stats.MaxLen
+		if col.IsString() {
+			if !col.Sourced {
+				length = col.Stats.MaxLen * 2
+				if length < 255 {
+					length = 255
+				}
 			}
 			nativeType = strings.ReplaceAll(
 				nativeType,
 				"()",
 				fmt.Sprintf("(%d)", length),
 			)
-		} else if col.Type == "integer" {
-			if length < ddlDefDecLength {
+		} else if col.IsInteger() {
+			if !col.Sourced && length < ddlDefDecLength {
 				length = ddlDefDecLength
 			}
 			nativeType = strings.ReplaceAll(
@@ -1866,22 +1925,28 @@ func (conn *BaseConn) getNativeType(col iop.Column) (nativeType string, err erro
 			)
 		}
 	} else if strings.HasSuffix(nativeType, "(,)") {
-		length := col.Stats.MaxLen * 2
-		scale := col.Stats.MaxDecLen + 2
-		length = ddlMaxDecLength // max out
-		scale = ddlMaxDecScale   // max out
-		if strings.Contains("float,smallint,integer,bigint,decimal", col.Type) {
-			if length < ddlMaxDecScale {
-				length = ddlMaxDecScale
-			} else if length > ddlMaxDecLength {
-				length = ddlMaxDecLength
-			}
-			if scale < ddlMinDecScale {
-				scale = ddlMinDecScale
-			} else if scale > ddlMaxDecScale {
-				scale = ddlMaxDecScale
+		length := col.Stats.MaxLen
+		scale := col.Stats.MaxDecLen
+
+		if !col.Sourced {
+			length = ddlMaxDecLength // max out
+			scale = ddlMaxDecScale   // max out
+
+			if col.IsNumber() {
+				if length < ddlMaxDecScale {
+					length = ddlMaxDecScale
+				} else if length > ddlMaxDecLength {
+					length = ddlMaxDecLength
+				}
+
+				if scale < ddlMinDecScale {
+					scale = ddlMinDecScale
+				} else if scale > ddlMaxDecScale {
+					scale = ddlMaxDecScale
+				}
 			}
 		}
+
 		nativeType = strings.ReplaceAll(
 			nativeType,
 			"(,)",

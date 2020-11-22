@@ -253,12 +253,13 @@ func (conn *MySQLConn) Upsert(srcTable string, tgtTable string, pkFields []strin
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	txn, err := conn.Db().BeginTx(conn.Context().Ctx, &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
+	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
 	if err != nil {
 		err = g.Error(err, "Could not begin transaction for upsert")
 		return
 	}
-	_, err = txn.ExecContext(conn.Context().Ctx, indexSQL)
+
+	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "Duplicate") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -284,7 +285,7 @@ func (conn *MySQLConn) Upsert(srcTable string, tgtTable string, pkFields []strin
 		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", upsertMap["src_fields"],
 	)
-	res, err := txn.ExecContext(conn.Context().Ctx, sql)
+	res, err := conn.Tx().ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
@@ -295,7 +296,7 @@ func (conn *MySQLConn) Upsert(srcTable string, tgtTable string, pkFields []strin
 		rowAffCnt = -1
 	}
 
-	err = txn.Commit()
+	err = conn.Commit()
 	if err != nil {
 		err = g.Error(err, "Could not commit upsert transaction")
 		return

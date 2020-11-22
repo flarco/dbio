@@ -180,6 +180,7 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 				return paths, err
 			}
 			for _, blob := range blobs {
+				// blob.Properties.LastModified
 				blobFile := g.F("https://%s/%s/%s", host, container.Name, blob.Name)
 				if blobFile == url {
 					paths = append(

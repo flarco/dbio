@@ -152,6 +152,7 @@ func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 	}
 
 	for _, file := range files {
+		// file.ModTime()
 		paths = append(paths, path+"/"+file.Name())
 	}
 	return
