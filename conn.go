@@ -44,6 +44,7 @@ const (
 // DataConn represents a data connection with properties
 type DataConn struct {
 	ID   string
+	Type string
 	URL  string
 	Vars map[string]interface{}
 }
@@ -52,15 +53,16 @@ type DataConn struct {
 func NewDataConnFromMap(m map[string]interface{}) (dc *DataConn) {
 	dc = &DataConn{
 		ID:   cast.ToString(m["id"]),
-		URL:  cast.ToString(m["url"]),
+		Type: cast.ToString(m["type"]),
 		Vars: map[string]interface{}{},
 	}
-	vars, ok := m["vars"].(map[string]interface{})
+	data, ok := m["data"].(map[string]interface{})
 	if ok {
-		dc.Vars = vars
+		dc.Vars = data
 	}
 
 	dc.SetFromEnv()
+	dc.SetURL()
 	return dc
 }
 
@@ -107,6 +109,7 @@ func (dc *DataConn) ToMap() map[string]interface{} {
 
 // GetType returns the connection type
 func (dc *DataConn) GetType() ConnType {
+
 	switch {
 	case strings.HasPrefix(dc.URL, "postgres"):
 		if strings.Contains(dc.URL, "redshift.amazonaws.com") {
@@ -160,6 +163,54 @@ func (dc *DataConn) GetType() ConnType {
 	default:
 		return ConnTypeFileLocal
 	}
+}
+
+// SetURL sets the corresponding URL string
+// dc.Type should be set prior
+func (dc *DataConn) SetURL() error {
+	cType, ok := ConnTypeMapping()[dc.Type]
+	if !ok {
+		return g.Error("could not map type '%s'", dc.Type)
+	}
+
+	if u, ok := dc.Vars["url"]; ok {
+		dc.URL = cast.ToString(u)
+		return nil
+	}
+
+	template := ""
+
+	switch cType {
+	case ConnTypeDbOracle:
+		if tns, ok := dc.Vars["tns"]; ok {
+			if !strings.HasPrefix(cast.ToString(tns), "(") {
+				dc.Vars["tns"] = "(" + cast.ToString(tns) + ")"
+			}
+			template = "oracle://{username}:{password}@{tns}"
+		} else {
+			template = "oracle://{username}:{password}@{host}:{port}/{sid}"
+		}
+	case ConnTypeDbPostgres:
+		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
+	case ConnTypeDbRedshift:
+		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
+	case ConnTypeDbMySQL:
+		template = "mysql://{username}:{password}@{host}:{port}/{database}"
+	case ConnTypeDbBigQuery:
+		template = "bigquery://{project_id}/{location}/{dataset_id}"
+	case ConnTypeDbSnowflake:
+		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
+	case ConnTypeDbSQLite:
+		template = "sqlite:///{database}"
+	case ConnTypeDbSQLServer, ConnTypeDbAzure:
+		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
+	}
+
+	if template != "" {
+		dc.URL = g.Rm(template, dc.Vars)
+	}
+
+	return nil
 }
 
 // ConnTypesDefPort are all the default ports
@@ -274,8 +325,8 @@ func (ct ConnType) GetKey() string {
 	return ConnTypesKeyMapping[ct]
 }
 
-// ConnTypesKeyMappingInv returns the inverse mapping of key to type
-func ConnTypesKeyMappingInv() map[string]ConnType {
+// ConnTypeMapping returns the mapping of key to type
+func ConnTypeMapping() map[string]ConnType {
 	m := map[string]ConnType{}
 	for k, v := range ConnTypesKeyMapping {
 		m[v] = k
@@ -320,8 +371,8 @@ func (dc *DataConn) GetTypeName() string {
 	return dc.GetType().GetName()
 }
 
-// GetConnTypeMapping returns a key to name mapping of connection types
-func GetConnTypeMapping() map[string]string {
+// GetConnKeyNameMapping returns a key to name mapping of connection types
+func GetConnKeyNameMapping() map[string]string {
 	m := map[string]string{}
 	for t, key := range ConnTypesKeyMapping {
 		m[key] = ConnTypesNameMapping[t]
