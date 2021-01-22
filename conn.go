@@ -269,9 +269,23 @@ var ConnTypesKeyMapping = map[ConnType]string{
 	ConnTypeAPIGithub:   "github",
 }
 
+// GetKey return the corresponding key
+func (ct ConnType) GetKey() string {
+	return ConnTypesKeyMapping[ct]
+}
+
+// ConnTypesKeyMappingInv returns the inverse mapping of key to type
+func ConnTypesKeyMappingInv() map[string]ConnType {
+	m := map[string]ConnType{}
+	for k, v := range ConnTypesKeyMapping {
+		m[v] = k
+	}
+	return m
+}
+
 // GetTypeKey return the type name
 func (dc *DataConn) GetTypeKey() string {
-	return ConnTypesKeyMapping[dc.GetType()]
+	return dc.GetType().GetKey()
 }
 
 // ConnTypesNameMapping are all the connection types with their key
@@ -296,9 +310,14 @@ var ConnTypesNameMapping = map[ConnType]string{
 	ConnTypeAPIGithub:   "Github",
 }
 
+// GetName return the corresponding Name
+func (ct ConnType) GetName() string {
+	return ConnTypesNameMapping[ct]
+}
+
 // GetTypeName return the type name
 func (dc *DataConn) GetTypeName() string {
-	return ConnTypesNameMapping[dc.GetType()]
+	return dc.GetType().GetName()
 }
 
 // GetConnTypeMapping returns a key to name mapping of connection types
