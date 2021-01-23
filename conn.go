@@ -85,8 +85,8 @@ func (dc *DataConn) SetFromEnv() {
 	}
 }
 
-// VarsS returns vars as map[string]string
-func (dc *DataConn) VarsS(lowerCase ...bool) map[string]string {
+// DataS returns data as map[string]string
+func (dc *DataConn) DataS(lowerCase ...bool) map[string]string {
 	lc := false
 	if len(lowerCase) > 0 {
 		lc = lowerCase[0]
@@ -238,7 +238,7 @@ func (dc *DataConn) GetCredProps() (m map[string]interface{}, err error) {
 
 	schema := u.PopParam("schema")
 	if schema == "" {
-		schema = dc.VarsS(true)["schema"]
+		schema = dc.DataS(true)["schema"]
 	}
 
 	m = g.M(

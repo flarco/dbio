@@ -322,7 +322,7 @@ func (conn *RedshiftConn) CopyFromS3(tableFName, s3Path string) (count uint64, e
 // CopyDirect copies directly from cloud files
 // (without passing through dbio)
 func (conn *RedshiftConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error) {
-	props := g.MapToKVArr(srcFile.VarsS())
+	props := g.MapToKVArr(srcFile.DataS())
 	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL, props...)
 	if err != nil {
 		err = g.Error(err, "Could not obtain client for: "+srcFile.URL)

@@ -239,7 +239,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		for _, dc := range conns {
 			if dc.ID == URL {
 				URL = dc.URL
-				props = g.MapToKVArr(dc.VarsS())
+				props = g.MapToKVArr(dc.DataS())
 			}
 		}
 	}

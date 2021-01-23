@@ -707,7 +707,7 @@ func (conn *SnowflakeConn) Upsert(srcTable string, tgtTable string, pkFields []s
 // CopyDirect copies directly from cloud files
 // (without passing through dbio)
 func (conn *SnowflakeConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error) {
-	props := g.MapToKVArr(srcFile.VarsS())
+	props := g.MapToKVArr(srcFile.DataS())
 	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL, props...)
 	if err != nil {
 		err = g.Error(err, "Could not obtain client for: "+srcFile.URL)
