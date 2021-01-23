@@ -309,7 +309,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	return conn, err
 }
 
-// GetSlingEnv return sling Env Vars
+// GetSlingEnv return sling Env Data
 func GetSlingEnv() map[string]string {
 	slingEnvs := map[string]string{}
 

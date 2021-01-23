@@ -46,7 +46,7 @@ type DataConn struct {
 	ID   string
 	Type string
 	URL  string
-	Vars map[string]interface{}
+	Data map[string]interface{}
 }
 
 // NewDataConnFromMap loads a DataConn from a Map
@@ -54,11 +54,11 @@ func NewDataConnFromMap(m map[string]interface{}) (dc *DataConn) {
 	dc = &DataConn{
 		ID:   cast.ToString(m["id"]),
 		Type: cast.ToString(m["type"]),
-		Vars: map[string]interface{}{},
+		Data: map[string]interface{}{},
 	}
 	data, ok := m["data"].(map[string]interface{})
 	if ok {
-		dc.Vars = data
+		dc.Data = data
 	}
 
 	dc.SetFromEnv()
@@ -72,12 +72,12 @@ func (dc *DataConn) SetFromEnv() {
 		dc.URL = newURL
 	}
 
-	for k, v := range dc.Vars {
+	for k, v := range dc.Data {
 		val := cast.ToString(v)
 		if strings.HasPrefix(val, "$") {
 			varKey := strings.TrimLeft(val, "$")
 			if newVal := os.Getenv(varKey); newVal != "" {
-				dc.Vars[k] = newVal
+				dc.Data[k] = newVal
 			} else {
 				g.Warn("No env var value found for %s", val)
 			}
@@ -91,20 +91,20 @@ func (dc *DataConn) VarsS(lowerCase ...bool) map[string]string {
 	if len(lowerCase) > 0 {
 		lc = lowerCase[0]
 	}
-	vars := map[string]string{}
-	for k, v := range dc.Vars {
+	data := map[string]string{}
+	for k, v := range dc.Data {
 		if lc {
-			vars[strings.ToLower(k)] = cast.ToString(v)
+			data[strings.ToLower(k)] = cast.ToString(v)
 		} else {
-			vars[k] = cast.ToString(v)
+			data[k] = cast.ToString(v)
 		}
 	}
-	return vars
+	return data
 }
 
 // ToMap transforms DataConn to a Map
 func (dc *DataConn) ToMap() map[string]interface{} {
-	return g.M("id", dc.ID, "url", dc.URL, "vars", dc.Vars)
+	return g.M("id", dc.ID, "type", dc.Type, "data", dc.Data)
 }
 
 // GetType returns the connection type
@@ -173,7 +173,12 @@ func (dc *DataConn) SetURL() error {
 		return g.Error("could not map type '%s'", dc.Type)
 	}
 
-	if u, ok := dc.Vars["url"]; ok {
+	if dc.URL != "" {
+		dc.Type = dc.GetType().GetKey()
+		return nil
+	}
+
+	if u, ok := dc.Data["url"]; ok {
 		dc.URL = cast.ToString(u)
 		return nil
 	}
@@ -182,9 +187,9 @@ func (dc *DataConn) SetURL() error {
 
 	switch cType {
 	case ConnTypeDbOracle:
-		if tns, ok := dc.Vars["tns"]; ok {
+		if tns, ok := dc.Data["tns"]; ok {
 			if !strings.HasPrefix(cast.ToString(tns), "(") {
-				dc.Vars["tns"] = "(" + cast.ToString(tns) + ")"
+				dc.Data["tns"] = "(" + cast.ToString(tns) + ")"
 			}
 			template = "oracle://{username}:{password}@{tns}"
 		} else {
@@ -207,7 +212,7 @@ func (dc *DataConn) SetURL() error {
 	}
 
 	if template != "" {
-		dc.URL = g.Rm(template, dc.Vars)
+		dc.URL = g.Rm(template, dc.Data)
 	}
 
 	return nil
