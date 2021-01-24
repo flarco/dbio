@@ -5,6 +5,7 @@ oracle:
   title: 'Oracle'
   kind: database
   required: ["host", "port", "username"]
+  url_template: ['oracle://{username}:{password}@{host}:{port}/{sid}', 'oracle://{username}:{password}@{tns}']
   properties:
     id:
       type: text
@@ -35,6 +36,7 @@ oracle:
 snowflake:
   title: 'Snowflake'
   kind: database
+  fields: ["host", "database", "schema", "role", "username", "password", "warehouse"]
   required: ["host", "database", "schema", "role", "username", "password"]
   url_template: 'snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}'
   properties:
@@ -72,10 +74,6 @@ redshift:
   required: ["host", "port", "database", "username", 'aws_bucket', 'aws_access_key_id', 'aws_secret_access_key']
   url_template: 'redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}'
   properties:
-    id:
-      type: text
-      title: Connection Name
-      description: 'The name of the connection. No spaces are allowed, will be all caps. Example: RS_DWH'
     database:
       type: text
       description: 'The database name of the instance'
