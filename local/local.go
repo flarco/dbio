@@ -3,11 +3,12 @@ package local
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/flarco/dbio"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/process"
@@ -219,22 +220,24 @@ func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err err
 			return
 		}
 		delete(connObj, "url")
-		vars := g.M()
+		data := g.M()
 		for k, v := range connObj {
-			vars[strings.ToUpper(k)] = v
+			data[strings.ToUpper(k)] = v
 		}
 
-		dc = dbio.NewDataConnFromMap(g.M(
+		dc, err = dbio.NewDataConnFromMap(g.M(
 			"id", strings.ToUpper(name),
 			"url", cast.ToString(URL),
-			"vars", vars,
+			"data", data,
 		))
-		dc.SetFromEnv()
+		if err != nil {
+			return
+		}
 
 		// BigQuery: adjust path of service account json file
 		if dc.GetType() == dbio.ConnTypeDbBigQuery {
-			if val, ok := vars["GC_CRED_FILE"]; ok {
-				vars["GC_CRED_FILE"] = g.F("%s/%s", home.Path, val)
+			if val, ok := data["GC_CRED_FILE"]; ok {
+				data["GC_CRED_FILE"] = g.F("%s/%s", home.Path, val)
 			}
 		}
 
@@ -254,14 +257,19 @@ func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err err
 	// from Environment
 	if includeEnv {
 		for id, val := range g.KVArrToMap(os.Environ()...) {
-			conn := dbio.DataConn{ID: strings.ToUpper(id), URL: val}
+			conn, err := dbio.NewDataConnFromURL(strings.ToUpper(id), val)
+			if err != nil {
+				// g.LogError(err, "could not create data conn %s", conn.ID)
+				continue
+			}
+
 			if conn.GetTypeKey() == "" || conn.GetType() == dbio.ConnTypeFileLocal {
 				continue
 			}
 			if conn.GetType() == dbio.ConnTypeFileHTTP {
 				continue
 			}
-			dcs = append(dcs, conn)
+			dcs = append(dcs, *conn)
 		}
 	}
 

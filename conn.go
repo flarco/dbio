@@ -49,21 +49,36 @@ type DataConn struct {
 	Data map[string]interface{}
 }
 
-// NewDataConnFromMap loads a DataConn from a Map
-func NewDataConnFromMap(m map[string]interface{}) (dc *DataConn) {
+// NewDataConn creates a new DataConn
+func NewDataConn(ID, Type string, Data map[string]interface{}) (dc *DataConn, err error) {
 	dc = &DataConn{
-		ID:   cast.ToString(m["id"]),
-		Type: cast.ToString(m["type"]),
-		Data: map[string]interface{}{},
+		ID:   ID,
+		Type: Type,
+		Data: Data,
 	}
-	data, ok := m["data"].(map[string]interface{})
-	if ok {
-		dc.Data = data
+
+	if u, ok := dc.Data["url"]; ok {
+		dc.URL = cast.ToString(u)
 	}
 
 	dc.SetFromEnv()
-	dc.SetURL()
-	return dc
+	dc.SetType()
+	err = dc.SetURL()
+	return dc, err
+}
+
+// NewDataConnFromURL loads a DataConn from a URL
+func NewDataConnFromURL(id, URL string) (dc *DataConn, err error) {
+	return NewDataConn(id, "", g.M("url", URL))
+}
+
+// NewDataConnFromMap loads a DataConn from a Map
+func NewDataConnFromMap(m map[string]interface{}) (dc *DataConn, err error) {
+	data, ok := m["data"].(map[string]interface{})
+	if !ok {
+		data = g.M()
+	}
+	return NewDataConn(cast.ToString(m["id"]), cast.ToString(m["type"]), data)
 }
 
 // SetFromEnv set values from environment
@@ -165,6 +180,13 @@ func (dc *DataConn) GetType() ConnType {
 	}
 }
 
+// SetType sets the DataConn Type
+func (dc *DataConn) SetType() {
+	if dc.URL != "" {
+		dc.Type = dc.GetType().GetKey()
+	}
+}
+
 // SetURL sets the corresponding URL string
 // dc.Type should be set prior
 func (dc *DataConn) SetURL() error {
@@ -174,16 +196,21 @@ func (dc *DataConn) SetURL() error {
 	}
 
 	if dc.URL != "" {
-		dc.Type = dc.GetType().GetKey()
-		return nil
-	}
-
-	if u, ok := dc.Data["url"]; ok {
-		dc.URL = cast.ToString(u)
 		return nil
 	}
 
 	template := ""
+
+	// checkData checks dc.Data for any missing keys
+	checkData := func(keys ...string) error {
+		eG := g.ErrorGroup{}
+		for _, k := range keys {
+			if _, ok := dc.Data[k]; !ok {
+				eG.Add(g.Error("Prop value not provided: %s", k))
+			}
+		}
+		return eG.Err()
+	}
 
 	switch cType {
 	case ConnTypeDbOracle:
@@ -212,6 +239,10 @@ func (dc *DataConn) SetURL() error {
 	}
 
 	if template != "" {
+		keys := g.MatchesGroup(template, "{([a-zA-Z]+)}", 0)
+		if err := checkData(keys...); err != nil {
+			return g.Error(err, "keys missing")
+		}
 		dc.URL = g.Rm(template, dc.Data)
 	}
 
