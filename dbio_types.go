@@ -71,6 +71,19 @@ func (t Type) String() string {
 	return string(t)
 }
 
+// DefPort returns the default port
+func (t Type) DefPort() int {
+	connTypesDefPort := map[Type]int{
+		TypeDbPostgres:  5432,
+		TypeDbRedshift:  5439,
+		TypeDbMySQL:     3306,
+		TypeDbOracle:    1521,
+		TypeDbSQLServer: 1433,
+		TypeDbAzure:     1433,
+	}
+	return connTypesDefPort[t]
+}
+
 // Kind returns the kind of connection
 func (t Type) Kind() Kind {
 	switch t {

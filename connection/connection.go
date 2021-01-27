@@ -48,28 +48,25 @@ type connBase struct {
 func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
 	c := g.NewContext(context.Background())
 
-	if t == dbio.TypeUnknown {
+	b := connBase{ID: ID, Type: t, Data: Data, context: c}
+	conn = &b
+
+	err = b.setURL()
+	if err != nil {
+		return conn, g.Error(err, "could not set URL for %s: %s", b.Type, ID)
+	}
+
+	if b.Type == dbio.TypeUnknown {
 		return conn, g.Error("must specify connection type")
 	}
 
-	b := connBase{ID: ID, Type: t, Data: Data, context: c}
-	err = b.setURL()
-	if err != nil {
-		return conn, g.Error(err, "could not set URL for %s: %s", t, ID)
-	}
-
-	_, ok := dbio.ValidateType(t.String())
-	if !ok {
-		return conn, g.Error("unsupported type: %s", t.String())
-	}
-
-	switch t.Kind() {
+	switch b.Type.Kind() {
 	case dbio.KindDatabase:
 		dbConn, err := database.NewConnContext(
 			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
 		)
 		if err != nil {
-			return conn, g.Error(err, "could not connect to %s: %s", t, ID)
+			return conn, g.Error(err, "could not connect to %s: %s", b.Type, ID)
 		}
 
 		dbConnPtr := &connDatabase{
@@ -83,7 +80,7 @@ func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Co
 			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
 		)
 		if err != nil {
-			return conn, g.Error(err, "could not connect to %s: %s", t, ID)
+			return conn, g.Error(err, "could not connect to %s: %s", b.Type, ID)
 		}
 		fileConnPtr := &connFile{
 			connBase: b,
@@ -92,24 +89,14 @@ func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Co
 		conn = fileConnPtr
 
 	default:
-		err = g.Error("unsupported connection type (%s)", t)
+		err = g.Error("unsupported connection type (%s)", b.Type)
 	}
 	return conn, err
 }
 
 // NewConnectionFromURL creates a new connection from a url
 func NewConnectionFromURL(ID, URL string) (conn Connection, err error) {
-	U, err := net.NewURL(URL)
-	if err != nil {
-		return conn, g.Error("could not parse provided url")
-	}
-
-	t, ok := dbio.ValidateType(U.U.Scheme)
-	if !ok {
-		return conn, g.Error("unsupported type: %s", U.U.Scheme)
-	}
-
-	return NewConnection(ID, t, g.M("url", URL))
+	return NewConnection(ID, "", g.M("url", URL))
 }
 
 // NewConnectionFromMap loads a Connection from a Map
@@ -179,6 +166,10 @@ func (c *connBase) AsFile() filesys.FileSysClient {
 
 // SetFromEnv set values from environment
 func (c *connBase) setFromEnv() {
+	if c.ID == "" && strings.HasPrefix(c.URL(), "$") {
+		c.ID = strings.TrimLeft(c.URL(), "$")
+	}
+
 	if newURL := os.Getenv(strings.TrimLeft(c.URL(), "$")); newURL != "" {
 		c.Data["url"] = newURL
 	}
@@ -196,11 +187,41 @@ func (c *connBase) setFromEnv() {
 	}
 }
 
-// setURL sets the url
+// Close closes the connection
+func (c *connBase) Close() error {
+	return nil
+}
+
 func (c *connBase) setURL() (err error) {
 	c.setFromEnv()
+
 	if c.URL() != "" {
-		return
+		U, err := net.NewURL(c.URL())
+		if err != nil {
+			return g.Error("could not parse provided url")
+		}
+
+		scheme := U.U.Scheme
+		if scheme == "" {
+			// if scheme is blank, than is local file
+			scheme = string(dbio.TypeFileLocal)
+		}
+
+		// set props from URL
+		c.Data["schema"] = U.PopParam("schema")
+		c.Data["host"] = U.Hostname()
+		c.Data["username"] = U.Username()
+		c.Data["password"] = U.Password()
+		c.Data["port"] = U.Port(c.Info().Type.DefPort())
+		c.Data["database"] = strings.ReplaceAll(U.Path(), "/", "")
+		c.Data["url"] = U.URL()
+
+		t, ok := dbio.ValidateType(scheme)
+		if !ok {
+			return g.Error("unsupported type: %s", U.U.Scheme)
+		}
+		c.Type = t
+		return nil
 	}
 
 	template := ""
@@ -304,6 +325,10 @@ func (c *connFile) AsFile() filesys.FileSysClient {
 // CopyDirect copies directly from cloud files
 // (without passing through dbio)
 func CopyDirect(conn database.Connection, tableFName string, srcFile Connection) (cnt uint64, ok bool, err error) {
+	if srcFile == nil {
+		return 0, false, nil
+	}
+
 	props := g.MapToKVArr(srcFile.DataS())
 	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL(), props...)
 	if err != nil {
