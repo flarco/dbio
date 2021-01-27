@@ -3,12 +3,12 @@ package local
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/flarco/dbio"
+	"github.com/flarco/dbio/connection"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/flarco/dbio"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/process"
@@ -210,9 +210,9 @@ func (home *Home) CloneRepo(URL string) (path string, err error) {
 }
 
 // ListConnections returns an array of connections
-func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err error) {
+func (p *Profile) ListConnections(includeEnv bool) (cArr []connection.Connection, err error) {
 
-	getConn := func(name string, connObj map[string]interface{}) (dc *dbio.DataConn, err error) {
+	getConn := func(name string, connObj map[string]interface{}) (c connection.Connection, err error) {
 		URL, ok := connObj["url"]
 		if !ok {
 			err = fmt.Errorf("no url provided for profile connection: " + name)
@@ -220,14 +220,13 @@ func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err err
 			return
 		}
 		delete(connObj, "url")
-		data := g.M()
+		data := g.M("url", cast.ToString(URL))
 		for k, v := range connObj {
 			data[strings.ToUpper(k)] = v
 		}
 
-		dc, err = dbio.NewDataConnFromMap(g.M(
+		c, err = connection.NewConnectionFromMap(g.M(
 			"id", strings.ToUpper(name),
-			"url", cast.ToString(URL),
 			"data", data,
 		))
 		if err != nil {
@@ -235,7 +234,7 @@ func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err err
 		}
 
 		// BigQuery: adjust path of service account json file
-		if dc.GetType() == dbio.ConnTypeDbBigQuery {
+		if c.Info().Type == dbio.TypeDbBigQuery {
 			if val, ok := data["GC_CRED_FILE"]; ok {
 				data["GC_CRED_FILE"] = g.F("%s/%s", home.Path, val)
 			}
@@ -244,32 +243,32 @@ func (p *Profile) ListConnections(includeEnv bool) (dcs []dbio.DataConn, err err
 		return
 	}
 
-	dcs = []dbio.DataConn{}
+	cArr = []connection.Connection{}
 	for name, connObj := range p.Connections {
-		dc, err := getConn(name, connObj)
+		c, err := getConn(name, connObj)
 		if err != nil {
 			err = g.Error(err, "error parsing profile connection:"+name)
-			return dcs, err
+			return cArr, err
 		}
-		dcs = append(dcs, *dc)
+		cArr = append(cArr, c)
 	}
 
 	// from Environment
 	if includeEnv {
 		for id, val := range g.KVArrToMap(os.Environ()...) {
-			conn, err := dbio.NewDataConnFromURL(strings.ToUpper(id), val)
+			conn, err := connection.NewConnectionFromURL(strings.ToUpper(id), val)
 			if err != nil {
 				// g.LogError(err, "could not create data conn %s", conn.ID)
 				continue
 			}
 
-			if conn.GetTypeKey() == "" || conn.GetType() == dbio.ConnTypeFileLocal {
+			switch conn.Info().Type {
+			case "", dbio.TypeFileLocal:
+				continue
+			case dbio.TypeFileHTTP:
 				continue
 			}
-			if conn.GetType() == dbio.ConnTypeFileHTTP {
-				continue
-			}
-			dcs = append(dcs, *conn)
+			cArr = append(cArr, conn)
 		}
 	}
 

@@ -2,7 +2,10 @@ package connection
 
 import (
 	"context"
+	"os"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/database"
 	"github.com/flarco/dbio/filesys"
@@ -11,94 +14,11 @@ import (
 	"github.com/spf13/cast"
 )
 
-// Kind is the connection kind
-type Kind string
-
-const (
-	// KindDatabase for databases
-	KindDatabase Kind = "database"
-	// KindFile for files (cloud, sftp)
-	KindFile Kind = "file"
-	// KindAPI for APIs
-	KindAPI Kind = "api"
-	// KindUnknown for unknown
-	KindUnknown Kind = ""
-)
-
-// Type is the connection type
-type Type string
-
-const (
-	TypeUnknown = ""
-
-	TypeFileLocal  = "local"
-	TypeFileHDFS   = "hdfs"
-	TypeFileS3     = "s3"
-	TypeFileAzure  = "azure"
-	TypeFileGoogle = "gs"
-	TypeFileSftp   = "sftp"
-	TypeFileHTTP   = "http"
-
-	TypeDbPostgres  = "postgres"
-	TypeDbRedshift  = "redshift"
-	TypeDbMySQL     = "mysql"
-	TypeDbOracle    = "oracle"
-	TypeDbBigQuery  = "bigquery"
-	TypeDbSnowflake = "snowflake"
-	TypeDbSQLite    = "sqlite"
-	TypeDbSQLServer = "sqlserver"
-	TypeDbAzure     = "azuresql"
-
-	TypeAPIGit    = "git"
-	TypeAPIGithub = "github"
-)
-
-// ValidateType returns true is type is valid
-func ValidateType(tStr string) (Type, bool) {
-	t := Type(tStr)
-
-	tMap := map[string]Type{
-		"postgresql": TypeDbPostgres,
-	}
-
-	if tMatched, ok := tMap[tStr]; ok {
-		t = tMatched
-	}
-
-	switch t {
-	case
-		TypeFileLocal, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp,
-
-		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure:
-		return t, true
-	}
-
-	return t, false
-}
-
-// String returns string instance
-func (t Type) String() string {
-	return string(t)
-}
-
-// Kind returns the kind of connection
-func (t Type) Kind() Kind {
-	switch t {
-	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery,
-		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure:
-		return KindDatabase
-	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
-		return KindFile
-	case TypeAPIGit, TypeAPIGithub:
-		return KindAPI
-	}
-	return KindUnknown
-}
-
 // Info is the connection type
 type Info struct {
 	Name string
-	Type Type
+	Type dbio.Type
+	Data map[string]interface{}
 }
 
 // Connection is a connection
@@ -108,25 +28,27 @@ type Connection interface {
 	Context() g.Context
 	Info() Info
 	URL() string
-	// ToMap() map[string]interface{}
+	DataS(lowerCase ...bool) map[string]string
+	ToMap() map[string]interface{}
 	AsDatabase() database.Connection
 	AsFile() filesys.FileSysClient
 	// AsAPI() interface{}
+	Set(map[string]interface{})
 }
 
 // connBase is the base connection struct
 type connBase struct {
 	ID      string                 `json:"id"`
-	Type    Type                   `json:"type"`
+	Type    dbio.Type              `json:"type"`
 	Data    map[string]interface{} `json:"data"`
 	context g.Context              `json:"-"`
 }
 
 // NewConnection creates a new connection
-func NewConnection(ID string, t Type, Data map[string]interface{}) (conn Connection, err error) {
+func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
 	c := g.NewContext(context.Background())
 
-	if t == TypeUnknown {
+	if t == dbio.TypeUnknown {
 		return conn, g.Error("must specify connection type")
 	}
 
@@ -136,13 +58,13 @@ func NewConnection(ID string, t Type, Data map[string]interface{}) (conn Connect
 		return conn, g.Error(err, "could not set URL for %s: %s", t, ID)
 	}
 
-	_, ok := ValidateType(t.String())
+	_, ok := dbio.ValidateType(t.String())
 	if !ok {
 		return conn, g.Error("unsupported type: %s", t.String())
 	}
 
 	switch t.Kind() {
-	case KindDatabase:
+	case dbio.KindDatabase:
 		dbConn, err := database.NewConnContext(
 			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
 		)
@@ -156,7 +78,7 @@ func NewConnection(ID string, t Type, Data map[string]interface{}) (conn Connect
 		}
 		conn = dbConnPtr
 
-	case KindFile:
+	case dbio.KindFile:
 		fileConn, err := filesys.NewFileSysClientFromURLContext(
 			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
 		)
@@ -182,7 +104,7 @@ func NewConnectionFromURL(ID, URL string) (conn Connection, err error) {
 		return conn, g.Error("could not parse provided url")
 	}
 
-	t, ok := ValidateType(U.U.Scheme)
+	t, ok := dbio.ValidateType(U.U.Scheme)
 	if !ok {
 		return conn, g.Error("unsupported type: %s", U.U.Scheme)
 	}
@@ -190,11 +112,33 @@ func NewConnectionFromURL(ID, URL string) (conn Connection, err error) {
 	return NewConnection(ID, t, g.M("url", URL))
 }
 
+// NewConnectionFromMap loads a Connection from a Map
+func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
+	data, ok := m["data"].(map[string]interface{})
+	if !ok {
+		data = g.M()
+	}
+	return NewConnection(cast.ToString(m["id"]), dbio.Type(cast.ToString(m["type"])), data)
+}
+
 // Info returns connection information
 func (c *connBase) Info() Info {
 	return Info{
 		Name: c.ID,
 		Type: c.Type,
+		Data: c.Data,
+	}
+}
+
+// ToMap transforms DataConn to a Map
+func (c *connBase) ToMap() map[string]interface{} {
+	return g.M("id", c.ID, "type", c.Type, "data", c.Data)
+}
+
+// Set sets key/values from a map
+func (c *connBase) Set(m map[string]interface{}) {
+	for k, v := range m {
+		c.Data[k] = v
 	}
 }
 
@@ -233,9 +177,28 @@ func (c *connBase) AsFile() filesys.FileSysClient {
 	return nil
 }
 
+// SetFromEnv set values from environment
+func (c *connBase) setFromEnv() {
+	if newURL := os.Getenv(strings.TrimLeft(c.URL(), "$")); newURL != "" {
+		c.Data["url"] = newURL
+	}
+
+	for k, v := range c.Data {
+		val := cast.ToString(v)
+		if strings.HasPrefix(val, "$") {
+			varKey := strings.TrimLeft(val, "$")
+			if newVal := os.Getenv(varKey); newVal != "" {
+				c.Data[k] = newVal
+			} else {
+				g.Warn("No env var value found for %s", val)
+			}
+		}
+	}
+}
+
 // setURL sets the url
 func (c *connBase) setURL() (err error) {
-
+	c.setFromEnv()
 	if c.URL() != "" {
 		return
 	}
@@ -261,8 +224,9 @@ func (c *connBase) setURL() (err error) {
 	}
 
 	switch c.Type {
-	case TypeDbOracle:
+	case dbio.TypeDbOracle:
 		setDefault("password", "")
+		setDefault("port", 1521)
 		if tns, ok := c.Data["tns"]; ok {
 			if !strings.HasPrefix(cast.ToString(tns), "(") {
 				c.Data["tns"] = "(" + cast.ToString(tns) + ")"
@@ -271,26 +235,30 @@ func (c *connBase) setURL() (err error) {
 		} else {
 			template = "oracle://{username}:{password}@{host}:{port}/{sid}"
 		}
-	case TypeDbPostgres:
+	case dbio.TypeDbPostgres:
 		setDefault("password", "")
 		setDefault("sslmode", "prefer")
+		setDefault("port", 5432)
 		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
-	case TypeDbRedshift:
+	case dbio.TypeDbRedshift:
 		setDefault("password", "")
 		setDefault("sslmode", "prefer")
+		setDefault("port", 5439)
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
-	case TypeDbMySQL:
+	case dbio.TypeDbMySQL:
 		setDefault("password", "")
+		setDefault("port", 3306)
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
-	case TypeDbBigQuery:
+	case dbio.TypeDbBigQuery:
 		template = "bigquery://{project_id}/{location}/{dataset_id}"
-	case TypeDbSnowflake:
+	case dbio.TypeDbSnowflake:
 		setDefault("schema", "public")
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
-	case TypeDbSQLite:
+	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
-	case TypeDbSQLServer, TypeDbAzure:
+	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setDefault("password", "")
+		setDefault("port", 1433)
 		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
 	default:
 		return g.Error("unrecognized type: %s", c.Type)
@@ -331,4 +299,86 @@ func (c *connFile) Close() error {
 
 func (c *connFile) AsFile() filesys.FileSysClient {
 	return c.conn
+}
+
+// CopyDirect copies directly from cloud files
+// (without passing through dbio)
+func CopyDirect(conn database.Connection, tableFName string, srcFile Connection) (cnt uint64, ok bool, err error) {
+	props := g.MapToKVArr(srcFile.DataS())
+	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL(), props...)
+	if err != nil {
+		err = g.Error(err, "Could not obtain client for: "+srcFile.URL())
+		return
+	}
+
+	switch fs.FsType() {
+	case dbio.TypeFileS3:
+		ok = true
+		err = database.CopyFromS3(conn, tableFName, srcFile.URL())
+		if err != nil {
+			err = g.Error(err, "could not load into database from S3")
+		}
+	case dbio.TypeFileAzure:
+		ok = true
+		err = database.CopyFromAzure(conn, tableFName, srcFile.URL())
+		if err != nil {
+			err = g.Error(err, "could not load into database from Azure")
+		}
+	case dbio.TypeFileGoogle:
+	}
+
+	if err != nil {
+		// ok = false // try through dbio?
+	}
+	return
+}
+
+// GetTypeNameLong return the type long name
+func GetTypeNameLong(c Connection) string {
+	mapping := map[dbio.Type]string{
+		dbio.TypeFileLocal:   "FileSys - Local",
+		dbio.TypeFileHDFS:    "FileSys - HDFS",
+		dbio.TypeFileS3:      "FileSys - S3",
+		dbio.TypeFileAzure:   "FileSys - Azure",
+		dbio.TypeFileGoogle:  "FileSys - Google",
+		dbio.TypeFileSftp:    "FileSys - Sftp",
+		dbio.TypeFileHTTP:    "FileSys - HTTP",
+		dbio.TypeDbPostgres:  "DB - PostgreSQL",
+		dbio.TypeDbRedshift:  "DB - Redshift",
+		dbio.TypeDbMySQL:     "DB - MySQL",
+		dbio.TypeDbOracle:    "DB - Oracle",
+		dbio.TypeDbBigQuery:  "DB - BigQuery",
+		dbio.TypeDbSnowflake: "DB - Snowflake",
+		dbio.TypeDbSQLite:    "DB - SQLite",
+		dbio.TypeDbSQLServer: "DB - SQLServer",
+		dbio.TypeDbAzure:     "DB - Azure",
+		dbio.TypeAPIGit:      "API - Git",
+		dbio.TypeAPIGithub:   "API - Github",
+	}
+	return mapping[c.Info().Type]
+}
+
+// GetTypeName return the type name
+func GetTypeName(c Connection) string {
+	mapping := map[dbio.Type]string{
+		dbio.TypeFileLocal:   "Local",
+		dbio.TypeFileHDFS:    "HDFS",
+		dbio.TypeFileS3:      "S3",
+		dbio.TypeFileAzure:   "Azure",
+		dbio.TypeFileGoogle:  "Google",
+		dbio.TypeFileSftp:    "Sftp",
+		dbio.TypeFileHTTP:    "HTTP",
+		dbio.TypeDbPostgres:  "PostgreSQL",
+		dbio.TypeDbRedshift:  "Redshift",
+		dbio.TypeDbMySQL:     "MySQL",
+		dbio.TypeDbOracle:    "Oracle",
+		dbio.TypeDbBigQuery:  "BigQuery",
+		dbio.TypeDbSnowflake: "Snowflake",
+		dbio.TypeDbSQLite:    "SQLite",
+		dbio.TypeDbSQLServer: "SQLServer",
+		dbio.TypeDbAzure:     "Azure",
+		dbio.TypeAPIGit:      "Git",
+		dbio.TypeAPIGithub:   "Github",
+	}
+	return mapping[c.Info().Type]
 }

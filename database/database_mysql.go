@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/flarco/dbio"
 	"io"
 	"os/exec"
 	"strings"
@@ -23,7 +24,7 @@ type MySQLConn struct {
 func (conn *MySQLConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = MySQLDbType
+	conn.BaseConn.Type = dbio.TypeDbMySQL
 	conn.BaseConn.defaultPort = 3306
 
 	// Turn off Bulk export for now

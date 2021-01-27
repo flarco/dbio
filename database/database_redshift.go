@@ -3,12 +3,12 @@ package database
 import (
 	"errors"
 	"fmt"
+	"github.com/flarco/dbio"
 	"strings"
 
 	"github.com/flarco/dbio/filesys"
 
 	"github.com/dustin/go-humanize"
-	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/jmoiron/sqlx"
@@ -25,7 +25,7 @@ type RedshiftConn struct {
 func (conn *RedshiftConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = RedshiftDbType
+	conn.BaseConn.Type = dbio.TypeDbRedshift
 	conn.BaseConn.defaultPort = 5439
 
 	var instance Connection
@@ -91,7 +91,7 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 
 	}
 
-	s3Fs, err := filesys.NewFileSysClient(filesys.S3FileSys, conn.PropArr()...)
+	s3Fs, err := filesys.NewFileSysClient(dbio.TypeFileS3, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Unable to create S3 Client")
 		return
@@ -142,7 +142,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 		return
 	}
 
-	fs, err := filesys.NewFileSysClient(filesys.S3FileSys, conn.PropArr()...)
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileS3, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -175,7 +175,7 @@ func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		tableFName,
 	)
 
-	s3Fs, err := filesys.NewFileSysClient(filesys.S3FileSys, conn.PropArr()...)
+	s3Fs, err := filesys.NewFileSysClient(dbio.TypeFileS3, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -313,33 +313,8 @@ func (conn *RedshiftConn) CopyFromS3(tableFName, s3Path string) (count uint64, e
 	)
 	_, err = conn.Exec(sql)
 	if err != nil {
-		return 0, g.Error(err, "SQL Error:\n"+conn.CleanSQL(sql))
+		return 0, g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
 	}
 
 	return 0, nil
-}
-
-// CopyDirect copies directly from cloud files
-// (without passing through dbio)
-func (conn *RedshiftConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error) {
-	props := g.MapToKVArr(srcFile.DataS())
-	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL, props...)
-	if err != nil {
-		err = g.Error(err, "Could not obtain client for: "+srcFile.URL)
-		return
-	}
-
-	switch fs.FsType() {
-	case filesys.S3FileSys:
-		ok = true
-		cnt, err = conn.CopyFromS3(tableFName, srcFile.URL)
-		if err != nil {
-			err = g.Error(err, "could not load into database from S3")
-		}
-	}
-
-	if err != nil {
-		// ok = false // try through dbio?
-	}
-	return
 }

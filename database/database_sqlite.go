@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"github.com/flarco/dbio"
 	"strings"
 
 	"github.com/flarco/g"
@@ -17,7 +18,7 @@ type SQLiteConn struct {
 func (conn *SQLiteConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = SQLiteDbType
+	conn.BaseConn.Type = dbio.TypeDbSQLite
 
 	var instance Connection
 	instance = conn

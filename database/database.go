@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flarco/dbio"
+
 	"github.com/flarco/dbio/filesys"
 
-	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/env"
 	"github.com/flarco/g"
 
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/flarco/dbio/iop"
-	"github.com/flarco/dbio/local"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -35,32 +35,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// DbType is an string type for enum for the database Type
-type DbType string
-
-const (
-	// PostgresDbType is postgres
-	PostgresDbType DbType = "postgres"
-	// RedshiftDbType is redshift
-	RedshiftDbType DbType = "redshift"
-	// MySQLDbType is mysql
-	MySQLDbType DbType = "mysql"
-	// OracleDbType is oracle
-	OracleDbType DbType = "oracle"
-	// BigQueryDbType is big query
-	BigQueryDbType DbType = "bigquery"
-	// SnowflakeDbType is snowflake
-	SnowflakeDbType DbType = "snowflake"
-	// SQLiteDbType is sqlite
-	SQLiteDbType DbType = "sqlite"
-	// SQLServerDbType is MS SQL Server
-	SQLServerDbType DbType = "sqlserver"
-	// AzureSQLDbType is MS SQL Server on Azure
-	AzureSQLDbType DbType = "azuresql"
-	// AzureDWHDbType is MS SQL Server on Azure
-	AzureDWHDbType DbType = "azuredwh"
-)
-
 // Connection is the Base interface for Connections
 type Connection interface {
 	Self() Connection
@@ -68,11 +42,10 @@ type Connection interface {
 	Connect(timeOut ...int) error
 	Kill() error
 	Close() error
-	GetType() DbType
+	GetType() dbio.Type
 	GetGormConn(config *gorm.Config) (*gorm.DB, error)
 	LoadTemplates() error
 	GetURL(newURL ...string) string
-	CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error)
 	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
 	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
 	BulkExportStream(sql string) (*iop.Datastream, error)
@@ -102,7 +75,8 @@ type Connection interface {
 	Template() Template
 	SetProp(string, string)
 	GetProp(string) string
-	PropArr() []string
+	PropsArr() []string
+	Props() map[string]string
 	GetTemplateValue(path string) (value string)
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
 	SwapTable(srcTable string, tgtTable string) (err error)
@@ -139,7 +113,7 @@ type Connection interface {
 type BaseConn struct {
 	Connection
 	URL         string
-	Type        DbType // the type of database for sqlx: postgres, mysql, sqlite
+	Type        dbio.Type // the type of database for sqlx: postgres, mysql, sqlite
 	db          *sqlx.DB
 	tx          *sqlx.Tx
 	Data        iop.Dataset
@@ -233,15 +207,6 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	// see TestEnvURL
 	if newURL := os.Getenv(strings.TrimLeft(URL, "$")); newURL != "" {
 		URL = newURL
-	} else if home, err := local.GetHome(); err != nil && home != nil {
-		conns, err := home.Profile.ListConnections(true)
-		g.LogError(err)
-		for _, dc := range conns {
-			if dc.ID == URL {
-				URL = dc.URL
-				props = g.MapToKVArr(dc.DataS())
-			}
-		}
 	}
 
 	if !strings.Contains(URL, ":") {
@@ -326,21 +291,21 @@ func GetSlingEnv() map[string]string {
 	return slingEnvs
 }
 
-func getDriverName(dbType DbType) (driverName string) {
+func getDriverName(dbType dbio.Type) (driverName string) {
 	switch dbType {
-	case PostgresDbType, RedshiftDbType:
+	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 		driverName = "postgres"
-	case MySQLDbType:
+	case dbio.TypeDbMySQL:
 		driverName = "mysql"
-	case OracleDbType:
+	case dbio.TypeDbOracle:
 		driverName = "godror"
-	case BigQueryDbType:
+	case dbio.TypeDbBigQuery:
 		driverName = "bigquery"
-	case SnowflakeDbType:
+	case dbio.TypeDbSnowflake:
 		driverName = "snowflake"
-	case SQLiteDbType:
+	case dbio.TypeDbSQLite:
 		driverName = "sqlite3"
-	case SQLServerDbType, AzureSQLDbType, AzureDWHDbType:
+	case dbio.TypeDbSQLServer, dbio.TypeDbAzure:
 		driverName = "sqlserver"
 	default:
 		driverName = dbType.String()
@@ -350,7 +315,7 @@ func getDriverName(dbType DbType) (driverName string) {
 
 func getDialector(conn Connection) (driverDialector gorm.Dialector) {
 	switch conn.GetType() {
-	case PostgresDbType, RedshiftDbType:
+	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 		driverDialector = postgres.Open(conn.BaseURL())
 	}
 	return
@@ -428,13 +393,8 @@ func (conn *BaseConn) Tx() *sqlx.Tx {
 	return conn.tx
 }
 
-// String returns the db type string
-func (t DbType) String() string {
-	return string(t)
-}
-
 // GetType returns the type db object
-func (conn *BaseConn) GetType() DbType {
+func (conn *BaseConn) GetType() dbio.Type {
 	return conn.Type
 }
 
@@ -473,6 +433,11 @@ func (conn *BaseConn) PropArr() []string {
 		props = append(props, g.F("%s=%s", k, v))
 	}
 	return props
+}
+
+// Props returns a map properties
+func (conn *BaseConn) Props() map[string]string {
+	return conn.properties
 }
 
 // Kill kill the database connection
@@ -553,7 +518,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		g.Trace("new connection URL: " + conn.Self().GetURL(connURL))
 	}
 
-	if conn.Type != BigQueryDbType {
+	if conn.Type != dbio.TypeDbBigQuery {
 		connURL = conn.Self().GetURL(connURL)
 
 		connPool.Mux.Lock()
@@ -949,7 +914,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, sql string, args ...inter
 
 	noTrace := strings.Contains(sql, "\n\n-- nT --")
 	if !noTrace {
-		g.Debug(conn.CleanSQL(sql), args...)
+		g.Debug(CleanSQL(conn, sql), args...)
 	}
 
 	if conn.tx != nil {
@@ -958,7 +923,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, sql string, args ...inter
 		result, err = conn.db.ExecContext(ctx, sql, args...)
 	}
 	if err != nil {
-		err = g.Error(err, "Error executing: "+conn.CleanSQL(sql))
+		err = g.Error(err, "Error executing: "+CleanSQL(conn, sql))
 	}
 	return
 }
@@ -1614,7 +1579,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 
 	txOptions := sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false}
 	switch conn.GetType() {
-	case SnowflakeDbType:
+	case dbio.TypeDbSnowflake:
 		txOptions = sql.TxOptions{}
 	}
 
@@ -2107,7 +2072,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 			return
 		}
 
-		fs, err := filesys.NewFileSysClient(filesys.LocalFileSys, conn.PropArr()...)
+		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
 		if err != nil {
 			conn.Context().CaptureErr(g.Error(err, "Unable to create Local file sys Client"))
 			ds.Context.Cancel()
@@ -2170,17 +2135,6 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	df.Inferred = true
 
 	return
-}
-
-// CleanSQL removes creds from the query
-func (conn *BaseConn) CleanSQL(sql string) string {
-	for _, v := range conn.properties {
-		if strings.TrimSpace(v) == "" {
-			continue
-		}
-		sql = strings.ReplaceAll(sql, v, "***")
-	}
-	return sql
 }
 
 // GenerateUpsertExpressions returns a map with needed expressions
@@ -2451,13 +2405,6 @@ func (conn *BaseConn) credsProvided(provider string) bool {
 	return false
 }
 
-// CopyDirect copies directly from cloud files
-// (without passing through sling)
-func (conn *BaseConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error) {
-	ok = false
-	return
-}
-
 // settingMppBulkImportFlow sets settings for MPP databases type
 // for BulkImportFlow
 func settingMppBulkImportFlow(conn Connection) {
@@ -2490,7 +2437,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 	type testObj struct {
 		Title string
 		SQL   string
-		Skip  []DbType
+		Skip  []dbio.Type
 	}
 
 	col := iop.Column{Name: "col1", Type: "integer"}
@@ -2578,4 +2525,86 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 	}
 
 	return
+}
+
+// CleanSQL removes creds from the query
+func CleanSQL(conn Connection, sql string) string {
+	for _, v := range conn.Props() {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		sql = strings.ReplaceAll(sql, v, "***")
+	}
+	return sql
+}
+
+func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
+	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
+	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
+	if AwsID == "" || AwsAccessKey == "" {
+		err = g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3"))
+		return
+	}
+
+	sql := g.R(
+		conn.Template().Core["copy_from_s3"],
+		"table", tableFName,
+		"s3_path", s3Path,
+		"aws_access_key_id", AwsID,
+		"aws_secret_access_key", AwsAccessKey,
+	)
+
+	g.Info("copying into snowflake from s3")
+	g.Debug("url: " + s3Path)
+	_, err = conn.Exec(sql)
+	if err != nil {
+		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
+	}
+
+	return nil
+}
+
+func getAzureToken(conn Connection) (azToken string, err error) {
+	azSasURL := conn.GetProp("AZURE_SAS_SVC_URL")
+	if azSasURL == "" {
+		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL' to copy to snowflake from azure"))
+		return
+	}
+
+	azSasURLArr := strings.Split(azSasURL, "?")
+	if len(azSasURLArr) != 2 {
+		err = g.Error(
+			fmt.Errorf("Invalid provided AZURE_SAS_SVC_URL"),
+			"",
+		)
+		return
+	}
+	azToken = azSasURLArr[1]
+	return
+}
+
+// CopyFromAzure uses the Snowflake COPY INTO Table command from Azure
+// https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html
+func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
+	azToken, err := getAzureToken(conn)
+	if err != nil {
+		return g.Error(err)
+	}
+
+	sql := g.R(
+		conn.Template().Core["copy_from_azure"],
+		"table", tableFName,
+		"azure_path", azPath,
+		"azure_sas_token", azToken,
+	)
+
+	g.Info("copying into snowflake from azure")
+	g.Debug("url: " + azPath)
+	conn.SetProp("azure_sas_token", azToken)
+	_, err = conn.Exec(sql)
+	if err != nil {
+		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
+	}
+
+	return nil
 }

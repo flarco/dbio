@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/flarco/dbio"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 
 	"github.com/dustin/go-humanize"
@@ -53,7 +53,7 @@ func (conn *SnowflakeConn) Init() error {
 	)
 
 	conn.BaseConn.URL = URL
-	conn.BaseConn.Type = SnowflakeDbType
+	conn.BaseConn.Type = dbio.TypeDbSnowflake
 
 	var instance Connection
 	instance = conn
@@ -176,7 +176,7 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 	}
 
 	s3Bucket := conn.GetProp("AWS_BUCKET")
-	s3Fs, err := filesys.NewFileSysClient(filesys.S3FileSys, conn.PropArr()...)
+	s3Fs, err := filesys.NewFileSysClient(dbio.TypeFileS3, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -208,7 +208,7 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 		return
 	}
 
-	azToken, err := conn.getAzureToken()
+	azToken, err := getAzureToken(conn)
 	if err != nil {
 		return "", g.Error(err)
 	}
@@ -233,7 +233,7 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 
 	}
 
-	azFs, err := filesys.NewFileSysClient(filesys.AzureFileSys, conn.PropArr()...)
+	azFs, err := filesys.NewFileSysClient(dbio.TypeFileAzure, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -323,7 +323,7 @@ func (conn *SnowflakeConn) CopyViaAWS(tableFName string, df *iop.Dataflow) (coun
 		tableFName,
 	)
 
-	s3Fs, err := filesys.NewFileSysClient(filesys.S3FileSys, conn.PropArr()...)
+	s3Fs, err := filesys.NewFileSysClient(dbio.TypeFileS3, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -368,7 +368,7 @@ func (conn *SnowflakeConn) CopyFromS3(tableFName, s3Path string) (err error) {
 	g.Debug("url: " + s3Path)
 	_, err = conn.Exec(sql)
 	if err != nil {
-		return g.Error(err, "SQL Error:\n"+conn.CleanSQL(sql))
+		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
 	}
 
 	return nil
@@ -391,7 +391,7 @@ func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (co
 		tableFName,
 	)
 
-	azFs, err := filesys.NewFileSysClient(filesys.AzureFileSys, conn.PropArr()...)
+	azFs, err := filesys.NewFileSysClient(dbio.TypeFileAzure, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -414,29 +414,10 @@ func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (co
 	return df.Count(), conn.CopyFromAzure(tableFName, azPath)
 }
 
-func (conn *SnowflakeConn) getAzureToken() (azToken string, err error) {
-	azSasURL := conn.GetProp("AZURE_SAS_SVC_URL")
-	if azSasURL == "" {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL' to copy to snowflake from azure"))
-		return
-	}
-
-	azSasURLArr := strings.Split(azSasURL, "?")
-	if len(azSasURLArr) != 2 {
-		err = g.Error(
-			fmt.Errorf("Invalid provided AZURE_SAS_SVC_URL"),
-			"",
-		)
-		return
-	}
-	azToken = azSasURLArr[1]
-	return
-}
-
 // CopyFromAzure uses the Snowflake COPY INTO Table command from Azure
 // https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html
 func (conn *SnowflakeConn) CopyFromAzure(tableFName, azPath string) (err error) {
-	azToken, err := conn.getAzureToken()
+	azToken, err := getAzureToken(conn)
 	if err != nil {
 		return g.Error(err)
 	}
@@ -453,7 +434,7 @@ func (conn *SnowflakeConn) CopyFromAzure(tableFName, azPath string) (err error) 
 	conn.SetProp("azure_sas_token", azToken)
 	_, err = conn.Exec(sql)
 	if err != nil {
-		return g.Error(err, "SQL Error:\n"+conn.CleanSQL(sql))
+		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
 	}
 
 	return nil
@@ -487,7 +468,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 
 	fileReadyChn := make(chan string, 10000)
 	go func() {
-		fs, err := filesys.NewFileSysClient(filesys.LocalFileSys, conn.PropArr()...)
+		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
 		if err != nil {
 			err = g.Error(err, "Could not get fs client for Local")
 			return
@@ -700,38 +681,6 @@ func (conn *SnowflakeConn) Upsert(srcTable string, tgtTable string, pkFields []s
 	if err != nil {
 		err = g.Error(err, "Could not commit upsert transaction")
 		return
-	}
-	return
-}
-
-// CopyDirect copies directly from cloud files
-// (without passing through dbio)
-func (conn *SnowflakeConn) CopyDirect(tableFName string, srcFile dbio.DataConn) (cnt uint64, ok bool, err error) {
-	props := g.MapToKVArr(srcFile.DataS())
-	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL, props...)
-	if err != nil {
-		err = g.Error(err, "Could not obtain client for: "+srcFile.URL)
-		return
-	}
-
-	switch fs.FsType() {
-	case filesys.S3FileSys:
-		ok = true
-		err = conn.CopyFromS3(tableFName, srcFile.URL)
-		if err != nil {
-			err = g.Error(err, "could not load into database from S3")
-		}
-	case filesys.AzureFileSys:
-		ok = true
-		err = conn.CopyFromAzure(tableFName, srcFile.URL)
-		if err != nil {
-			err = g.Error(err, "could not load into database from Azure")
-		}
-	case filesys.GoogleFileSys:
-	}
-
-	if err != nil {
-		// ok = false // try through dbio?
 	}
 	return
 }

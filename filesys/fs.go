@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flarco/dbio"
+
 	"github.com/flarco/dbio/iop"
 
 	"github.com/dustin/go-humanize"
@@ -29,7 +31,7 @@ type FileSysClient interface {
 	Init(ctx context.Context) (err error)
 	Client() *BaseFileSysClient
 	Context() (context *g.Context)
-	FsType() FileSysType
+	FsType() dbio.Type
 	Delete(path string) (err error)
 	GetReader(path string) (reader io.Reader, err error)
 	GetReaders(paths ...string) (readers []io.Reader, err error)
@@ -47,75 +49,48 @@ type FileSysClient interface {
 	MkdirAll(path string) (err error)
 }
 
-// FileSysType is an int type for enum for the File system Type
-type FileSysType int
-
-const (
-	// LocalFileSys is local file system
-	LocalFileSys FileSysType = iota
-	// HDFSFileSys is HDFS file system
-	HDFSFileSys
-	// S3FileSys is S3 file system
-	S3FileSys
-	// S3cFileSys is S3 compatible file system
-	S3cFileSys
-	// AzureFileSys is Azure file system
-	AzureFileSys
-	// GoogleFileSys is Google file system
-	GoogleFileSys
-	// SftpFileSys is SFTP / SCP / SSH file system
-	SftpFileSys
-	// HTTPFileSys is HTTP / HTTPS file system
-	HTTPFileSys
-)
-
 const defaultConcurencyLimit = 10
 
 // NewFileSysClient create a file system client
 // such as local, s3, azure storage, google cloud storage
 // props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
-func NewFileSysClient(fst FileSysType, props ...string) (fsClient FileSysClient, err error) {
+func NewFileSysClient(fst dbio.Type, props ...string) (fsClient FileSysClient, err error) {
 	return NewFileSysClientContext(context.Background(), fst, props...)
 }
 
 // NewFileSysClientContext create a file system client with context
 // such as local, s3, azure storage, google cloud storage
 // props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
-func NewFileSysClientContext(ctx context.Context, fst FileSysType, props ...string) (fsClient FileSysClient, err error) {
+func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string) (fsClient FileSysClient, err error) {
 	concurencyLimit := defaultConcurencyLimit
 	if os.Getenv("DBIO_CONCURENCY_LIMIT") != "" {
 		concurencyLimit = cast.ToInt(os.Getenv("DBIO_CONCURENCY_LIMIT"))
 	}
 
 	switch fst {
-	case LocalFileSys:
+	case dbio.TypeFileLocal:
 		fsClient = &LocalFileSysClient{}
 		concurencyLimit = 20
-		fsClient.Client().fsType = LocalFileSys
-	case S3FileSys:
+	case dbio.TypeFileS3:
 		fsClient = &S3FileSysClient{}
-		fsClient.Client().fsType = S3FileSys
-	case S3cFileSys:
-		fsClient = &S3cFileSysClient{}
-		fsClient.Client().fsType = S3cFileSys
-	case SftpFileSys:
+		//fsClient = &S3cFileSysClient{}
+		//fsClient.Client().fsType = S3cFileSys
+	case dbio.TypeFileSftp:
 		fsClient = &SftpFileSysClient{}
-		fsClient.Client().fsType = SftpFileSys
 	// case HDFSFileSys:
 	// 	fsClient = fsClient
-	case AzureFileSys:
+	case dbio.TypeFileAzure:
 		fsClient = &AzureFileSysClient{}
-		fsClient.Client().fsType = AzureFileSys
-	case GoogleFileSys:
+	case dbio.TypeFileGoogle:
 		fsClient = &GoogleFileSysClient{}
-		fsClient.Client().fsType = GoogleFileSys
-	case HTTPFileSys:
+	case dbio.TypeFileHTTP:
 		fsClient = &HTTPFileSysClient{}
-		fsClient.Client().fsType = HTTPFileSys
 	default:
 		err = g.Error(errors.New("Unrecognized File System"), "")
 		return
 	}
+
+	fsClient.Client().fsType = fst
 
 	// set properties
 	for k, v := range g.KVArrToMap(props...) {
@@ -154,18 +129,18 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 	switch {
 	case strings.HasPrefix(url, "s3://"):
 		if v, ok := g.KVArrToMap(props...)["AWS_ENDPOINT"]; ok && v != "" {
-			return NewFileSysClientContext(ctx, S3FileSys, props...)
+			return NewFileSysClientContext(ctx, dbio.TypeFileS3, props...)
 		}
-		return NewFileSysClientContext(ctx, S3FileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileS3, props...)
 	case strings.HasPrefix(url, "sftp://"):
 		props = append(props, "SFTP_URL="+url)
-		return NewFileSysClientContext(ctx, SftpFileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileSftp, props...)
 	case strings.HasPrefix(url, "gs://"):
-		return NewFileSysClientContext(ctx, GoogleFileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileGoogle, props...)
 	case strings.Contains(url, ".core.windows.net") || strings.HasPrefix(url, "azure://"):
-		return NewFileSysClientContext(ctx, AzureFileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileAzure, props...)
 	case strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://"):
-		return NewFileSysClientContext(ctx, HTTPFileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileHTTP, props...)
 	case strings.Contains(url, "://"):
 		err = g.Error(
 			fmt.Errorf("Unable to determine FileSysClient for "+url),
@@ -175,7 +150,7 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 	default:
 		fsClient = &LocalFileSysClient{}
 		props = append(props, g.F("concurencyLimit=%d", 20))
-		return NewFileSysClientContext(ctx, LocalFileSys, props...)
+		return NewFileSysClientContext(ctx, dbio.TypeFileLocal, props...)
 	}
 }
 
@@ -235,7 +210,7 @@ type BaseFileSysClient struct {
 	properties map[string]string
 	instance   *FileSysClient
 	context    g.Context
-	fsType     FileSysType
+	fsType     dbio.Type
 }
 
 // Context provides a pointer to context
@@ -256,7 +231,7 @@ func (fs *BaseFileSysClient) Self() FileSysClient {
 }
 
 // FsType return the type of the client
-func (fs *BaseFileSysClient) FsType() FileSysType {
+func (fs *BaseFileSysClient) FsType() dbio.Type {
 	return fs.fsType
 }
 
@@ -355,7 +330,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 // ReadDataflow read
 func (fs *BaseFileSysClient) ReadDataflow(url string) (df *iop.Dataflow, err error) {
 	if strings.HasSuffix(strings.ToLower(url), ".zip") {
-		localFs, err := NewFileSysClient(LocalFileSys)
+		localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 		if err != nil {
 			return df, g.Error(err, "could not initialize localFs")
 		}
@@ -550,7 +525,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		return
 	}
 
-	if !singleFile && (fsClient.FsType() == LocalFileSys || fsClient.FsType() == SftpFileSys) {
+	if !singleFile && (fsClient.FsType() == dbio.TypeFileLocal || fsClient.FsType() == dbio.TypeFileSftp) {
 		err = fsClient.MkdirAll(url)
 		if err != nil {
 			err = g.Error(err, "could not create directory")
@@ -564,7 +539,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		if singleFile {
 			partURL = url
 		}
-		if fsClient.FsType() == AzureFileSys {
+		if fsClient.FsType() == dbio.TypeFileAzure {
 			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
 		}
 		g.Trace("starting process to write %s with file row limit %d", partURL, fileRowLimit)

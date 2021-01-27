@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/flarco/dbio"
 	"io"
 	"os/exec"
 	"strings"
@@ -23,7 +24,7 @@ type PostgresConn struct {
 func (conn *PostgresConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = PostgresDbType
+	conn.BaseConn.Type = dbio.TypeDbPostgres
 	conn.BaseConn.defaultPort = 5432
 
 	// Turn off Bulk export for now

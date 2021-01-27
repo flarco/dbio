@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/flarco/dbio/filesys"
 	"math/big"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/flarco/dbio"
+	"github.com/flarco/dbio/filesys"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
@@ -41,7 +43,7 @@ type bqTuple struct {
 // Init initiates the object
 func (conn *BigQueryConn) Init() error {
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = BigQueryDbType
+	conn.BaseConn.Type = dbio.TypeDbBigQuery
 
 	conn.ProjectID = conn.GetProp("PROJECT_ID")
 	conn.DatasetID = conn.GetProp("DatasetID")
@@ -483,7 +485,7 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	if gcBucket == "" {
 		return count, errors.New("Need to set 'GC_BUCKET' to copy to google storage")
 	}
-	fs, err := filesys.NewFileSysClient(filesys.GoogleFileSys, conn.PropArr()...)
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileGoogle, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for GCS")
 		return
@@ -607,7 +609,7 @@ func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 		return
 	}
 
-	fs, err := filesys.NewFileSysClient(filesys.GoogleFileSys, conn.PropArr()...)
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileGoogle, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for GCS")
 		return
@@ -691,7 +693,7 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 
 	}
 
-	gsFs, err := filesys.NewFileSysClient(filesys.GoogleFileSys, conn.PropArr()...)
+	gsFs, err := filesys.NewFileSysClient(dbio.TypeFileGoogle, conn.PropArr()...)
 	if err != nil {
 		conn.Context().CaptureErr(g.Error(err, "Unable to create GCS Client"))
 	}

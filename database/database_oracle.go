@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"fmt"
+	"github.com/flarco/dbio"
 	"io"
 	"io/ioutil"
 	"os"
@@ -28,7 +29,7 @@ type OracleConn struct {
 func (conn *OracleConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = OracleDbType
+	conn.BaseConn.Type = dbio.TypeDbOracle
 	conn.BaseConn.defaultPort = 1521
 
 	conn.SetProp("allow_bulk_import", "true")

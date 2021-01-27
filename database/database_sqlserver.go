@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/flarco/dbio"
 	"os"
 	"os/exec"
 	"regexp"
@@ -33,16 +34,16 @@ type MsSQLServerConn struct {
 func (conn *MsSQLServerConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = SQLServerDbType
+	conn.BaseConn.Type = dbio.TypeDbSQLServer
 	conn.BaseConn.defaultPort = 1433
 
 	version := getVersion(conn.GetURL())
 	if strings.Contains(strings.ToLower(version), "sql azure") {
 		conn.isAzureSQL = true
-		conn.Type = AzureSQLDbType
+		conn.Type = dbio.TypeDbAzure
 	} else if strings.Contains(strings.ToLower(version), "azure sql data warehouse") {
 		conn.isAzureDWH = true
-		conn.Type = AzureDWHDbType
+		conn.Type = dbio.TypeDbAzureDWH
 	}
 
 	conn.SetProp("use_bcp_map_parallel", "false")
@@ -448,7 +449,7 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 		tableFName,
 	)
 
-	azFs, err := filesys.NewFileSysClient(filesys.AzureFileSys, conn.PropArr()...)
+	azFs, err := filesys.NewFileSysClient(dbio.TypeFileAzure, conn.PropArr()...)
 	if err != nil {
 		err = g.Error(err, "Could not get fs client for S3")
 		return
@@ -531,7 +532,7 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 	_, err = conn.Exec(sql)
 	if err != nil {
 		conn.SetProp("azToken", azToken)
-		return 0, g.Error(err, "SQL Error:\n"+conn.CleanSQL(sql))
+		return 0, g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
 	}
 
 	return 0, nil
