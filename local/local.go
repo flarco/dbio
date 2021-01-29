@@ -3,12 +3,13 @@ package local
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/flarco/dbio"
-	"github.com/flarco/dbio/connection"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/flarco/dbio"
+	"github.com/flarco/dbio/connection"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/process"
@@ -226,7 +227,7 @@ func (p *Profile) ListConnections(includeEnv bool) (cArr []connection.Connection
 		}
 
 		c, err = connection.NewConnectionFromMap(g.M(
-			"id", strings.ToUpper(name),
+			"name", strings.ToUpper(name),
 			"data", data,
 		))
 		if err != nil {
@@ -255,10 +256,10 @@ func (p *Profile) ListConnections(includeEnv bool) (cArr []connection.Connection
 
 	// from Environment
 	if includeEnv {
-		for id, val := range g.KVArrToMap(os.Environ()...) {
-			conn, err := connection.NewConnectionFromURL(strings.ToUpper(id), val)
+		for name, val := range g.KVArrToMap(os.Environ()...) {
+			conn, err := connection.NewConnectionFromURL(strings.ToUpper(name), val)
 			if err != nil {
-				// g.LogError(err, "could not create data conn %s", conn.ID)
+				// g.LogError(err, "could not create data conn %s", conn.Name)
 				continue
 			}
 

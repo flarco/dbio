@@ -38,24 +38,24 @@ type Connection interface {
 
 // connBase is the base connection struct
 type connBase struct {
-	ID      string                 `json:"id"`
+	Name    string                 `json:"name"`
 	Type    dbio.Type              `json:"type"`
 	Data    map[string]interface{} `json:"data"`
 	context g.Context              `json:"-"`
 }
 
 // NewConnection creates a new connection
-func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
+func NewConnection(Name string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
 	c := g.NewContext(context.Background())
 
 	b := connBase{
-		ID: ID, Type: t, Data: g.AsMap(Data, true), context: c,
+		Name: Name, Type: t, Data: g.AsMap(Data, true), context: c,
 	}
 	conn = &b
 
 	err = b.setURL()
 	if err != nil {
-		return conn, g.Error(err, "could not set URL for %s: %s", b.Type, ID)
+		return conn, g.Error(err, "could not set URL for %s: %s", b.Type, Name)
 	}
 
 	if b.Type == dbio.TypeUnknown {
@@ -71,14 +71,14 @@ func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Co
 }
 
 // NewConnectionFromURL creates a new connection from a url
-func NewConnectionFromURL(ID, URL string) (conn Connection, err error) {
-	return NewConnection(ID, "", g.M("url", URL))
+func NewConnectionFromURL(Name, URL string) (conn Connection, err error) {
+	return NewConnection(Name, "", g.M("url", URL))
 }
 
 // NewConnectionFromMap loads a Connection from a Map
 func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 	return NewConnection(
-		cast.ToString(m["id"]),
+		cast.ToString(m["name"]),
 		dbio.Type(cast.ToString(m["type"])),
 		g.AsMap(m["data"]),
 	)
@@ -87,7 +87,7 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 // Info returns connection information
 func (c *connBase) Info() Info {
 	return Info{
-		Name: c.ID,
+		Name: c.Name,
 		Type: c.Type,
 		Data: c.Data,
 	}
@@ -95,7 +95,7 @@ func (c *connBase) Info() Info {
 
 // ToMap transforms DataConn to a Map
 func (c *connBase) ToMap() map[string]interface{} {
-	return g.M("id", c.ID, "type", c.Type, "data", c.Data)
+	return g.M("name", c.Name, "type", c.Type, "data", c.Data)
 }
 
 // Set sets key/values from a map
@@ -147,8 +147,8 @@ func (c *connBase) AsFile() (filesys.FileSysClient, error) {
 
 // SetFromEnv set values from environment
 func (c *connBase) setFromEnv() {
-	if c.ID == "" && strings.HasPrefix(c.URL(), "$") {
-		c.ID = strings.TrimLeft(c.URL(), "$")
+	if c.Name == "" && strings.HasPrefix(c.URL(), "$") {
+		c.Name = strings.TrimLeft(c.URL(), "$")
 	}
 
 	if newURL := os.Getenv(strings.TrimLeft(c.URL(), "$")); newURL != "" {
@@ -289,12 +289,11 @@ func (c *connBase) setURL() (err error) {
 // CopyDirect copies directly from cloud files
 // (without passing through dbio)
 func CopyDirect(conn database.Connection, tableFName string, srcFile Connection) (cnt uint64, ok bool, err error) {
-	if srcFile == nil {
+	if srcFile == nil || !srcFile.Info().Type.IsFile() {
 		return 0, false, nil
 	}
 
-	props := g.MapToKVArr(srcFile.DataS())
-	fs, err := filesys.NewFileSysClientFromURL(srcFile.URL(), props...)
+	fs, err := srcFile.AsFile()
 	if err != nil {
 		err = g.Error(err, "Could not obtain client for: "+srcFile.URL())
 		return
