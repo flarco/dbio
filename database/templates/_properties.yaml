@@ -7,7 +7,7 @@ oracle:
   required: ["host", "port", "username"]
   url_template: ['oracle://{username}:{password}@{host}:{port}/{sid}', 'oracle://{username}:{password}@{tns}']
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: ORCL_FINANCE'
@@ -40,7 +40,7 @@ snowflake:
   required: ["host", "database", "schema", "role", "username", "password"]
   url_template: 'snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: DB_MARKETING'
@@ -117,7 +117,7 @@ postgres:
   required: ["host", "port", "database", "username"]
   url_template: 'postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: PG_MARKETING'
@@ -151,7 +151,7 @@ bigquery:
   required: ["dataset_id", "project_id", "credentials_json"]
   url_template: 'bigquery://{project_id}/{location}/{dataset_id}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: BQ_DWH'
@@ -183,7 +183,7 @@ mysql:
   required: ["host", "port", "database", "username"]
   url_template: 'mysql://{username}:{password}@{host}:{port}/{database}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: DB_MARKETING'
@@ -211,7 +211,7 @@ sqlserver:
   required: ["host", "port", "database", "username"]
   url_template: 'sqlserver://{username}:{password}@{host}:{port}/{database}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: DB_MARKETING'
@@ -239,7 +239,7 @@ azuresql:
   required: ["host", "port", "database", "username"]
   url_template: 'sqlserver://{username}:{password}@{host}:{port}/{database}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: DB_MARKETING'
@@ -267,7 +267,7 @@ s3:
   required: ["aws_bucket", "aws_access_key_id", "aws_secret_access_key"]
   url_template: 's3://{aws_bucket}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the S3 connection. No spaces are allowed, will be all caps. Example: S3_MAIN'
@@ -291,7 +291,7 @@ azure:
   required: ["azure_account", "azure_sas_svc_url"]
   url_template: 'azure://{azure_account}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: AZ_CSV_ARCHIVE'
@@ -310,7 +310,7 @@ gs:
   required: ["gc_bucket", "credentials_json"]
   url_template: 'gs://{gc_bucket}'
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: GS_ARCHIVE'
@@ -328,7 +328,7 @@ sftp:
   kind: file
   required: ["host", "port", "username"]
   properties:
-    id:
+    name:
       type: text
       title: Connection Name
       description: 'The name of the SFTP connection. No spaces are allowed, will be all caps. Example: SFTP_BACKUPS'
