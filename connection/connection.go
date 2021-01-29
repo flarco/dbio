@@ -103,6 +103,7 @@ func (c *connBase) Set(m map[string]interface{}) {
 	for k, v := range m {
 		c.Data[k] = v
 	}
+	c.setURL()
 }
 
 // DataS returns data as map[string]string
@@ -202,7 +203,6 @@ func (c *connBase) setURL() (err error) {
 			c.Data["password"] = U.Password()
 			c.Data["port"] = U.Port(c.Info().Type.DefPort())
 			c.Data["database"] = strings.ReplaceAll(U.Path(), "/", "")
-			// c.Data["url"] = U.URL()
 		}
 
 		return nil
