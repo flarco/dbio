@@ -2,7 +2,6 @@ package iop
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -242,7 +241,7 @@ func (s *SSHClient) RunAsProcess() (localPort int, err error) {
 			if strings.Contains(stderr, "open failed") {
 				// https://unix.stackexchange.com/questions/14160/ssh-tunneling-error-channel-1-open-failed-administratively-prohibited-open
 				s.Close()
-				err = fmt.Errorf(stderr)
+				err = g.Error(stderr)
 				return 0, err
 			}
 			break
@@ -255,9 +254,9 @@ func (s *SSHClient) RunAsProcess() (localPort int, err error) {
 
 		if time.Since(st).Seconds() > 10 {
 			// timeout
-			err = fmt.Errorf("ssh connect attempt timed out")
+			err = g.Error("ssh connect attempt timed out")
 			if stderr != "" {
-				err = fmt.Errorf(stderr)
+				err = g.Error(stderr)
 			}
 			s.Close()
 			return 0, err

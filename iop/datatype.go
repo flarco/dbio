@@ -2,7 +2,6 @@ package iop
 
 import (
 	"database/sql"
-	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -191,7 +190,7 @@ func (cols Columns) Normalize(name string) string {
 // SyncColumns syncs two columns together
 func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err error) {
 	if len(columns1) != len(columns2) {
-		err = fmt.Errorf("mismatched columns %d != %d", len(columns1), len(columns2))
+		err = g.Error("mismatched columns %d != %d", len(columns1), len(columns2))
 		return
 	}
 
@@ -273,7 +272,7 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 
 	if len(dss) == 0 {
-		err = fmt.Errorf("Provided 0 datastreams for: %#v", dss)
+		err = g.Error("Provided 0 datastreams for: %#v", dss)
 		return
 	}
 

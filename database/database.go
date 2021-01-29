@@ -210,7 +210,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	}
 
 	if !strings.Contains(URL, ":") {
-		err := fmt.Errorf("could not detect URL")
+		err := g.Error("could not detect URL")
 		return nil, g.Error(err, "invalid URL")
 	}
 
@@ -415,7 +415,7 @@ func (conn *BaseConn) Template() Template {
 
 // GetProp returns the value of a property
 func (conn *BaseConn) GetProp(key string) string {
-	return conn.properties[strings.ToUpper(key)]
+	return conn.properties[strings.ToLower(key)]
 }
 
 // SetProp sets the value of a property
@@ -423,7 +423,7 @@ func (conn *BaseConn) SetProp(key string, val string) {
 	if conn.properties == nil {
 		conn.properties = map[string]string{}
 	}
-	conn.properties[strings.ToUpper(key)] = val
+	conn.properties[strings.ToLower(key)] = val
 }
 
 // PropArr returns an array of properties
@@ -1751,7 +1751,7 @@ func (conn *BaseConn) GenerateInsertStatement(tableName string, fields []string,
 // Upsert inserts / updates from a srcTable into a target table.
 // Assuming the srcTable has some or all of the tgtTable fields with matching types
 func (conn *BaseConn) Upsert(srcTable string, tgtTable string, primKeys []string) (rowAffCnt int64, err error) {
-	err = fmt.Errorf("Upsert is not implemented for %s", conn.GetType())
+	err = g.Error("Upsert is not implemented for %s", conn.GetType())
 	err = g.Error(err, "")
 	return
 }
@@ -1851,7 +1851,7 @@ func (conn *BaseConn) getNativeType(col iop.Column) (nativeType string, err erro
 
 	nativeType, ok := conn.template.GeneralTypeMap[col.Type]
 	if !ok {
-		err = fmt.Errorf(
+		err = g.Error(
 			"No native type mapping defined for col '%s', with type '%s' ('%s') for '%s'",
 			col.Name,
 			col.Type,
@@ -2384,7 +2384,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns []iop.Column) (
 		checksum1 := colChecksum[strings.ToLower(col.Name)]
 		checksum2 := cast.ToUint64(data.Rows[0][i])
 		if checksum1 != checksum2 {
-			eg.Add(fmt.Errorf("checksum failure for %s: %d != %d", col.Name, checksum1, checksum2))
+			eg.Add(g.Error("checksum failure for %s: %d != %d", col.Name, checksum1, checksum2))
 		}
 	}
 
@@ -2574,7 +2574,7 @@ func getAzureToken(conn Connection) (azToken string, err error) {
 	azSasURLArr := strings.Split(azSasURL, "?")
 	if len(azSasURLArr) != 2 {
 		err = g.Error(
-			fmt.Errorf("Invalid provided AZURE_SAS_SVC_URL"),
+			g.Error("Invalid provided AZURE_SAS_SVC_URL"),
 			"",
 		)
 		return

@@ -2,10 +2,12 @@ package filesys
 
 import (
 	"bufio"
-	"github.com/flarco/dbio/iop"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/flarco/dbio"
+	"github.com/flarco/dbio/iop"
 
 	"github.com/flarco/g"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +40,7 @@ func TestExcel(t *testing.T) {
 	assert.Equal(t, 28, len(data.Rows))
 	assert.Equal(t, "3387  AVALON RD", data.Records()[0]["property_address"])
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df, err := localFs.ReadDataflow("test/test.excel2.xlsx")
@@ -154,7 +156,7 @@ func TestGoogleSheet(t *testing.T) {
 	assert.NoError(t, err)
 
 	httpFs, err := NewFileSysClient(
-		HTTPFileSys,
+		dbio.TypeFileHTTP,
 		"GSHEET_CLIENT_JSON_BODY="+string(jsonBody),
 		"GSHEET_SHEET_NAME=native_to_general",
 	)

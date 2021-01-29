@@ -2,7 +2,6 @@ package filesys
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -73,7 +72,7 @@ func (fs *HTTPFileSysClient) doGet(url string) (resp *http.Response, err error) 
 	g.Trace("Content-Type: " + resp.Header.Get("Content-Type"))
 
 	if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-		err = fmt.Errorf("status code error: %d %s", resp.StatusCode, resp.Status)
+		err = g.Error("status code error: %d %s", resp.StatusCode, resp.Status)
 		return resp, g.Error(err, "status code error: %d %s", resp.StatusCode, resp.Status)
 	}
 
@@ -82,7 +81,7 @@ func (fs *HTTPFileSysClient) doGet(url string) (resp *http.Response, err error) 
 
 // Delete :
 func (fs *HTTPFileSysClient) Delete(path string) (err error) {
-	err = fmt.Errorf("cannot delete a HTTP file")
+	err = g.Error("cannot delete a HTTP file")
 	g.LogError(g.Error(err))
 	return
 }
@@ -196,7 +195,7 @@ func (fs *HTTPFileSysClient) Write(urlStr string, reader io.Reader) (bw int64, e
 		return 0, nil
 	}
 
-	err = fmt.Errorf("cannot write a HTTP file (yet)")
+	err = g.Error("cannot write a HTTP file (yet)")
 	g.LogError(g.Error(err))
 	return
 }

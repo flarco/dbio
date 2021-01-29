@@ -216,7 +216,7 @@ func (fs *S3FileSysClient) GetReader(path string) (reader io.Reader, err error) 
 			})
 		if err != nil {
 			fs.Context().CaptureErr(g.Error(err, "Error downloading S3 File -> "+key))
-			g.LogError(fs.Context().Err())
+			// g.LogError(fs.Context().Err())
 			fs.Context().Cancel()
 			return
 		}

@@ -511,7 +511,7 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 	azSasURLArr := strings.Split(azSasURL, "?")
 	if len(azSasURLArr) != 2 {
 		err = g.Error(
-			fmt.Errorf("Invalid provided AZURE_SAS_SVC_URL"),
+			g.Error("Invalid provided AZURE_SAS_SVC_URL"),
 			"",
 		)
 		return

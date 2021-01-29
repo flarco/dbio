@@ -211,12 +211,12 @@ func TestSreamOptions(t *testing.T) {
 		return data
 	}
 
-	configMap["EMPTY_FIELD_AS_NULL"] = "FALSE"
+	configMap["empty_field_as_null"] = "FALSE"
 	data := consume()
 	assert.Equal(t, "", data.Rows[9][1])
 	assert.Equal(t, nil, data.Rows[20][0]) // this is an integer field, so nil is best instead of 0 (put by golang)
 
-	configMap["EMPTY_FIELD_AS_NULL"] = "TRUE"
+	configMap["empty_field_as_null"] = "TRUE"
 	data = consume()
 	assert.Equal(t, nil, data.Rows[9][1])
 	assert.Equal(t, "NULL", data.Rows[9][2])
@@ -225,10 +225,10 @@ func TestSreamOptions(t *testing.T) {
 	assert.Equal(t, "string", data.Columns[5].Type) // since timestamp is not recognized
 	assert.Equal(t, nil, data.Rows[20][0])
 
-	configMap["NULL_IF"] = "NULL"
-	configMap["TRIM_SPACE"] = "TRUE"
-	configMap["SKIP_BLANK_LINES"] = "TRUE"
-	configMap["DATETIME_FORMAT"] = "DD-MM-YYYY HH:mm:ss.s"
+	configMap["null_if"] = "NULL"
+	configMap["trim_space"] = "TRUE"
+	configMap["skip_blank_lines"] = "TRUE"
+	configMap["datetime_format"] = "DD-MM-YYYY HH:mm:ss.s"
 	data = consume()
 	// g.P(data.Columns[5])
 	assert.Equal(t, "datetime", data.Columns[5].Type)

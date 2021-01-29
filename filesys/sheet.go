@@ -515,7 +515,7 @@ func NewGoogleSheetFromURL(urlStr string, props ...string) (ggs *GoogleSheet, er
 
 	pathArr := strings.Split(u.Path, "/")
 	if len(pathArr) < 4 || strings.ToLower(pathArr[1]) != "spreadsheets" {
-		err = fmt.Errorf("invalid google sheets url")
+		err = g.Error("invalid google sheets url")
 		err = g.Error(err, "invalid google sheets url")
 		return
 	}

@@ -583,7 +583,7 @@ func (conn *SnowflakeConn) PutFile(fPath string, internalStagePath string) (err 
 	if err != nil || strings.TrimSpace(stderr.String()) != "" || proc.ProcessState.ExitCode() != 0 {
 
 		err = g.Error(
-			fmt.Errorf(stderr.String()),
+			g.Error(stderr.String()),
 			fmt.Sprintf(
 				"SnowSQL Command -> %s\nSnowSQL Error  -> %s\n%s",
 				cmdStr, stderr.String(), stdout.String(),

@@ -2,7 +2,6 @@ package filesys
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"strings"
@@ -44,7 +43,7 @@ func (fs *AzureFileSysClient) Connect() (err error) {
 		csArr := strings.Split(cs, "?")
 		if len(csArr) != 2 {
 			err = g.Error(
-				fmt.Errorf("Invalid provided AZURE_SAS_SVC_URL"),
+				g.Error("Invalid provided AZURE_SAS_SVC_URL"),
 				"",
 			)
 			return
@@ -97,7 +96,7 @@ func (fs *AzureFileSysClient) getAuthContainerURL(container *azstorage.Container
 		containerURL = serviceURL.NewContainerURL(container.Name)
 	} else {
 		err = g.Error(
-			fmt.Errorf("Need to provide credentials AZURE_CONN_STR or AZURE_SAS_SVC_URL"),
+			g.Error("Need to provide credentials AZURE_CONN_STR or AZURE_SAS_SVC_URL"),
 			"",
 		)
 		return
@@ -347,7 +346,7 @@ func (fs *AzureFileSysClient) Delete(urlStr string) (err error) {
 		}
 	} else {
 		err = g.Error(
-			fmt.Errorf("Invalid Azure path: "+urlStr),
+			g.Error("Invalid Azure path: "+urlStr),
 			"",
 		)
 	}
@@ -366,7 +365,7 @@ func (fs *AzureFileSysClient) Write(urlStr string, reader io.Reader) (bw int64, 
 	pathArr := strings.Split(path, "/")
 
 	if len(pathArr) < 2 {
-		err = fmt.Errorf("Invalid Azure path (need blob URL): " + urlStr)
+		err = g.Error("Invalid Azure path (need blob URL): " + urlStr)
 		err = g.Error(err)
 		return
 	}
@@ -434,7 +433,7 @@ func (fs *AzureFileSysClient) GetReader(urlStr string) (reader io.Reader, err er
 	pathArr := strings.Split(path, "/")
 
 	if len(pathArr) < 2 {
-		err = fmt.Errorf("Invalid Azure path (need blob URL): " + urlStr)
+		err = g.Error("Invalid Azure path (need blob URL): " + urlStr)
 		err = g.Error(err)
 		return
 	}

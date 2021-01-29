@@ -977,7 +977,7 @@ func TestDatatypes(t *testing.T) {
 				}
 				testVal, ok := testValsMap[cast.ToString(rec["general_type"])]
 				if !ok {
-					g.LogFatal(fmt.Errorf(cast.ToString(rec["general_type"]) + " not found"))
+					g.LogFatal(g.Error(cast.ToString(rec["general_type"]) + " not found"))
 				}
 
 				colNameArr := strings.Split(colDDL, " ")

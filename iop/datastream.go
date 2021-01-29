@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -254,7 +253,7 @@ func (ds *Datastream) Err() (err error) {
 // Should cycle the Iter Func until done
 func (ds *Datastream) Start() (err error) {
 	if ds.it == nil {
-		err = fmt.Errorf("iterator not defined")
+		err = g.Error("iterator not defined")
 		return g.Error(err, "need to define iterator")
 	}
 
@@ -823,7 +822,7 @@ func Collect(dss ...*Datastream) (data Dataset, err error) {
 		}
 
 		if i > 0 && len(datas[i-1].Columns) != len(d.Columns) {
-			err := fmt.Errorf(
+			err := g.Error(
 				"columns mismatch, %#v != %#v",
 				datas[i-1].GetFields(), d.GetFields(),
 			)

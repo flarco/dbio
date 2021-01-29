@@ -30,8 +30,8 @@ type Connection interface {
 	URL() string
 	DataS(lowerCase ...bool) map[string]string
 	ToMap() map[string]interface{}
-	AsDatabase() database.Connection
-	AsFile() filesys.FileSysClient
+	AsDatabase() (database.Connection, error)
+	AsFile() (filesys.FileSysClient, error)
 	// AsAPI() interface{}
 	Set(map[string]interface{})
 }
@@ -48,7 +48,9 @@ type connBase struct {
 func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
 	c := g.NewContext(context.Background())
 
-	b := connBase{ID: ID, Type: t, Data: Data, context: c}
+	b := connBase{
+		ID: ID, Type: t, Data: g.AsMap(Data, true), context: c,
+	}
 	conn = &b
 
 	err = b.setURL()
@@ -61,33 +63,7 @@ func NewConnection(ID string, t dbio.Type, Data map[string]interface{}) (conn Co
 	}
 
 	switch b.Type.Kind() {
-	case dbio.KindDatabase:
-		dbConn, err := database.NewConnContext(
-			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
-		)
-		if err != nil {
-			return conn, g.Error(err, "could not connect to %s: %s", b.Type, ID)
-		}
-
-		dbConnPtr := &connDatabase{
-			connBase: b,
-			conn:     dbConn,
-		}
-		conn = dbConnPtr
-
-	case dbio.KindFile:
-		fileConn, err := filesys.NewFileSysClientFromURLContext(
-			b.Context().Ctx, b.URL(), g.MapToKVArr(b.DataS())...,
-		)
-		if err != nil {
-			return conn, g.Error(err, "could not connect to %s: %s", b.Type, ID)
-		}
-		fileConnPtr := &connFile{
-			connBase: b,
-			conn:     fileConn,
-		}
-		conn = fileConnPtr
-
+	case dbio.KindDatabase, dbio.KindFile:
 	default:
 		err = g.Error("unsupported connection type (%s)", b.Type)
 	}
@@ -101,11 +77,11 @@ func NewConnectionFromURL(ID, URL string) (conn Connection, err error) {
 
 // NewConnectionFromMap loads a Connection from a Map
 func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
-	data, ok := m["data"].(map[string]interface{})
-	if !ok {
-		data = g.M()
-	}
-	return NewConnection(cast.ToString(m["id"]), dbio.Type(cast.ToString(m["type"])), data)
+	return NewConnection(
+		cast.ToString(m["id"]),
+		dbio.Type(cast.ToString(m["type"])),
+		g.AsMap(m["data"]),
+	)
 }
 
 // Info returns connection information
@@ -156,12 +132,16 @@ func (c *connBase) URL() string {
 	return cast.ToString(c.Data["url"])
 }
 
-func (c *connBase) AsDatabase() database.Connection {
-	return nil
+func (c *connBase) AsDatabase() (database.Connection, error) {
+	return database.NewConnContext(
+		c.Context().Ctx, c.URL(), g.MapToKVArr(c.DataS())...,
+	)
 }
 
-func (c *connBase) AsFile() filesys.FileSysClient {
-	return nil
+func (c *connBase) AsFile() (filesys.FileSysClient, error) {
+	return filesys.NewFileSysClientFromURLContext(
+		c.Context().Ctx, c.URL(), g.MapToKVArr(c.DataS())...,
+	)
 }
 
 // SetFromEnv set values from environment
@@ -195,6 +175,7 @@ func (c *connBase) Close() error {
 func (c *connBase) setURL() (err error) {
 	c.setFromEnv()
 
+	// g.P(c.Data)
 	if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
@@ -207,20 +188,23 @@ func (c *connBase) setURL() (err error) {
 			scheme = string(dbio.TypeFileLocal)
 		}
 
-		// set props from URL
-		c.Data["schema"] = U.PopParam("schema")
-		c.Data["host"] = U.Hostname()
-		c.Data["username"] = U.Username()
-		c.Data["password"] = U.Password()
-		c.Data["port"] = U.Port(c.Info().Type.DefPort())
-		c.Data["database"] = strings.ReplaceAll(U.Path(), "/", "")
-		c.Data["url"] = U.URL()
-
 		t, ok := dbio.ValidateType(scheme)
 		if !ok {
 			return g.Error("unsupported type: %s", U.U.Scheme)
 		}
 		c.Type = t
+
+		if c.Type.IsDb() {
+			// set props from URL
+			c.Data["schema"] = U.PopParam("schema")
+			c.Data["host"] = U.Hostname()
+			c.Data["username"] = U.Username()
+			c.Data["password"] = U.Password()
+			c.Data["port"] = U.Port(c.Info().Type.DefPort())
+			c.Data["database"] = strings.ReplaceAll(U.Path(), "/", "")
+			// c.Data["url"] = U.URL()
+		}
+
 		return nil
 	}
 
@@ -258,12 +242,12 @@ func (c *connBase) setURL() (err error) {
 		}
 	case dbio.TypeDbPostgres:
 		setDefault("password", "")
-		setDefault("sslmode", "prefer")
+		setDefault("sslmode", "disable")
 		setDefault("port", 5432)
 		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbRedshift:
 		setDefault("password", "")
-		setDefault("sslmode", "prefer")
+		setDefault("sslmode", "disable")
 		setDefault("port", 5439)
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbMySQL:
@@ -281,6 +265,14 @@ func (c *connBase) setURL() (err error) {
 		setDefault("password", "")
 		setDefault("port", 1433)
 		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
+	case dbio.TypeFileS3:
+		template = "s3://{aws_bucket}"
+	case dbio.TypeFileGoogle:
+		template = "gs://{gc_bucket}"
+	case dbio.TypeFileAzure:
+		template = "azure://{azure_account}"
+	case dbio.TypeFileSftp:
+		template = "sftp://{username}:{password}@{host}:{port}"
 	default:
 		return g.Error("unrecognized type: %s", c.Type)
 	}
@@ -292,34 +284,6 @@ func (c *connBase) setURL() (err error) {
 	c.Data["url"] = g.Rm(template, c.Data)
 
 	return nil
-}
-
-type connDatabase struct {
-	connBase
-	conn database.Connection
-}
-
-// Close closes the connection
-func (c *connDatabase) Close() error {
-	return c.conn.Close()
-}
-
-func (c *connDatabase) AsDatabase() database.Connection {
-	return c.conn
-}
-
-type connFile struct {
-	connBase
-	conn filesys.FileSysClient
-}
-
-// Close closes the connection
-func (c *connFile) Close() error {
-	return nil
-}
-
-func (c *connFile) AsFile() filesys.FileSysClient {
-	return c.conn
 }
 
 // CopyDirect copies directly from cloud files

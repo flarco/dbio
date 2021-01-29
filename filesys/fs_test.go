@@ -1,12 +1,15 @@
 package filesys
 
 import (
-	"github.com/flarco/dbio/iop"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/flarco/dbio"
+
+	"github.com/flarco/dbio/iop"
 
 	"github.com/flarco/g"
 	"github.com/stretchr/testify/assert"
@@ -14,13 +17,13 @@ import (
 
 func TestFileSysLocal(t *testing.T) {
 	t.Parallel()
-	fs, err := NewFileSysClient(LocalFileSys)
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	// Test List
 	paths, err := fs.List(".")
 	assert.NoError(t, err)
-	assert.Contains(t, paths, "./file_sys_test.go")
+	assert.Contains(t, paths, "./fs_test.go")
 
 	paths, err = fs.ListRecursive("**/*")
 	assert.NoError(t, err)
@@ -35,7 +38,9 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NoError(t, err)
 
 	readers, err := fs.GetReaders(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(readers[0])
 	assert.NoError(t, err)
@@ -56,7 +61,7 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 
-	fs.SetProp("HEADER", "FALSE")
+	fs.SetProp("header", "FALSE")
 	df1, err := fs.ReadDataflow("test/test2.1.noheader.csv")
 	assert.NoError(t, err)
 
@@ -68,7 +73,7 @@ func TestFileSysLocal(t *testing.T) {
 
 func TestFileSysDOSpaces(t *testing.T) {
 	fs, err := NewFileSysClient(
-		S3cFileSys,
+		dbio.TypeFileS3,
 		// "AWS_ENDPOINT=https://nyc3.digitaloceanspaces.com",
 		"AWS_ENDPOINT=nyc3.digitaloceanspaces.com",
 		"AWS_ACCESS_KEY_ID="+os.Getenv("DOS_ACCESS_KEY_ID"),
@@ -122,7 +127,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 
 	// Test concurrent wrinting from datastream
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df2, err := localFs.ReadDataflow("test/test1.*")
@@ -146,7 +151,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 
 func TestFileSysS3(t *testing.T) {
 	t.Parallel()
-	fs, err := NewFileSysClient(S3FileSys)
+	fs, err := NewFileSysClient(dbio.TypeFileS3)
 	// fs, err := NewFileSysClient(S3cFileSys, "AWS_ENDPOINT=s3.amazonaws.com")
 	assert.NoError(t, err)
 
@@ -200,7 +205,7 @@ func TestFileSysS3(t *testing.T) {
 
 	// Test concurrent wrinting from datastream
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df2, err := localFs.ReadDataflow("test/test1.*")
@@ -235,7 +240,7 @@ func TestFileSysS3(t *testing.T) {
 func TestFileSysAzure(t *testing.T) {
 	t.Parallel()
 
-	fs, err := NewFileSysClient(AzureFileSys)
+	fs, err := NewFileSysClient(dbio.TypeFileAzure)
 	assert.NoError(t, err)
 
 	testString := "abcde"
@@ -259,7 +264,7 @@ func TestFileSysAzure(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, paths, testPath)
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df2, err := localFs.ReadDataflow("test/test1.*")
@@ -290,7 +295,7 @@ func TestFileSysAzure(t *testing.T) {
 func TestFileSysGoogle(t *testing.T) {
 	t.Parallel()
 
-	fs, err := NewFileSysClient(GoogleFileSys, "GC_BUCKET=flarco_us_bucket")
+	fs, err := NewFileSysClient(dbio.TypeFileGoogle, "GC_BUCKET=flarco_us_bucket")
 	assert.NoError(t, err)
 
 	testString := "abcde"
@@ -315,7 +320,7 @@ func TestFileSysGoogle(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, paths, testPath)
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df2, err := localFs.ReadDataflow("test/test1.*")
@@ -339,7 +344,7 @@ func TestFileSysSftp(t *testing.T) {
 	t.Parallel()
 
 	fs, err := NewFileSysClient(
-		SftpFileSys,
+		dbio.TypeFileSftp,
 		// "SSH_PRIVATE_KEY=/root/.ssh/id_rsa",
 		"SFTP_URL="+os.Getenv("SSH_TEST_PASSWD_URL"),
 	)
@@ -369,7 +374,7 @@ func TestFileSysSftp(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, paths, testPath)
 
-	localFs, err := NewFileSysClient(LocalFileSys)
+	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
 	df2, err := localFs.ReadDataflow("test/test1.*")
@@ -394,7 +399,7 @@ func TestFileSysSftp(t *testing.T) {
 
 func TestFileSysHTTP(t *testing.T) {
 	fs, err := NewFileSysClient(
-		HTTPFileSys, //"HTTP_USER=user", "HTTP_PASSWORD=password",
+		dbio.TypeFileHTTP, //"HTTP_USER=user", "HTTP_PASSWORD=password",
 	)
 	paths, err := fs.List("https://repo.anaconda.com/miniconda/")
 	assert.NoError(t, err)
@@ -419,7 +424,7 @@ func TestFileSysHTTP(t *testing.T) {
 		data, err := iop.Collect(ds)
 		assert.NoError(t, err)
 		assert.Greater(t, len(data.Rows), 0)
-		g.P(len(data.Rows))
+		// g.P(len(data.Rows))
 		for _, row := range data.Rows {
 			g.P(row)
 		}

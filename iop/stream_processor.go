@@ -1,7 +1,6 @@
 package iop
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"regexp"
@@ -49,36 +48,36 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 		sp = NewStreamProcessor()
 	}
 
-	if configMap["DELIMITER"] != "" {
-		sp.config.delimiter = []rune(cast.ToString(configMap["DELIMITER"]))[0]
+	if configMap["delimiter"] != "" {
+		sp.config.delimiter = []rune(cast.ToString(configMap["delimiter"]))[0]
 	}
 
-	if configMap["FILE_MAX_ROWS"] != "" {
-		sp.config.fileMaxRows = cast.ToInt64(configMap["FILE_MAX_ROWS"])
+	if configMap["file_max_rows"] != "" {
+		sp.config.fileMaxRows = cast.ToInt64(configMap["file_max_rows"])
 	}
 
-	if configMap["HEADER"] != "" {
-		sp.config.header = cast.ToBool(configMap["HEADER"])
+	if configMap["header"] != "" {
+		sp.config.header = cast.ToBool(configMap["header"])
 	} else {
 		sp.config.header = true
 	}
 
-	if configMap["EMPTY_FIELD_AS_NULL"] != "" {
-		sp.config.emptyAsNull = cast.ToBool(configMap["EMPTY_FIELD_AS_NULL"])
+	if configMap["empty_field_as_null"] != "" {
+		sp.config.emptyAsNull = cast.ToBool(configMap["empty_field_as_null"])
 	}
-	if configMap["NULL_IF"] != "" {
-		sp.config.nullIf = configMap["NULL_IF"]
+	if configMap["null_if"] != "" {
+		sp.config.nullIf = configMap["null_if"]
 	}
-	if configMap["TRIM_SPACE"] != "" {
-		sp.config.trimSpace = cast.ToBool(configMap["TRIM_SPACE"])
+	if configMap["trim_space"] != "" {
+		sp.config.trimSpace = cast.ToBool(configMap["trim_space"])
 	}
-	if configMap["SKIP_BLANK_LINES"] != "" {
-		sp.config.skipBlankLines = cast.ToBool(configMap["SKIP_BLANK_LINES"])
+	if configMap["skip_blank_lines"] != "" {
+		sp.config.skipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
 	}
-	sp.config.compression = configMap["COMPRESSION"]
+	sp.config.compression = configMap["compression"]
 
-	if configMap["DATETIME_FORMAT"] != "" {
-		sp.config.datetimeFormat = iso8601ToGoLayout(configMap["DATETIME_FORMAT"])
+	if configMap["datetime_format"] != "" {
+		sp.config.datetimeFormat = iso8601ToGoLayout(configMap["datetime_format"])
 		// put in first
 		sp.dateLayouts = append(
 			[]string{sp.config.datetimeFormat},
@@ -141,14 +140,14 @@ func (sp *StreamProcessor) toFloat64E(i interface{}) (float64, error) {
 		if err == nil {
 			return v, nil
 		}
-		return 0, fmt.Errorf("unable to cast %#v of type %T to float64", i, i)
+		return 0, g.Error("unable to cast %#v of type %T to float64", i, i)
 	case bool:
 		if s {
 			return 1, nil
 		}
 		return 0, nil
 	default:
-		return 0, fmt.Errorf("unable to cast %#v of type %T to float64", i, i)
+		return 0, g.Error("unable to cast %#v of type %T to float64", i, i)
 	}
 }
 
@@ -470,7 +469,7 @@ func (sp *StreamProcessor) CastToTime(i interface{}) (t time.Time, err error) {
 func (sp *StreamProcessor) ParseTime(i interface{}) (t time.Time, err error) {
 	s := cast.ToString(i)
 	if s == "" {
-		return t, fmt.Errorf("blank val")
+		return t, g.Error("blank val")
 	}
 
 	// date layouts to try out

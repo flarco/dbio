@@ -143,7 +143,7 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 		return NewFileSysClientContext(ctx, dbio.TypeFileHTTP, props...)
 	case strings.Contains(url, "://"):
 		err = g.Error(
-			fmt.Errorf("Unable to determine FileSysClient for "+url),
+			g.Error("Unable to determine FileSysClient for "+url),
 			"",
 		)
 		return
@@ -237,7 +237,7 @@ func (fs *BaseFileSysClient) FsType() dbio.Type {
 
 // GetProp returns the value of a property
 func (fs *BaseFileSysClient) GetProp(key string) string {
-	return fs.properties[key]
+	return fs.properties[strings.ToLower(key)]
 }
 
 // SetProp sets the value of a property
@@ -245,7 +245,7 @@ func (fs *BaseFileSysClient) SetProp(key string, val string) {
 	if fs.properties == nil {
 		fs.properties = map[string]string{}
 	}
-	fs.properties[key] = val
+	fs.properties[strings.ToLower(key)] = val
 }
 
 // GetDatastream return a datastream for the given path
@@ -319,7 +319,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			ds.Context.Cancel()
 			fs.Context().CaptureErr(g.Error(err, "Error consuming reader"))
 			// fs.Context().Cancel()
-			g.LogError(fs.Context().Err())
+			// g.LogError(fs.Context().Err())
 		}
 
 	}()
@@ -432,7 +432,7 @@ func (fs *BaseFileSysClient) WriteDataflow(df *iop.Dataflow, url string) (bw int
 // GetReaders returns one or more readers from specified paths in specified FileSysClient
 func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, err error) {
 	if len(paths) == 0 {
-		err = fmt.Errorf("Provided 0 files for: %#v", paths)
+		err = g.Error("Provided 0 files for: %#v", paths)
 		return
 	}
 
@@ -561,7 +561,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 func GetDataflow(fs FileSysClient, paths ...string) (df *iop.Dataflow, err error) {
 
 	if len(paths) == 0 {
-		err = fmt.Errorf("Provided 0 files for: %#v", paths)
+		err = g.Error("Provided 0 files for: %#v", paths)
 		return
 	}
 

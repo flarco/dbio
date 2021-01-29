@@ -148,7 +148,7 @@ func (home *Home) APIKey() (key string) {
 		m := map[string]string{}
 		json.Unmarshal(fileBytes, &m)
 		if err != nil {
-			g.LogError(fmt.Errorf("could not parse auth.json"))
+			g.LogError(g.Error("could not parse auth.json"))
 			return
 		}
 		key = m["key"]
@@ -215,7 +215,7 @@ func (p *Profile) ListConnections(includeEnv bool) (cArr []connection.Connection
 	getConn := func(name string, connObj map[string]interface{}) (c connection.Connection, err error) {
 		URL, ok := connObj["url"]
 		if !ok {
-			err = fmt.Errorf("no url provided for profile connection: " + name)
+			err = g.Error("no url provided for profile connection: " + name)
 			err = g.Error(err)
 			return
 		}
