@@ -18,29 +18,29 @@ const (
 type Type string
 
 const (
-	TypeUnknown = ""
+	TypeUnknown Type = ""
 
-	TypeFileLocal  = "local"
-	TypeFileHDFS   = "hdfs"
-	TypeFileS3     = "s3"
-	TypeFileAzure  = "azure"
-	TypeFileGoogle = "gs"
-	TypeFileSftp   = "sftp"
-	TypeFileHTTP   = "http"
+	TypeFileLocal  Type = "local"
+	TypeFileHDFS   Type = "hdfs"
+	TypeFileS3     Type = "s3"
+	TypeFileAzure  Type = "azure"
+	TypeFileGoogle Type = "gs"
+	TypeFileSftp   Type = "sftp"
+	TypeFileHTTP   Type = "http"
 
-	TypeDbPostgres  = "postgres"
-	TypeDbRedshift  = "redshift"
-	TypeDbMySQL     = "mysql"
-	TypeDbOracle    = "oracle"
-	TypeDbBigQuery  = "bigquery"
-	TypeDbSnowflake = "snowflake"
-	TypeDbSQLite    = "sqlite"
-	TypeDbSQLServer = "sqlserver"
-	TypeDbAzure     = "azuresql"
-	TypeDbAzureDWH  = "azuredwh"
+	TypeDbPostgres  Type = "postgres"
+	TypeDbRedshift  Type = "redshift"
+	TypeDbMySQL     Type = "mysql"
+	TypeDbOracle    Type = "oracle"
+	TypeDbBigQuery  Type = "bigquery"
+	TypeDbSnowflake Type = "snowflake"
+	TypeDbSQLite    Type = "sqlite"
+	TypeDbSQLServer Type = "sqlserver"
+	TypeDbAzure     Type = "azuresql"
+	TypeDbAzureDWH  Type = "azuredwh"
 
-	TypeAPIGit    = "git"
-	TypeAPIGithub = "github"
+	TypeAPIGit    Type = "git"
+	TypeAPIGithub Type = "github"
 )
 
 // ValidateType returns true is type is valid

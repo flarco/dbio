@@ -176,7 +176,14 @@ func (c *connBase) Close() error {
 func (c *connBase) setURL() (err error) {
 	c.setFromEnv()
 
-	// g.P(c.Data)
+	// setIfMissing sets a default value if key is not present
+	setIfMissing := func(key string, val interface{}) {
+		if _, ok := c.Data[key]; !ok {
+			c.Data[key] = val
+		}
+	}
+
+	// if URL is provided, extract properties from it
 	if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
@@ -197,15 +204,13 @@ func (c *connBase) setURL() (err error) {
 
 		if c.Type.IsDb() {
 			// set props from URL
-			c.Data["schema"] = U.PopParam("schema")
-			c.Data["host"] = U.Hostname()
-			c.Data["username"] = U.Username()
-			c.Data["password"] = U.Password()
-			c.Data["port"] = U.Port(c.Info().Type.DefPort())
-			c.Data["database"] = strings.ReplaceAll(U.Path(), "/", "")
+			setIfMissing("schema", U.PopParam("schema"))
+			setIfMissing("host", U.Hostname())
+			setIfMissing("username", U.Username())
+			setIfMissing("password", U.Password())
+			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
 		}
-
-		return nil
 	}
 
 	template := ""
@@ -221,17 +226,11 @@ func (c *connBase) setURL() (err error) {
 		return eG.Err()
 	}
 
-	// setDefault sets a default value if key is not present
-	setDefault := func(key string, val interface{}) {
-		if _, ok := c.Data[key]; !ok {
-			c.Data[key] = val
-		}
-	}
-
 	switch c.Type {
 	case dbio.TypeDbOracle:
-		setDefault("password", "")
-		setDefault("port", 1521)
+		setIfMissing("password", "")
+		setIfMissing("sid", c.Data["database"])
+		setIfMissing("port", c.Type.DefPort())
 		if tns, ok := c.Data["tns"]; ok {
 			if !strings.HasPrefix(cast.ToString(tns), "(") {
 				c.Data["tns"] = "(" + cast.ToString(tns) + ")"
@@ -241,29 +240,29 @@ func (c *connBase) setURL() (err error) {
 			template = "oracle://{username}:{password}@{host}:{port}/{sid}"
 		}
 	case dbio.TypeDbPostgres:
-		setDefault("password", "")
-		setDefault("sslmode", "disable")
-		setDefault("port", 5432)
+		setIfMissing("password", "")
+		setIfMissing("sslmode", "disable")
+		setIfMissing("port", c.Type.DefPort())
 		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbRedshift:
-		setDefault("password", "")
-		setDefault("sslmode", "disable")
-		setDefault("port", 5439)
+		setIfMissing("password", "")
+		setIfMissing("sslmode", "disable")
+		setIfMissing("port", c.Type.DefPort())
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbMySQL:
-		setDefault("password", "")
-		setDefault("port", 3306)
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeDbBigQuery:
 		template = "bigquery://{project_id}/{location}/{dataset_id}"
 	case dbio.TypeDbSnowflake:
-		setDefault("schema", "public")
+		setIfMissing("schema", "public")
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
-		setDefault("password", "")
-		setDefault("port", 1433)
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
 		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeFileS3:
 		template = "s3://{aws_bucket}"
@@ -274,14 +273,21 @@ func (c *connBase) setURL() (err error) {
 	case dbio.TypeFileSftp:
 		template = "sftp://{username}:{password}@{host}:{port}"
 	default:
-		return g.Error("unrecognized type: %s", c.Type)
+		switch c.Type.Kind() {
+		case dbio.KindFile, dbio.KindAPI:
+			return nil
+		default:
+			return g.Error("unrecognized type: %s", c.Type)
+		}
 	}
 
 	keys := g.MatchesGroup(template, "{([a-zA-Z]+)}", 0)
 	if err := checkData(keys...); err != nil {
-		return g.Error(err, "keys missing")
+		return g.Error(err, "required keys not provided")
 	}
-	c.Data["url"] = g.Rm(template, c.Data)
+
+	// set URL is missing
+	setIfMissing("url", g.Rm(template, c.Data))
 
 	return nil
 }
