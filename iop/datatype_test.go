@@ -12,7 +12,6 @@ var (
 	AWS_BUCKET = os.Getenv("AWS_BUCKET")
 )
 
-
 func bParseString(sp *StreamProcessor, val string, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		sp.ParseString(val)
@@ -264,5 +263,7 @@ func TestParseDate(t *testing.T) {
 	val := "17-OCT-20 07.01.59.000000 PM"
 	g.P(sp.ParseString(val))
 	val = "17-OCT-20"
+	g.P(sp.ParseString(val))
+	val = `1/17/20`
 	g.P(sp.ParseString(val))
 }

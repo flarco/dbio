@@ -3,7 +3,6 @@ package iop
 import (
 	"bufio"
 	"fmt"
-	"github.com/flarco/dbio/filesys"
 	"io"
 	"io/ioutil"
 	"os"
@@ -131,42 +130,6 @@ func TestSplitCarrRet2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, "", string(b))
 	g.P(string(b))
-}
-
-func testManyCSV(t *testing.T) {
-	fs, err := filesys.NewFileSysClient(filesys.HTTPFileSys, "concurencyLimit=5")
-	paths, err := fs.List("https://people.sc.fsu.edu/~jburkardt/data/csv/csv.html")
-	// paths, err := fs.List("https://www.stats.govt.nz/large-datasets/csv-files-for-download/")
-	assert.NoError(t, err)
-
-	// println(strings.Join(paths, "\n"))
-
-	csvPaths := []string{}
-	dss := []*Datastream{}
-	for _, path := range paths {
-		if strings.HasSuffix(path, ".csv") {
-			csvPaths = append(csvPaths, path)
-			g.Debug("added csvPath %s", path)
-			ds, err := fs.Self().GetDatastream(path)
-			g.LogError(err, "could not parse "+path)
-			if err == nil {
-				dss = append(dss, ds)
-			}
-			// data, err := ds.Collect(0)
-			// assert.NoError(t, err)
-			// g.Debug("%d rows collected from %s", len(data.Rows), path)
-		}
-	}
-
-	g.Debug("%d csvPaths", len(csvPaths))
-
-	for i, ds := range dss {
-		data, err := Collect(ds)
-		g.Debug("%d rows collected from %s", len(data.Rows), csvPaths[i])
-		if assert.NoError(t, err, "for "+csvPaths[i]) {
-			assert.Greater(t, len(data.Rows), 0)
-		}
-	}
 }
 
 func TestISO8601(t *testing.T) {
