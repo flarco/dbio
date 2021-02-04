@@ -124,6 +124,7 @@ func NewStreamProcessor() *StreamProcessor {
 		time.StampMilli,
 		time.StampMicro,
 		time.StampNano,
+		"01/02/2006",
 		"01/02/2006 15:04",
 		"01/02/2006 15:04:05",
 		"01/02/2006 03:04:05 PM", // "8/17/1994 12:00:00 AM"

@@ -231,7 +231,7 @@ func (c *connBase) setURL() (err error) {
 		setIfMissing("password", "")
 		setIfMissing("sid", c.Data["database"])
 		setIfMissing("port", c.Type.DefPort())
-		if tns, ok := c.Data["tns"]; ok {
+		if tns, ok := c.Data["tns"]; ok && cast.ToString(tns) != "" {
 			if !strings.HasPrefix(cast.ToString(tns), "(") {
 				c.Data["tns"] = "(" + cast.ToString(tns) + ")"
 			}
