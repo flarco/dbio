@@ -49,6 +49,7 @@ func ValidateType(tStr string) (Type, bool) {
 
 	tMap := map[string]Type{
 		"postgresql": TypeDbPostgres,
+		"file":       TypeFileLocal,
 	}
 
 	if tMatched, ok := tMap[tStr]; ok {

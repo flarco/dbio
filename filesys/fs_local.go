@@ -28,9 +28,13 @@ func (fs *LocalFileSysClient) Init(ctx context.Context) (err error) {
 	return
 }
 
+func cleanLocalFilePath(path string) string {
+	return strings.TrimPrefix(path, "file://")
+}
+
 // Delete deletes the given path (file or directory)
 func (fs *LocalFileSysClient) Delete(path string) (err error) {
-
+	path = cleanLocalFilePath(path)
 	file, err := os.Stat(path)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such file or directory") {
@@ -59,6 +63,7 @@ func (fs *LocalFileSysClient) Delete(path string) (err error) {
 
 // GetReader return a reader for the given path
 func (fs *LocalFileSysClient) GetReader(path string) (reader io.Reader, err error) {
+	path = cleanLocalFilePath(path)
 	file, err := os.Open(path)
 	if err != nil {
 		err = g.Error(err, "Unable to open "+path)
@@ -70,6 +75,7 @@ func (fs *LocalFileSysClient) GetReader(path string) (reader io.Reader, err erro
 
 // GetDatastream return a datastream for the given path
 func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, err error) {
+	path = cleanLocalFilePath(path)
 	file, err := os.Open(path)
 	if err != nil {
 		err = g.Error(err, "Unable to open "+path)
@@ -110,6 +116,7 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 // GetWriter creates the file if non-existent and return a writer
 func (fs *LocalFileSysClient) GetWriter(path string) (writer io.Writer, err error) {
+	path = cleanLocalFilePath(path)
 	file, err := os.Create(path)
 	if err != nil {
 		err = g.Error(err, "Unable to open "+path)
@@ -121,11 +128,13 @@ func (fs *LocalFileSysClient) GetWriter(path string) (writer io.Writer, err erro
 
 // MkdirAll creates child directories
 func (fs *LocalFileSysClient) MkdirAll(path string) (err error) {
+	path = cleanLocalFilePath(path)
 	return os.MkdirAll(path, 0655)
 }
 
 // Write creates the file if non-existent and writes from the reader
 func (fs *LocalFileSysClient) Write(path string, reader io.Reader) (bw int64, err error) {
+	path = cleanLocalFilePath(path)
 	// manage concurrency
 	defer fs.Context().Wg.Write.Done()
 	fs.Context().Wg.Write.Add()
@@ -144,6 +153,7 @@ func (fs *LocalFileSysClient) Write(path string, reader io.Reader) (bw int64, er
 
 // List lists the file in given directory path
 func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
+	path = cleanLocalFilePath(path)
 
 	files, err := ioutil.ReadDir("./")
 	if err != nil {
@@ -160,6 +170,7 @@ func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 
 // ListRecursive lists the file in given directory path recursively
 func (fs *LocalFileSysClient) ListRecursive(path string) (paths []string, err error) {
+	path = cleanLocalFilePath(path)
 
 	paths, err = filepath.Glob(path)
 	// err = filepath.Walk(path, func(subPath string, info os.FileInfo, err error) error {

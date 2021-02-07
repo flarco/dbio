@@ -147,8 +147,10 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 			"",
 		)
 		return
+	case strings.HasPrefix(url, "file://"):
+		props = append(props, g.F("concurencyLimit=%d", 20))
+		return NewFileSysClientContext(ctx, dbio.TypeFileLocal, props...)
 	default:
-		fsClient = &LocalFileSysClient{}
 		props = append(props, g.F("concurencyLimit=%d", 20))
 		return NewFileSysClientContext(ctx, dbio.TypeFileLocal, props...)
 	}
