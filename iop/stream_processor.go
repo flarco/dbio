@@ -39,7 +39,7 @@ type streamConfig struct {
 	skipBlankLines bool
 	delimiter      rune
 	fileMaxRows    int64
-	decimalDiv     float64
+	maxDecimals    float64
 }
 
 // SetConfig sets the data.Sp.config values
@@ -318,8 +318,8 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 			cs.Checksum = cs.Checksum + cast.ToUint64(fVal)
 		}
 		// max 9 decimals for bigquery compatibility
-		if sp.config.decimalDiv != 0 {
-			nVal = math.Round(fVal*sp.config.decimalDiv) / sp.config.decimalDiv
+		if sp.config.maxDecimals > -1 {
+			nVal = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
 		} else {
 			nVal = val // use string to keep accuracy
 		}

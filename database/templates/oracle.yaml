@@ -75,7 +75,7 @@ metadata:
     order by table_name
     
   views: |
-    select view_name
+    select view_name as table_name
     from sys.all_views
     where owner = upper('{schema}')
     order by view_name

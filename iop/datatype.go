@@ -72,10 +72,10 @@ func NewStreamProcessor() *StreamProcessor {
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{emptyAsNull: true},
+		config:          &streamConfig{emptyAsNull: true, maxDecimals: -1},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
-		sp.config.decimalDiv = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
+		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
 	}
 	sp.parseFuncs = map[string]func(s string) (interface{}, error){
 		"int": func(s string) (interface{}, error) {
