@@ -64,7 +64,7 @@ core:
 
 metadata:
   schemas: |
-    select username
+    select username as schema_name
     from sys.all_users
     order by username
   
