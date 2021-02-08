@@ -459,7 +459,7 @@ func testManyCSV(t *testing.T) {
 	g.Debug("%d csvPaths", len(csvPaths))
 
 	for i, ds := range dss {
-		data, err := Collect(ds)
+		data, err := iop.Collect(ds)
 		g.Debug("%d rows collected from %s", len(data.Rows), csvPaths[i])
 		if assert.NoError(t, err, "for "+csvPaths[i]) {
 			assert.Greater(t, len(data.Rows), 0)

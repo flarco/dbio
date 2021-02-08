@@ -156,6 +156,36 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 	}
 }
 
+// PathNode represents a file node
+type PathNode struct {
+	Name         string    `json:"name"`
+	IsDir        bool      `json:"is_dir"`
+	Size         int64     `json:"size,omitempty"`
+	LastModified time.Time `json:"last_modified,omitempty"`
+	Children     PathNodes `json:"children,omitempty"`
+}
+
+// PathNodes represent file nodes
+type PathNodes []PathNode
+
+// Add adds a new node to list
+func (pn *PathNodes) Add(p PathNode) {
+	nodes := *pn
+	nodes = append(nodes, p)
+	pn = &nodes
+}
+
+// List give a list of recursive paths
+func (pn PathNodes) List() (paths []string) {
+	for _, p := range pn {
+		paths = append(paths, p.Name)
+		if p.IsDir {
+			paths = append(paths, p.Children.List()...)
+		}
+	}
+	return paths
+}
+
 // ParseURL parses a URL
 func ParseURL(urlStr string) (host string, path string, err error) {
 
