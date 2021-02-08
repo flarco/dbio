@@ -49,7 +49,10 @@ func NewConnection(Name string, t dbio.Type, Data map[string]interface{}) (conn 
 	c := g.NewContext(context.Background())
 
 	conn = Connection{
-		Name: Name, Type: t, Data: g.AsMap(Data, true), context: c,
+		Name:    strings.TrimLeft(Name, "$"),
+		Type:    t,
+		Data:    g.AsMap(Data, true),
+		context: c,
 	}
 
 	err = conn.setURL()
@@ -75,7 +78,7 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 }
 
 // Info returns connection information
-func (c Connection) Info() Info {
+func (c *Connection) Info() Info {
 	return Info{
 		Name: c.Name,
 		Type: c.Type,
@@ -84,12 +87,12 @@ func (c Connection) Info() Info {
 }
 
 // ToMap transforms DataConn to a Map
-func (c Connection) ToMap() map[string]interface{} {
+func (c *Connection) ToMap() map[string]interface{} {
 	return g.M("name", c.Name, "type", c.Type, "data", c.Data)
 }
 
 // Set sets key/values from a map
-func (c Connection) Set(m map[string]interface{}) {
+func (c *Connection) Set(m map[string]interface{}) {
 	for k, v := range m {
 		c.Data[k] = v
 	}
@@ -97,7 +100,7 @@ func (c Connection) Set(m map[string]interface{}) {
 }
 
 // DataS returns data as map[string]string
-func (c Connection) DataS(lowerCase ...bool) map[string]string {
+func (c *Connection) DataS(lowerCase ...bool) map[string]string {
 	lc := false
 	if len(lowerCase) > 0 {
 		lc = lowerCase[0]
@@ -114,29 +117,29 @@ func (c Connection) DataS(lowerCase ...bool) map[string]string {
 }
 
 // Context returns the context
-func (c Connection) Context() g.Context {
+func (c *Connection) Context() g.Context {
 	return c.context
 }
 
 // URL returns the url string
-func (c Connection) URL() string {
+func (c *Connection) URL() string {
 	return cast.ToString(c.Data["url"])
 }
 
-func (c Connection) AsDatabase() (database.Connection, error) {
+func (c *Connection) AsDatabase() (database.Connection, error) {
 	return database.NewConnContext(
 		c.Context().Ctx, c.URL(), g.MapToKVArr(c.DataS())...,
 	)
 }
 
-func (c Connection) AsFile() (filesys.FileSysClient, error) {
+func (c *Connection) AsFile() (filesys.FileSysClient, error) {
 	return filesys.NewFileSysClientFromURLContext(
 		c.Context().Ctx, c.URL(), g.MapToKVArr(c.DataS())...,
 	)
 }
 
 // SetFromEnv set values from environment
-func (c Connection) setFromEnv() {
+func (c *Connection) setFromEnv() {
 	if c.Name == "" && strings.HasPrefix(c.URL(), "$") {
 		c.Name = strings.TrimLeft(c.URL(), "$")
 	}
@@ -159,11 +162,11 @@ func (c Connection) setFromEnv() {
 }
 
 // Close closes the connection
-func (c Connection) Close() error {
+func (c *Connection) Close() error {
 	return nil
 }
 
-func (c Connection) setURL() (err error) {
+func (c *Connection) setURL() (err error) {
 	c.setFromEnv()
 
 	// setIfMissing sets a default value if key is not present
@@ -181,6 +184,7 @@ func (c Connection) setURL() (err error) {
 		}
 
 		c.Type, _ = dbio.ValidateType(U.U.Scheme)
+		g.P(c.Type)
 
 		if c.Type.IsDb() {
 			// set props from URL
@@ -252,6 +256,8 @@ func (c Connection) setURL() (err error) {
 		template = "azure://{azure_account}"
 	case dbio.TypeFileSftp:
 		template = "sftp://{username}:{password}@{host}:{port}"
+	case dbio.TypeFileLocal:
+		return nil
 	default:
 		g.Debug("no type detected")
 		return nil
