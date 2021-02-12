@@ -219,7 +219,7 @@ func TestFileSysS3(t *testing.T) {
 
 	// eventual consistency
 	time.Sleep(2 * time.Second) // wait to s3 files to write on AWS side
-	df3, err := fs.ReadDataflow(writeFolderPath)
+	df3, err := fs.ReadDataflow(writeFolderPath, 1)
 	assert.NoError(t, err)
 
 	data2, err := iop.Collect(df3.Streams...)

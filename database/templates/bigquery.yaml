@@ -7,7 +7,7 @@ core:
   update: update {table} set {set_fields} where {pk_fields_equal}
   limit: select {fields} from {table} limit {limit}
   truncate_table: create or replace table {table} as select * from {table} limit 0
-  column_names: select * from ({sql}) as t limit 1
+  # column_names: select * from ({sql}) as t limit 1
 
 metadata:
   

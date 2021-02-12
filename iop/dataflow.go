@@ -95,6 +95,7 @@ type Dataflow struct {
 	StreamCh   chan *Datastream
 	Streams    []*Datastream
 	Context    g.Context
+	Limit      uint64
 	deferFuncs []func()
 	Bytes      int64
 	Ready      bool
@@ -106,12 +107,18 @@ type Dataflow struct {
 }
 
 // NewDataflow creates a new dataflow
-func NewDataflow() (df *Dataflow) {
+func NewDataflow(limit ...int) (df *Dataflow) {
+
+	Limit := uint64(0) // infinite
+	if len(limit) > 0 && limit[0] != 0 {
+		Limit = cast.ToUint64(limit[0])
+	}
 
 	df = &Dataflow{
 		StreamCh:   make(chan *Datastream, 100),
 		Streams:    []*Datastream{},
 		Context:    g.NewContext(context.Background()),
+		Limit:      Limit,
 		deferFuncs: []func(){},
 	}
 

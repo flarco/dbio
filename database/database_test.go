@@ -3,7 +3,6 @@ package database
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"log"
 	"math"
 	"os"
@@ -1085,6 +1084,23 @@ func TestCastColumnsForSelect(t *testing.T) {
 	g.P(srcFields)
 
 	err = conn.DropTable(`public.tgt1`, `public.src1`)
+}
+
+func TestGetSQLColumnsLarge(t *testing.T) {
+	conn, err := NewConn(os.Getenv("PG_BIONIC_URL"))
+	// conn, err := NewConn(DBs["bigquery"].URL)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	err = conn.Connect()
+	assert.NoError(t, err)
+
+	// sql := `select * from public.ccxt_price_second limit 500000`
+	sql := `select * from crypto.ccxt_price_second limit 500000`
+	cols, err := conn.GetSQLColumns(sql)
+	assert.NoError(t, err)
+	g.P(cols)
 }
 
 func TestDecimal(t *testing.T) {

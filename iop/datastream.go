@@ -43,6 +43,7 @@ type Iterator struct {
 	Closed   bool
 	ds       *Datastream
 	nextFunc func(it *Iterator) bool
+	limitCnt uint64 // to not check for df limit each cycle
 }
 
 // NewDatastream return a new datastream
@@ -802,6 +803,22 @@ func (it *Iterator) next() bool {
 		next := it.nextFunc(it)
 		if next {
 			it.Counter++
+
+			// logic to improve perf but not checking if
+			// df limit is reached each cycle
+			if it.ds.df != nil && it.ds.df.Limit > 0 {
+				it.limitCnt++
+
+				if it.Counter > it.ds.df.Limit {
+					return false
+				} else if it.limitCnt >= 30 {
+					// to check for limit reached each 30 rows
+					it.limitCnt = 0
+					if it.ds.df.Count() > it.ds.df.Limit {
+						return false
+					}
+				}
+			}
 		}
 		return next
 	}

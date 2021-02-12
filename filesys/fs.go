@@ -41,7 +41,7 @@ type FileSysClient interface {
 	ListRecursive(path string) (paths []string, err error)
 	Write(path string, reader io.Reader) (bw int64, err error)
 
-	ReadDataflow(url string) (df *iop.Dataflow, err error)
+	ReadDataflow(url string, limit ...int) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
 	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error)
 	GetProp(key string) (val string)
@@ -360,7 +360,12 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 }
 
 // ReadDataflow read
-func (fs *BaseFileSysClient) ReadDataflow(url string) (df *iop.Dataflow, err error) {
+func (fs *BaseFileSysClient) ReadDataflow(url string, limit ...int) (df *iop.Dataflow, err error) {
+	Limit := 0 // infinite
+	if len(limit) > 0 && limit[0] != 0 {
+		Limit = limit[0]
+	}
+
 	if strings.HasSuffix(strings.ToLower(url), ".zip") {
 		localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 		if err != nil {
@@ -391,7 +396,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string) (df *iop.Dataflow, err err
 		os.RemoveAll(zipPath)
 
 		// TODO: handle multiple files, yielding multiple schemas
-		df, err = GetDataflow(localFs.Self(), paths...)
+		df, err = GetDataflow(localFs.Self(), paths, Limit)
 		if err != nil {
 			return df, g.Error(err, "Error making dataflow")
 		}
@@ -407,7 +412,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string) (df *iop.Dataflow, err err
 		err = g.Error(err, "Error getting paths")
 		return
 	}
-	df, err = GetDataflow(fs.Self(), paths...)
+	df, err = GetDataflow(fs.Self(), paths, Limit)
 	if err != nil {
 		err = g.Error(err, "Error getting dataflow")
 		return
@@ -590,14 +595,14 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 }
 
 // GetDataflow returns a dataflow from specified paths in specified FileSysClient
-func GetDataflow(fs FileSysClient, paths ...string) (df *iop.Dataflow, err error) {
+func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow, err error) {
 
 	if len(paths) == 0 {
 		err = g.Error("Provided 0 files for: %#v", paths)
 		return
 	}
 
-	df = iop.NewDataflow()
+	df = iop.NewDataflow(limit)
 	df.Context = g.NewContext(fs.Context().Ctx)
 	go func() {
 		defer df.Close()

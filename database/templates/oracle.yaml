@@ -60,7 +60,7 @@ core:
     (
       {columns}
     )
-  column_names: select * from ({sql}) t where 1=0
+  # column_names: select * from ({sql}) t where 1=0
 
 metadata:
   schemas: |

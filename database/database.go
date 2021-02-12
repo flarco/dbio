@@ -573,6 +573,7 @@ func (conn *BaseConn) Close() error {
 	var err error
 	if conn.db != nil {
 		err = conn.db.Close()
+		g.LogError(err)
 	}
 	if conn.sshClient != nil {
 		conn.sshClient.Close()
@@ -808,7 +809,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	nextFunc := func(it *iop.Iterator) bool {
 		if Limit > 0 && it.Counter == Limit {
-			result.Close()
+			// result.Close() // closing will pull rows
 			return false
 		}
 
@@ -1113,36 +1114,16 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns []iop.Column, err e
 	}
 
 	// add 1=0
-	sql = g.R(conn.GetTemplateValue("core.column_names"), "sql", sql)
+	// sql = g.R(conn.GetTemplateValue("core.column_names"), "sql", sql)
 
 	// get column types
 	g.Trace("GetSQLColumns: %s", sql)
-	if conn.Db() != nil {
-		rows, err := conn.Db().Queryx(sql)
-		if err != nil {
-			err = g.Error(err, "SQL Error for:\n"+sql)
-			return columns, err
-		}
-		colTypes, err := rows.ColumnTypes()
-		if err != nil {
-			err = g.Error(err, "could not get column types")
-			return columns, err
-		}
-		rows.Close()
-		g.Trace("GetSQLColumns: got %d columns", len(colTypes))
-
-		columns = SQLColumns(colTypes, conn.Template().NativeTypeMap)
-	} else {
-		ds, err := conn.Self().StreamRows(sql)
-		if err != nil {
-			err = g.Error(err, "SQL Error for:\n"+sql)
-			return columns, err
-		}
-		columns = ds.Columns
+	rows, err := conn.Self().StreamRows(sql, 1)
+	if err != nil {
+		err = g.Error(err, "SQL Error for:\n"+sql)
+		return columns, err
 	}
-
-	columns = iop.Columns(columns)
-	return
+	return rows.Columns, nil
 }
 
 // TableExists returns true if the table exists

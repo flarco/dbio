@@ -294,17 +294,21 @@ func (s *SSHClient) GetOutput() (stdout string, stderr string) {
 // Close stops the client connection
 func (s *SSHClient) Close() {
 	if s.cmd != nil {
-		s.cmd.Process.Kill()
+		err := s.cmd.Process.Kill()
+		g.LogError(err)
 		s.cmd = nil
 	} else {
 		for _, conn := range s.allConns {
-			conn.Close()
+			err := conn.Close()
+			g.LogError(err)
 		}
 		if s.localListener != nil {
-			s.localListener.Close()
+			err := s.localListener.Close()
+			g.LogError(err)
 		}
 		if s.client != nil {
-			s.client.Close()
+			err := s.client.Close()
+			g.LogError(err)
 		}
 	}
 }

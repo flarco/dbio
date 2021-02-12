@@ -184,7 +184,6 @@ func (c *Connection) setURL() (err error) {
 		}
 
 		c.Type, _ = dbio.ValidateType(U.U.Scheme)
-		g.P(c.Type)
 
 		if c.Type.IsDb() {
 			// set props from URL

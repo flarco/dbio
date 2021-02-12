@@ -306,6 +306,8 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 		counter++
 		if counter == SampleSize {
 			break
+		} else if Limit > 0 && counter == Limit {
+			break
 		}
 	}
 

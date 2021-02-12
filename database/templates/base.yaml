@@ -13,8 +13,8 @@ core:
   truncate_table: truncate table {table}
   alter_columns: alter table {table} {col_ddls}
   modify_column: '{column} {type}'
-  column_names: select * from ({sql}) as t where 1=0
-  # column_names: '{sql}'
+  # column_names: select * from ({sql}) as t where 1=0
+  column_names: '{sql}'
 
 analysis:
   # table level
