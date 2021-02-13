@@ -213,6 +213,10 @@ func TestFileSysS3(t *testing.T) {
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
 	writeFolderPath := "s3://ocral-data-1/test.fs.write"
+	err = fs.Delete(writeFolderPath)
+	assert.NoError(t, err)
+
+	fs.SetProp("DBIO_FILE_BYTES_LIMIT", "20000")
 	_, err = fs.WriteDataflow(df2, writeFolderPath)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
@@ -225,9 +229,6 @@ func TestFileSysS3(t *testing.T) {
 	data2, err := iop.Collect(df3.Streams...)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
-
-	// err = fs.Delete(writeFolderPath)
-	// assert.NoError(t, err)
 
 	// if fs.Context().Err == nil {
 	// 	data, err := Collect(dss...)

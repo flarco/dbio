@@ -193,6 +193,9 @@ func (c *Connection) setURL() (err error) {
 			setIfMissing("password", U.Password())
 			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
 			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
+			if c.Type == dbio.TypeDbSnowflake {
+				setIfMissing("warehouse", U.PopParam("warehouse"))
+			}
 		}
 	}
 

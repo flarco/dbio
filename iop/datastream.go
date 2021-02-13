@@ -3,7 +3,6 @@ package iop
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/flarco/g/csv"
 	"github.com/spf13/cast"
 )
 
@@ -636,7 +636,7 @@ func (ds *Datastream) NewCsvBytesChnl(chunkRowSize int) (dataChn chan *[]byte) {
 	go func() {
 		defer close(dataChn)
 		for {
-			reader := ds.NewCsvReader(chunkRowSize)
+			reader := ds.NewCsvReader(chunkRowSize, 0)
 			data, err := ioutil.ReadAll(reader)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "Error ioutil.ReadAll(reader)"))
@@ -650,8 +650,8 @@ func (ds *Datastream) NewCsvBytesChnl(chunkRowSize int) (dataChn chan *[]byte) {
 }
 
 // NewCsvBufferReader creates a Reader with limit. If limit == 0, then read all rows.
-func (ds *Datastream) NewCsvBufferReader(limit int) *bytes.Reader {
-	reader := ds.NewCsvReader(limit)
+func (ds *Datastream) NewCsvBufferReader(limit int, bytesLimit int64) *bytes.Reader {
+	reader := ds.NewCsvReader(limit, bytesLimit)
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
 		ds.Context.CaptureErr(g.Error(err, "Error ioutil.ReadAll(reader)"))
@@ -661,14 +661,14 @@ func (ds *Datastream) NewCsvBufferReader(limit int) *bytes.Reader {
 
 // NewCsvBufferReaderChnl provides a channel of readers as the limit is reached
 // data is read in memory, whereas NewCsvReaderChnl does not hold in memory
-func (ds *Datastream) NewCsvBufferReaderChnl(limit int) (readerChn chan *bytes.Reader) {
+func (ds *Datastream) NewCsvBufferReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *bytes.Reader) {
 
 	readerChn = make(chan *bytes.Reader) // not buffered, will block if receiver isn't ready
 
 	go func() {
 		defer close(readerChn)
 		for !ds.IsEmpty() {
-			readerChn <- ds.NewCsvBufferReader(limit)
+			readerChn <- ds.NewCsvBufferReader(rowLimit, bytesLimit)
 		}
 	}()
 
@@ -676,20 +676,23 @@ func (ds *Datastream) NewCsvBufferReaderChnl(limit int) (readerChn chan *bytes.R
 }
 
 // NewCsvReaderChnl provides a channel of readers as the limit is reached
-func (ds *Datastream) NewCsvReaderChnl(limit int) (readerChn chan *io.PipeReader) {
+func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
 	readerChn = make(chan *io.PipeReader, 100)
 
 	pipeR, pipeW := io.Pipe()
 
 	readerChn <- pipeR
+	tbw := int64(0)
 
 	go func() {
 		defer close(readerChn)
+		defer func() { ds.AddBytes(tbw) }()
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
 
-		err := w.Write(ds.GetFields())
+		bw, err := w.Write(ds.GetFields())
+		tbw = tbw + cast.ToInt64(bw)
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "error writing header"))
 			ds.Context.Cancel()
@@ -704,7 +707,8 @@ func (ds *Datastream) NewCsvReaderChnl(limit int) (readerChn chan *io.PipeReader
 			for i, val := range row0 {
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
-			err := w.Write(row)
+			bw, err := w.Write(row)
+			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
 				ds.Context.Cancel()
@@ -713,7 +717,7 @@ func (ds *Datastream) NewCsvReaderChnl(limit int) (readerChn chan *io.PipeReader
 			}
 			w.Flush()
 
-			if limit > 0 && c == limit {
+			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 				pipeW.Close() // close the prior reader?
 
 				// new reader
@@ -721,7 +725,8 @@ func (ds *Datastream) NewCsvReaderChnl(limit int) (readerChn chan *io.PipeReader
 				pipeR, pipeW = io.Pipe()
 				w = csv.NewWriter(pipeW)
 
-				err = w.Write(ds.GetFields())
+				bw, err = w.Write(ds.GetFields())
+				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "error writing header"))
 					ds.Context.Cancel()
@@ -738,11 +743,14 @@ func (ds *Datastream) NewCsvReaderChnl(limit int) (readerChn chan *io.PipeReader
 }
 
 // NewCsvReader creates a Reader with limit. If limit == 0, then read all rows.
-func (ds *Datastream) NewCsvReader(limit int) *io.PipeReader {
+func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReader {
 	pipeR, pipeW := io.Pipe()
 
+	tbw := int64(0)
 	go func() {
 		defer pipeW.Close()
+		defer func() { ds.AddBytes(tbw) }()
+
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
 
@@ -753,7 +761,8 @@ func (ds *Datastream) NewCsvReader(limit int) *io.PipeReader {
 		}
 
 		if ds.config.header {
-			err := w.Write(fields)
+			bw, err := w.Write(fields)
+			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
 				ds.Context.Cancel()
@@ -768,7 +777,8 @@ func (ds *Datastream) NewCsvReader(limit int) *io.PipeReader {
 			for i, val := range row0 {
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
-			err := w.Write(row)
+			bw, err := w.Write(row)
+			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
 				ds.Context.Cancel()
@@ -776,9 +786,9 @@ func (ds *Datastream) NewCsvReader(limit int) *io.PipeReader {
 			}
 			w.Flush()
 
-			if limit > 0 && c == limit {
+			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 				limited = true
-				break // close reader if row limit is reached
+				break // close reader if limit is reached
 			}
 		}
 

@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/flarco/dbio"
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -216,7 +217,7 @@ func (conn *MySQLConn) LoadDataInFile(tableFName string, ds *iop.Datastream) (co
 	)
 
 	proc.Stderr = &stderr
-	proc.Stdin = ds.NewCsvReader(0)
+	proc.Stdin = ds.NewCsvReader(0, 0)
 
 	err = proc.Run()
 	if err != nil {

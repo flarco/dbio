@@ -2392,6 +2392,9 @@ func settingMppBulkImportFlow(conn Connection) {
 	if cast.ToInt(conn.GetProp("DBIO_FILE_ROW_LIMIT")) == 0 {
 		conn.SetProp("DBIO_FILE_ROW_LIMIT", "500000")
 	}
+	if cast.ToInt(conn.GetProp("DBIO_FILE_BYTES_LIMIT")) == 0 {
+		conn.SetProp("DBIO_FILE_BYTES_LIMIT", "16000000")
+	}
 
 	conn.SetProp("DBIO_COMPRESSION", "GZIP")
 

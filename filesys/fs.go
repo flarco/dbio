@@ -490,6 +490,10 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	defer close(fileReadyChn)
 	gzip := strings.ToUpper(fs.GetProp("DBIO_COMPRESSION")) == "GZIP"
 	fileRowLimit := cast.ToInt(fs.GetProp("DBIO_FILE_ROW_LIMIT"))
+	bytesLimit := cast.ToInt64(fs.GetProp("DBIO_FILE_BYTES_LIMIT")) // uncompressed file size
+	if gzip {
+		bytesLimit = bytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
+	}
 
 	if strings.HasSuffix(url, "/") {
 		url = url[:len(url)-1]
@@ -523,8 +527,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		// pre-add to WG to not hold next reader in memory while waiting
 		localCtx.Wg.Read.Add()
 		fileCount := 0
-		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit) {
-			// for reader := range ds.NewCsvReaderChnl(fileRowLimit) {
+		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) {
+			// for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) {
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
 			if singleFile {
@@ -651,7 +655,7 @@ func MakeDatastream(reader io.Reader) (ds *iop.Datastream, err error) {
 // WriteDatastream writes a datasream to a writer
 // or use fs.Write(path, ds.NewCsvReader(0))
 func WriteDatastream(writer io.Writer, ds *iop.Datastream) (bw int64, err error) {
-	reader := ds.NewCsvReader(0)
+	reader := ds.NewCsvReader(0, 0)
 	return Write(reader, writer)
 }
 
