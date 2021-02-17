@@ -155,7 +155,7 @@ func (fs *LocalFileSysClient) Write(path string, reader io.Reader) (bw int64, er
 func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 	path = cleanLocalFilePath(path)
 
-	files, err := ioutil.ReadDir("./")
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		err = g.Error(err, "Error listing "+path)
 		return

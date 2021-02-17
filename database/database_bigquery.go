@@ -356,7 +356,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 			counter++
 			select {
 			case <-ds.Context.Ctx.Done():
-				break
+				return
 			default:
 				ds.Push(row)
 			}
@@ -416,11 +416,12 @@ func (conn *BigQueryConn) importWithInserter(tableFName string, ds *iop.Datastre
 	const batchSize = 100000
 	batchRows := make([]*bqTuple, batchSize)
 	counter := 0
+loop:
 	for row := range ds.Rows {
 		select {
 		case <-ds.Context.Ctx.Done():
 			counter = 0
-			break
+			break loop
 		default:
 			counter++
 			batchRows[counter-1] = &bqTuple{Fields: ds.GetFields(), Row: row}

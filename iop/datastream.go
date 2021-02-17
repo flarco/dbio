@@ -119,10 +119,11 @@ func (ds *Datastream) IsClosed() bool {
 
 // WaitReady waits until datastream is ready
 func (ds *Datastream) WaitReady() error {
+loop:
 	for {
 		select {
 		case <-ds.Context.Ctx.Done():
-			break
+			break loop
 		default:
 		}
 
@@ -131,7 +132,7 @@ func (ds *Datastream) WaitReady() error {
 		}
 
 		if ds.Ready {
-			break
+			break loop
 		}
 
 		// likelyhood of lock lessens. Unsure why
@@ -259,6 +260,7 @@ func (ds *Datastream) Start() (err error) {
 	}
 
 	if !ds.Inferred {
+	loop:
 		for ds.it.next() {
 			select {
 			case <-ds.Context.Ctx.Done():
@@ -266,19 +268,19 @@ func (ds *Datastream) Start() (err error) {
 					err = g.Error(ds.Context.Err())
 					return
 				}
-				break
+				break loop
 			case <-ds.it.Context.Ctx.Done():
 				if ds.it.Context.Err() != nil {
 					err = g.Error(ds.it.Context.Err())
 					ds.Context.CaptureErr(err, "Failed to scan")
 					return
 				}
-				break
+				break loop
 			default:
 				row := ds.Sp.ProcessRow(ds.it.Row)
 				ds.Buffer = append(ds.Buffer, row)
-				if ds.it.Counter == cast.ToUint64(SampleSize) {
-					break
+				if ds.it.Counter >= cast.ToUint64(SampleSize) {
+					break loop
 				}
 			}
 		}
@@ -327,6 +329,7 @@ func (ds *Datastream) Start() (err error) {
 			}
 		}()
 
+	loop:
 		for ds.it.next() {
 			row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
 			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
@@ -335,13 +338,13 @@ func (ds *Datastream) Start() (err error) {
 
 			select {
 			case <-ds.Context.Ctx.Done():
-				break
+				break loop
 			case <-ds.it.Context.Ctx.Done():
 				if ds.it.Context.Err() != nil {
 					err = g.Error(ds.it.Context.Err())
 					ds.Context.CaptureErr(err, "Failed to scan")
 				}
-				break
+				break loop
 			default:
 				ds.Push(row)
 			}
@@ -478,12 +481,14 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 		chDs <- nDs
 
 		defer func() { nDs.Close() }()
+
+	loop:
 		for row := range ds.Rows {
 			nDs.Ready = true
 
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				nDs.Rows <- row
 				nDs.Count++
@@ -530,6 +535,8 @@ func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
 	go func() {
 		defer nDs.Close()
 		nDs.Ready = true
+
+	loop:
 		for row := range ds.Rows {
 			if nDs.Count <= counterMarker {
 				row = nDs.Sp.CastRow(row, nDs.Columns)
@@ -537,7 +544,7 @@ func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
 
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				nDs.Rows <- row
 				nDs.Count++
@@ -557,10 +564,12 @@ func (ds *Datastream) Map(transf func([]interface{}) []interface{}) (nDs *Datast
 
 	go func() {
 		defer close(nDs.Rows)
+
+	loop:
 		for row := range ds.Rows {
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				nDs.Rows <- transf(row)
 				nDs.Count++
@@ -579,12 +588,14 @@ func (ds *Datastream) MapParallel(transf func([]interface{}) []interface{}, numW
 
 	transform := func(wDs *Datastream, wg *sync.WaitGroup) {
 		defer wg.Done()
+
+	loop:
 		for row := range wDs.Rows {
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			case <-wDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				nDs.Rows <- transf(row)
 				nDs.Count++
@@ -603,10 +614,12 @@ func (ds *Datastream) MapParallel(transf func([]interface{}) []interface{}, numW
 
 	go func() {
 		wi := 0
+
+	loop:
 		for row := range ds.Rows {
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				wStreams[wi].Push(row)
 			}
@@ -676,6 +689,7 @@ func (ds *Datastream) NewCsvBufferReaderChnl(rowLimit int, bytesLimit int64) (re
 }
 
 // NewCsvReaderChnl provides a channel of readers as the limit is reached
+// each channel flows as fast as the consumer consumes
 func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
 	readerChn = make(chan *io.PipeReader, 100)
 
@@ -719,6 +733,8 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 				pipeW.Close() // close the prior reader?
+				ds.AddBytes(tbw)
+				tbw = 0 // reset
 
 				// new reader
 				c = 0
@@ -810,6 +826,10 @@ func (it *Iterator) next() bool {
 	case <-it.Context.Ctx.Done():
 		return false
 	default:
+		if it.Closed {
+			return false
+		}
+
 		next := it.nextFunc(it)
 		if next {
 			it.Counter++

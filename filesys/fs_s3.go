@@ -328,7 +328,24 @@ func (fs *S3FileSysClient) List(path string) (paths []string, err error) {
 	// Create S3 service client
 	svc := s3.New(fs.getSession())
 
-	return fs.doList(svc, input, urlPrefix)
+	paths, err = fs.doList(svc, input, urlPrefix)
+
+	// s3.List return all objects matching the path
+	// need to match exactly the parent folder to not
+	// return whatever objects partially match the beginning
+	for _, p := range paths {
+		if !strings.HasSuffix(p, "/") && path == p {
+			return []string{p}, err
+		}
+	}
+	prefix := strings.TrimSuffix(path, "/") + "/"
+	path2 := []string{}
+	for _, p := range paths {
+		if strings.HasPrefix(p, prefix) {
+			path2 = append(path2, p)
+		}
+	}
+	return path2, err
 }
 
 // ListRecursive lists the file in given directory path recusively
@@ -359,7 +376,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 
 	result, err := svc.ListObjectsV2WithContext(fs.Context().Ctx, input)
 	if err != nil {
-		err = g.Error(err, fmt.Sprintf("Error with ListObjectsV2 for: %#v", input))
+		err = g.Error(err, "Error with ListObjectsV2 for: %#v", input)
 		return paths, err
 	}
 
@@ -367,6 +384,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 	for {
 
 		for _, cp := range result.CommonPrefixes {
+			println(*cp.Prefix)
 			prefixes = append(prefixes, urlPrefix+*cp.Prefix)
 		}
 
@@ -379,7 +397,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 			input.SetContinuationToken(*result.NextContinuationToken)
 			result, err = svc.ListObjectsV2WithContext(fs.Context().Ctx, input)
 			if err != nil {
-				err = g.Error(err, fmt.Sprintf("Error with ListObjectsV2 for: %#v", input))
+				err = g.Error(err, "Error with ListObjectsV2 for: %#v", input)
 				return paths, err
 			}
 		} else {

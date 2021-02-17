@@ -191,10 +191,30 @@ func (cols Columns) Normalize(name string) string {
 	return cols.GetColumn(name).Name
 }
 
+// CompareColumns compared two columns to see if there are similar
+func CompareColumns(columns1 []Column, columns2 []Column) (err error) {
+	if len(columns1) != len(columns2) {
+		return g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
+	}
+
+	eG := g.ErrorGroup{}
+	for i, c1 := range columns1 {
+		c2 := columns2[i]
+
+		if c1.Type != c2.Type {
+			// too unpredictable to mark as error? sometimes one column
+			// has not enough data to represent true type. Warn instead
+			// eG.Add(g.Error("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
+			g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
+		}
+	}
+	return eG.Err()
+}
+
 // SyncColumns syncs two columns together
 func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err error) {
-	if len(columns1) != len(columns2) {
-		err = g.Error("mismatched columns %d != %d", len(columns1), len(columns2))
+	if err = CompareColumns(columns1, columns2); err != nil {
+		err = g.Error(err)
 		return
 	}
 

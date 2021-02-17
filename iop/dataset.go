@@ -121,10 +121,12 @@ func (data *Dataset) Stream() *Datastream {
 	go func() {
 		ds.Ready = true
 		defer ds.Close()
+
+	loop:
 		for _, row := range data.Rows {
 			select {
 			case <-ds.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				ds.Push(row)
 			}

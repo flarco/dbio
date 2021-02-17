@@ -322,11 +322,19 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 				// columns/buffer need to be populated
 				if ds.Ready {
 					ds.df = df
-					if !df.Ready {
+					if df.Ready {
+						// compare columns, if differences than error
+						if err := CompareColumns(df.Columns, ds.Columns); err != nil {
+							df.Context.CaptureErr(g.Error(err, "files columns don't match"))
+							df.Close()
+							return
+						}
+					} else {
 						df.Columns = ds.Columns
 						df.Buffer = ds.Buffer
 						df.Ready = true
 					}
+
 					select {
 					case df.StreamCh <- ds:
 						df.AddBytes(ds.Bytes)
@@ -378,13 +386,15 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 	go func() {
 		ds.Ready = true
 		defer ds.Close()
+
+	loop:
 		for ds0 := range df.StreamCh {
 			for row := range ds0.Rows {
 				select {
 				case <-df.Context.Ctx.Done():
-					break
+					break loop
 				case <-ds.Context.Ctx.Done():
-					break
+					break loop
 				default:
 					ds.Push(row)
 				}

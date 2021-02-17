@@ -54,7 +54,7 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NotContains(t, paths, "./"+testPath)
 
 	// Test datastream
-	df, err := fs.ReadDataflow("test/test1.*")
+	df, err := fs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 
 	data, err := iop.Collect(df.Streams...)
@@ -130,7 +130,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1.*")
+	df2, err := localFs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -147,6 +147,36 @@ func TestFileSysDOSpaces(t *testing.T) {
 	data2, err := iop.Collect(df3.Streams...)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
+}
+
+func TestFileSysLarge(t *testing.T) {
+	path := ""
+	// path = "s3://ocral-data-1/LargeDataset.csv"
+	// path = "s3://ocral-data-1"
+	path = "s3://ocral-data-1/test.fs.write/part.01.0001.csv"
+	path = "s3://ocral-data-1/test.fs.write/part"
+	// path = "gs://flarco_us_bucket/test"
+	// path = "gs://flarco_us_bucket/test/part"
+	// path = "https://flarcostorage.blob.core.windows.net/testcont/test2"
+	// path = "https://flarcostorage.blob.core.windows.net/testcont/test2/part"
+	fs, err := NewFileSysClientFromURL(path)
+	assert.NoError(t, err)
+
+	paths, err := fs.List(path)
+	assert.NoError(t, err)
+	g.P(paths)
+
+	return
+
+	df, err := fs.ReadDataflow(path, 10000)
+	assert.NoError(t, err)
+
+	for ds := range df.StreamCh {
+		data, err := ds.Collect(0)
+		assert.NoError(t, err)
+		println(len(data.Rows))
+	}
+	assert.NoError(t, df.Context.Err())
 }
 
 func TestFileSysS3(t *testing.T) {
@@ -208,7 +238,7 @@ func TestFileSysS3(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1.*")
+	df2, err := localFs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -268,7 +298,7 @@ func TestFileSysAzure(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1.*")
+	df2, err := localFs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -290,7 +320,7 @@ func TestFileSysAzure(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Greater(t, len(data2.Rows), 0)
 	}
-	fs.Delete(writeFolderPath)
+	// fs.Delete(writeFolderPath)
 }
 
 func TestFileSysGoogle(t *testing.T) {
@@ -324,7 +354,7 @@ func TestFileSysGoogle(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1.*")
+	df2, err := localFs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -378,7 +408,7 @@ func TestFileSysSftp(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1.*")
+	df2, err := localFs.ReadDataflow("test/test1")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 

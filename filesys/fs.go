@@ -407,7 +407,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, limit ...int) (df *iop.Dat
 		return df, nil
 	}
 
-	paths, err := fs.Self().ListRecursive(url)
+	paths, err := fs.Self().List(url)
 	if err != nil {
 		err = g.Error(err, "Error getting paths")
 		return
@@ -527,8 +527,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		// pre-add to WG to not hold next reader in memory while waiting
 		localCtx.Wg.Read.Add()
 		fileCount := 0
-		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) {
-			// for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) {
+		// for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) { // faster? but dangerous. Holds data in memory
+		for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) { // slower? but safer, waits for compression but does not hold data in memory
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
 			if singleFile {
