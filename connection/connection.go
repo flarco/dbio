@@ -261,7 +261,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeFileLocal:
 		return nil
 	default:
-		g.Debug("no type detected")
+		g.Trace("no type detected")
 		return nil
 	}
 

@@ -174,11 +174,19 @@ func (ds *Datastream) Close() {
 }
 
 // GetFields return the fields of the Data
-func (ds *Datastream) GetFields() []string {
+func (ds *Datastream) GetFields(toLower ...bool) []string {
+	lower := false
+	if len(toLower) > 0 {
+		lower = toLower[0]
+	}
 	fields := make([]string, len(ds.Columns))
 
 	for j, column := range ds.Columns {
-		fields[j] = column.Name
+		if lower {
+			fields[j] = strings.ToLower(column.Name)
+		} else {
+			fields[j] = column.Name
+		}
 	}
 
 	return fields
@@ -522,6 +530,8 @@ func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
 		if columns[i].Type != ds.Columns[i].Type {
 			diffCols = true
 			ds.Columns[i].Type = columns[i].Type
+		} else if columns[i].Name != ds.Columns[i].Name {
+			diffCols = true
 		}
 	}
 
@@ -705,7 +715,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
 
-		bw, err := w.Write(ds.GetFields())
+		bw, err := w.Write(ds.GetFields(true))
 		tbw = tbw + cast.ToInt64(bw)
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -772,7 +782,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		// header row to lower case
 		fields := []string{}
-		for _, field := range ds.GetFields() {
+		for _, field := range ds.GetFields(true) {
 			fields = append(fields, strings.ToLower(field))
 		}
 

@@ -1948,7 +1948,14 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, 
 			)
 		}
 
-		columnDDL := col.Name + " " + nativeType
+		// normalize column name uppercase/lowercase
+		if g.In(conn.Type, dbio.TypeDbOracle) {
+			col.Name = strings.ToUpper(col.Name)
+		} else {
+			col.Name = strings.ToLower(col.Name)
+		}
+
+		columnDDL := conn.Self().Quote(col.Name) + " " + nativeType
 		columnsDDL = append(columnsDDL, columnDDL)
 	}
 

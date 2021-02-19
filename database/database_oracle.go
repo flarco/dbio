@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"fmt"
-	"github.com/flarco/dbio"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -148,10 +149,11 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		err = g.Error(
 			err,
 			fmt.Sprintf(
-				"Oracle Import Command -> %s\nOracle Import Error  -> %s\n%s",
-				cmdStr, stderr.String(), stdout.String(),
+				"Oracle Import Command:\n%s\n\nControl File:\n%s\n\nOracle Import Error:%s\n%s",
+				cmdStr, ctlStr, stderr.String(), stdout.String(),
 			),
 		)
+		return ds.Count, err
 	}
 
 	if ds.Err() != nil {
@@ -199,10 +201,7 @@ func (conn *OracleConn) getColumnsString(ds *iop.Datastream) string {
 				strings.ToUpper(col.Name),
 			)
 		} else if col.IsString() {
-			// expr = fmt.Sprintf(
-			// 	`"REPLACE(REPLACE(:%s, chr(13)), '~/N/~', chr(10))"`,
-			// 	strings.ToUpper(col.Name),
-			// )
+			expr = g.F("char(400000) NULLIF %s=BLANKS", col.Name)
 		}
 		columnsString += fmt.Sprintf("  %s %s,\n", col.Name, expr)
 	}
