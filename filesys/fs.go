@@ -92,6 +92,10 @@ func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string
 
 	fsClient.Client().fsType = fst
 
+	// set default properties
+	fsClient.SetProp("header", "true")
+	fsClient.SetProp("delimiter", ",")
+
 	// set properties
 	for k, v := range g.KVArrToMap(props...) {
 		fsClient.SetProp(k, v)
@@ -488,9 +492,9 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
-	gzip := strings.ToUpper(fs.GetProp("DBIO_COMPRESSION")) == "GZIP"
-	fileRowLimit := cast.ToInt(fs.GetProp("DBIO_FILE_ROW_LIMIT"))
-	bytesLimit := cast.ToInt64(fs.GetProp("DBIO_FILE_BYTES_LIMIT")) // uncompressed file size
+	gzip := strings.ToUpper(fs.GetProp("COMPRESSION")) == "GZIP"
+	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
+	bytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
 	if gzip {
 		bytesLimit = bytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
 	}
@@ -576,6 +580,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 	partCnt := 1
 	for ds := range df.StreamCh {
+
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
 		if singleFile {
 			partURL = url
@@ -586,6 +591,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		g.Trace("starting process to write %s with file row limit %d", partURL, fileRowLimit)
 
 		df.Context.Wg.Read.Add()
+		ds.SetConfig(fs.properties) // pass options
 		go processStream(ds, partURL)
 		partCnt++
 	}

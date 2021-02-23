@@ -541,6 +541,9 @@ func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
 
 	g.Trace("shaping ds...")
 	nDs = NewDatastreamContext(ds.Context.Ctx, columns)
+	nDs.Inferred = ds.Inferred
+	nDs.config = ds.config
+	nDs.Sp.config = ds.Sp.config
 
 	go func() {
 		defer nDs.Close()
@@ -714,14 +717,17 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
+		w.Comma = ds.config.delimiter
 
-		bw, err := w.Write(ds.GetFields(true))
-		tbw = tbw + cast.ToInt64(bw)
-		if err != nil {
-			ds.Context.CaptureErr(g.Error(err, "error writing header"))
-			ds.Context.Cancel()
-			pipeW.Close()
-			return
+		if ds.config.header {
+			bw, err := w.Write(ds.GetFields(true))
+			tbw = tbw + cast.ToInt64(bw)
+			if err != nil {
+				ds.Context.CaptureErr(g.Error(err, "error writing header"))
+				ds.Context.Cancel()
+				pipeW.Close()
+				return
+			}
 		}
 
 		for row0 := range ds.Rows {
@@ -779,6 +785,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
+		w.Comma = ds.config.delimiter
 
 		// header row to lower case
 		fields := []string{}

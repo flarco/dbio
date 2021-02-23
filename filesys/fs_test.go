@@ -25,9 +25,9 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, paths, "./fs_test.go")
 
-	paths, err = fs.ListRecursive("**/*")
+	paths, err = fs.ListRecursive(".")
 	assert.NoError(t, err)
-	assert.Contains(t, paths, "test/test1.csv")
+	assert.Contains(t, paths, "test/test1/test1.csv")
 
 	// Test Delete, Write, Read
 	testPath := "test/fs.test"
@@ -62,7 +62,7 @@ func TestFileSysLocal(t *testing.T) {
 	assert.EqualValues(t, 1036, len(data.Rows))
 
 	fs.SetProp("header", "FALSE")
-	df1, err := fs.ReadDataflow("test/test2.1.noheader.csv")
+	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 	assert.NoError(t, err)
 
 	data1, err := iop.Collect(df1.Streams...)
@@ -246,7 +246,7 @@ func TestFileSysS3(t *testing.T) {
 	err = fs.Delete(writeFolderPath)
 	assert.NoError(t, err)
 
-	fs.SetProp("DBIO_FILE_BYTES_LIMIT", "20000")
+	fs.SetProp("FILE_BYTES_LIMIT", "20000")
 	_, err = fs.WriteDataflow(df2, writeFolderPath)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())

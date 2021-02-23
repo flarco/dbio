@@ -39,8 +39,10 @@ func (fs *GoogleFileSysClient) Connect() (err error) {
 		authOpthion = option.WithAPIKey(val)
 	} else if val := fs.GetProp("GC_CRED_FILE"); val != "" {
 		authOpthion = option.WithCredentialsFile(val)
+	} else if val := fs.GetProp("credentials_json"); val != "" {
+		authOpthion = option.WithCredentialsJSON([]byte(val))
 	} else {
-		return g.Error("Could not connect. Did not provide GC_CRED_JSON_BODY, GC_CRED_API_KEY or GC_CRED_FILE")
+		return g.Error("Could not connect. Did not provide credentials")
 	}
 
 	fs.bucket = fs.GetProp("GC_BUCKET")

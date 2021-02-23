@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/flarco/dbio"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -157,7 +158,7 @@ func (conn *MsSQLServerConn) BulkImportStream(tableFName string, ds *iop.Datastr
 // BcpImportStreamParrallel uses goroutine to import partitioned files
 func (conn *MsSQLServerConn) BcpImportStreamParrallel(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 
-	fileRowLimit := cast.ToInt(conn.GetProp("DBIO_FILE_ROW_LIMIT"))
+	fileRowLimit := cast.ToInt(conn.GetProp("FILE_MAX_ROWS"))
 	if fileRowLimit == 0 {
 		fileRowLimit = 200000
 	}
@@ -237,10 +238,11 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 		return
 	}
 
+	var csvRowCnt uint64
 	if conn.GetProp("use_bcp_map_parallel") == "true" {
-		_, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
+		csvRowCnt, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
 	} else {
-		_, err = csv.WriteStream(ds.Map(transf))
+		csvRowCnt, err = csv.WriteStream(ds.Map(transf))
 	}
 
 	// delete csv
@@ -250,6 +252,9 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 		ds.Context.CaptureErr(g.Error(err, "Error csv.WriteStream(ds) to "+filePath))
 		ds.Context.Cancel()
 		return 0, ds.Context.Err()
+	} else if csvRowCnt == 0 {
+		// no data from source
+		return 0, nil
 	}
 
 	// Import to Database

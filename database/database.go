@@ -1094,7 +1094,7 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 		col.Sourced = ok
 		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
 
-		g.Debug("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
+		g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
 
 		columns[i] = col
 
@@ -2396,14 +2396,14 @@ func (conn *BaseConn) credsProvided(provider string) bool {
 // settingMppBulkImportFlow sets settings for MPP databases type
 // for BulkImportFlow
 func settingMppBulkImportFlow(conn Connection) {
-	if cast.ToInt(conn.GetProp("DBIO_FILE_ROW_LIMIT")) == 0 {
-		conn.SetProp("DBIO_FILE_ROW_LIMIT", "500000")
+	if cast.ToInt(conn.GetProp("FILE_MAX_ROWS")) == 0 {
+		conn.SetProp("FILE_MAX_ROWS", "500000")
 	}
-	if cast.ToInt(conn.GetProp("DBIO_FILE_BYTES_LIMIT")) == 0 {
-		conn.SetProp("DBIO_FILE_BYTES_LIMIT", "16000000")
+	if cast.ToInt(conn.GetProp("FILE_BYTES_LIMIT")) == 0 {
+		conn.SetProp("FILE_BYTES_LIMIT", "16000000")
 	}
 
-	conn.SetProp("DBIO_COMPRESSION", "GZIP")
+	conn.SetProp("COMPRESSION", "GZIP")
 
 	conn.SetProp("DBIO_PARALLEL", "true")
 }

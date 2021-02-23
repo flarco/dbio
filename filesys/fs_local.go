@@ -177,13 +177,16 @@ func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 func (fs *LocalFileSysClient) ListRecursive(path string) (paths []string, err error) {
 	path = cleanLocalFilePath(path)
 
-	paths, err = filepath.Glob(path)
-	// err = filepath.Walk(path, func(subPath string, info os.FileInfo, err error) error {
-	// 	if !info.IsDir() {
-	// 		paths = append(paths, subPath)
-	// 	}
-	// 	return nil
-	// })
+	walkFunc := func(subPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			paths = append(paths, subPath)
+		}
+		return nil
+	}
+	err = filepath.Walk(path, walkFunc)
 	if err != nil {
 		err = g.Error(err, "Error listing "+path)
 	}

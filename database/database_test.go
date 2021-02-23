@@ -792,7 +792,7 @@ func TestLargeDataset(t *testing.T) {
 	ctx := g.NewContext(context.Background(), 20)
 	doTest := func(db *testDB) {
 		defer ctx.Wg.Write.Done()
-		os.Setenv("DBIO_FILE_ROW_LIMIT", "13000")
+		os.Setenv("FILE_MAX_ROWS", "13000")
 		conn, err := connect(db)
 		ok := assert.NoError(t, err)
 		if !ok {

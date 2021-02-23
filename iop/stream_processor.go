@@ -367,7 +367,7 @@ func (sp *StreamProcessor) oldCastToString(i int, val interface{}, valType ...st
 	}
 }
 
-// CastToString to string
+// CastToString to string. used for csv writing
 func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...string) string {
 	typ := ""
 	switch v := val.(type) {
@@ -386,12 +386,17 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 		if RemoveTrailingDecZeros {
 			// attempt to remove trailing zeros, but is 10 times slower
 			return sp.decReplRegex.ReplaceAllString(cast.ToString(val), "$1")
+		} else if sp.config.maxDecimals > -1 {
+			fVal, _ := sp.toFloat64E(val)
+			val = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
 		}
 		return cast.ToString(val)
 	case "datetime", "date", "timestamp":
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
 			return ""
+		} else if sp.config.datetimeFormat != "" {
+			return tVal.Format(sp.config.datetimeFormat)
 		}
 		return tVal.Format("2006-01-02 15:04:05.000")
 	default:

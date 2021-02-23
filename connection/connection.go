@@ -195,6 +195,8 @@ func (c *Connection) setURL() (err error) {
 			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
 			if c.Type == dbio.TypeDbSnowflake {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
+			} else if c.Type == dbio.TypeDbBigQuery {
+				setIfMissing("schema", c.Data["dataset_id"])
 			}
 		}
 	}

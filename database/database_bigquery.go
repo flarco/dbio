@@ -32,6 +32,8 @@ type BigQueryConn struct {
 	Client    *bigquery.Client
 	ProjectID string
 	DatasetID string
+	Location  string
+	Datasets  []string
 }
 
 // bqTuple represents a row item.
@@ -64,7 +66,7 @@ func (conn *BigQueryConn) Init() error {
 	// Google BigQuery has limits
 	// https://cloud.google.com/bigquery/quotas
 	conn.Context().SetConcurencyLimit(5)
-	conn.SetProp("DBIO_FILE_ROW_LIMIT", "1000000") // hard code?
+	conn.SetProp("FILE_MAX_ROWS", "1000000") // hard code?
 
 	// set MAX_DECIMALS to fix bigquery import for numeric types
 	os.Setenv("MAX_DECIMALS", "9")
@@ -88,6 +90,8 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithCredentialsJSON(jsonBytes)
 	} else if val := conn.GetProp("GC_CRED_JSON_BODY"); val != "" {
 		authOption = option.WithCredentialsJSON([]byte(val))
+	} else if val := conn.GetProp("credentials_json"); val != "" {
+		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GC_CRED_FILE"); val != "" {
@@ -109,6 +113,23 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 	if err != nil {
 		return g.Error(err, "Failed to connect to client")
 	}
+
+	// get list of datasets
+	it := conn.Client.Datasets(conn.Context().Ctx)
+	for {
+		dataset, err := it.Next()
+		if err == iterator.Done {
+			err = nil
+			break
+		}
+
+		conn.Datasets = append(conn.Datasets, dataset.DatasetID)
+		if conn.Location == "" {
+			md, _ := dataset.Metadata(conn.Context().Ctx)
+			conn.Location = md.Location
+		}
+	}
+
 	return conn.BaseConn.Connect()
 }
 
@@ -729,14 +750,14 @@ func (conn *BigQueryConn) CopyToGCS(tableFName string, gcsURI string) error {
 	}
 	defer client.Close()
 
-	if strings.ToUpper(conn.GetProp("DBIO_COMPRESSION")) == "GZIP" {
+	if strings.ToUpper(conn.GetProp("COMPRESSION")) == "GZIP" {
 		gcsURI = gcsURI + ".gz"
 	}
 	gcsRef := bigquery.NewGCSReference(gcsURI)
 	gcsRef.FieldDelimiter = ","
 	gcsRef.AllowQuotedNewlines = true
 	gcsRef.Quote = `"`
-	if strings.ToUpper(conn.GetProp("DBIO_COMPRESSION")) == "GZIP" {
+	if strings.ToUpper(conn.GetProp("COMPRESSION")) == "GZIP" {
 		gcsRef.Compression = bigquery.Gzip
 	}
 	gcsRef.MaxBadRecords = 0
