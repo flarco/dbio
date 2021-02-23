@@ -345,6 +345,11 @@ func (fs *S3FileSysClient) List(path string) (paths []string, err error) {
 			path2 = append(path2, p)
 		}
 	}
+
+	// if path is folder, need to read inside
+	if len(path2) == 1 && strings.HasSuffix(path2[0], "/") {
+		return fs.List(path2[0])
+	}
 	return path2, err
 }
 
