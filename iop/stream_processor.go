@@ -37,7 +37,7 @@ type streamConfig struct {
 	nullIf         string
 	datetimeFormat string
 	skipBlankLines bool
-	delimiter      rune
+	delimiter      string
 	fileMaxRows    int64
 	maxDecimals    float64
 }
@@ -49,7 +49,7 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 
 	if configMap["delimiter"] != "" {
-		sp.config.delimiter = []rune(cast.ToString(configMap["delimiter"]))[0]
+		sp.config.delimiter = cast.ToString(configMap["delimiter"])
 	}
 
 	if configMap["file_max_rows"] != "" {
@@ -395,7 +395,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
 			return ""
-		} else if sp.config.datetimeFormat != "" {
+		} else if sp.config.datetimeFormat != "" && strings.ToLower(sp.config.datetimeFormat) != "auto" {
 			return tVal.Format(sp.config.datetimeFormat)
 		}
 		return tVal.Format("2006-01-02 15:04:05.000")

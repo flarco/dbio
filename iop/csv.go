@@ -550,6 +550,7 @@ func iso8601ToGoLayout(dateFormat string) (goDateFormat string) {
 	goDateFormat = strings.ReplaceAll(goDateFormat, ".ss", ".000")
 	goDateFormat = strings.ReplaceAll(goDateFormat, "ss", "05")
 	goDateFormat = strings.ReplaceAll(goDateFormat, ".s", ".000")
+	goDateFormat = strings.ReplaceAll(goDateFormat, "ISO8601", "2006-01-02T15:04:05Z")
 
 	goDateFormat = regexp.MustCompile(`Z\d\d:?\d\d$`).ReplaceAllString(goDateFormat, "Z0700")
 	goDateFormat = regexp.MustCompile(`-\d\d:?\d\d$`).ReplaceAllString(goDateFormat, "-0700")

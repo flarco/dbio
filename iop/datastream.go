@@ -717,7 +717,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
-		w.Comma = ds.config.delimiter
+		w.Comma = []rune(ds.config.delimiter)[0]
 
 		if ds.config.header {
 			bw, err := w.Write(ds.GetFields(true))
@@ -785,7 +785,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
-		w.Comma = ds.config.delimiter
+		w.Comma = []rune(ds.config.delimiter)[0]
 
 		// header row to lower case
 		fields := []string{}

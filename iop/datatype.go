@@ -102,7 +102,8 @@ func NewStreamProcessor() *StreamProcessor {
 		"02-Jan-06 03.04.05.000000 PM",
 		"2006-01-02T15:04:05-0700",
 		time.RFC3339,
-		"2006-01-02T15:04:05", // iso8601 without timezone
+		"2006-01-02T15:04:05",  // iso8601 without timezone
+		"2006-01-02T15:04:05Z", // iso8601 with timezone
 		time.RFC1123Z,
 		time.RFC1123,
 		time.RFC822Z,

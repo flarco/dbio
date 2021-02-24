@@ -82,7 +82,7 @@ type Connection interface {
 	SwapTable(srcTable string, tgtTable string) (err error)
 	RenameTable(table string, newTable string) (err error)
 	Context() *g.Context
-	setContext(ctx context.Context)
+	setContext(ctx context.Context, concurrency int)
 
 	StreamRecords(sql string) (<-chan map[string]interface{}, error)
 	GetDDL(string) (string, error)
@@ -229,6 +229,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		return nil, g.Error(err, "could not parse URL")
 	}
 
+	concurrency := 10
 	if strings.HasPrefix(URL, "postgres") {
 		if strings.Contains(URL, "redshift.amazonaws.com") {
 			conn = &RedshiftConn{URL: URL}
@@ -243,6 +244,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &MySQLConn{URL: URL}
 	} else if strings.HasPrefix(URL, "oracle:") {
 		conn = &OracleConn{URL: URL}
+		concurrency = 2
 	} else if strings.HasPrefix(URL, "bigquery:") {
 		conn = &BigQueryConn{URL: URL}
 	} else if strings.HasPrefix(URL, "snowflake") {
@@ -268,7 +270,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	}
 
 	// Init
-	conn.setContext(ctx)
+	conn.setContext(ctx, concurrency)
 	err = conn.Init()
 
 	return conn, err
@@ -372,8 +374,8 @@ func (conn *BaseConn) Init() (err error) {
 	return nil
 }
 
-func (conn *BaseConn) setContext(ctx context.Context) {
-	conn.context = g.NewContext(ctx)
+func (conn *BaseConn) setContext(ctx context.Context, concurrency int) {
+	conn.context = g.NewContext(ctx, concurrency)
 }
 
 // Self returns the respective connection Instance
@@ -1972,11 +1974,17 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, 
 func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 
 	g.Trace("BulkImportFlow not implemented for %s", conn.GetType())
+	df.Context.SetConcurencyLimit(conn.Context().Wg.Limit)
 
 	doImport := func(tableFName string, ds *iop.Datastream) {
 		defer df.Context.Wg.Write.Done()
 
-		cnt, err := conn.Self().BulkImportStream(tableFName, ds)
+		var cnt uint64
+		if conn.GetProp("use_bulk") == "false" {
+			cnt, err = conn.Self().InsertBatchStream(tableFName, ds)
+		} else {
+			cnt, err = conn.Self().BulkImportStream(tableFName, ds)
+		}
 		count += cnt
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "could not bulk import"))
