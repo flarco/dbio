@@ -349,7 +349,11 @@ func (conn *OracleConn) GenerateInsertStatement(tableName string, fields []strin
 	for n := 0; n < numRows; n++ {
 		for i, field := range fields {
 			c++
-			values[i] = conn.bindVar(i+1, strings.ReplaceAll(field, `"`, ""), n, c)
+			valField := field
+			if len(valField) > 28 {
+				valField = valField[:28]
+			}
+			values[i] = conn.bindVar(i+1, strings.ReplaceAll(valField, `"`, ""), n, c)
 			qFields[i] = conn.Self().Quote(field)
 		}
 

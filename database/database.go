@@ -244,7 +244,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &MySQLConn{URL: URL}
 	} else if strings.HasPrefix(URL, "oracle:") {
 		conn = &OracleConn{URL: URL}
-		concurrency = 2
+		// concurrency = 2
 	} else if strings.HasPrefix(URL, "bigquery:") {
 		conn = &BigQueryConn{URL: URL}
 	} else if strings.HasPrefix(URL, "snowflake") {
@@ -874,7 +874,11 @@ func (conn *BaseConn) Commit() (err error) {
 	err = conn.tx.Commit()
 	conn.tx = nil
 	if err != nil {
-		err = g.Error(err, "could not commit Tx")
+		if strings.Contains(err.Error(), " already ") {
+			err = nil
+		} else {
+			err = g.Error(err, "could not commit Tx")
+		}
 	}
 	return
 }
@@ -888,6 +892,19 @@ func (conn *BaseConn) Rollback() (err error) {
 	conn.tx = nil
 	if err != nil {
 		err = g.Error(err, "could not rollback Tx")
+	}
+	return
+}
+
+// Prepare prepares the statement
+func (conn *BaseConn) Prepare(ctx context.Context, query string) (stmt *sql.Stmt, err error) {
+	if conn.tx == nil {
+		err = g.Error("transaction closed")
+		return
+	}
+	stmt, err = conn.tx.PrepareContext(ctx, query)
+	if err != nil {
+		err = g.Error(err, "could not prepare Tx")
 	}
 	return
 }
@@ -1571,6 +1588,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		err = g.Error(err, "Could not begin transaction")
 		return
 	}
+	defer conn.Rollback()
 
 	insertBatch := func(rows [][]interface{}) error {
 		var err error
@@ -1578,12 +1596,11 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 
 		// open statement
-		stmt, err := conn.Tx().PrepareContext(ds.Context.Ctx, insertTemplate)
+		stmt, err := conn.Prepare(ds.Context.Ctx, insertTemplate)
 		if err != nil {
 			err = g.Error(err, "Error in PrepareContext")
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			conn.Tx().Rollback()
 			return conn.Context().Err()
 		}
 
@@ -1596,21 +1613,20 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		_, err = stmt.ExecContext(ds.Context.Ctx, vals...)
 		if err != nil {
 			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d", len(rows), len(rows[0]), len(rows)*len(rows[0]))
-			if len(insertTemplate) > 1000 {
-				insertTemplate = insertTemplate[:1000]
+			if len(insertTemplate) > 3000 {
+				insertTemplate = insertTemplate[:3000]
 			}
 			if len(rows) > 10 {
 				rows = rows[:10]
 			}
-			println(g.F(
-				"%s \n%s",
-				batchErrStr,
+			g.Debug(g.F(
+				"%s\n%s \n%s",
+				err.Error(), batchErrStr,
 				fmt.Sprintf("Insert: %s", insertTemplate),
 				// fmt.Sprintf("\n\nRows: %#v", rows),
 			))
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			conn.Tx().Rollback()
 			return conn.Context().Err()
 		}
 
@@ -1623,7 +1639,6 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 			)
 			conn.Context().CaptureErr(err)
 			conn.Context().Cancel()
-			conn.Tx().Rollback()
 		}
 		return conn.Context().Err()
 	}
@@ -1634,6 +1649,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		batchRows = append(batchRows, row)
 		count++
 		if len(batchRows) == batchSize {
+			g.Trace("batchSize %d", len(batchRows))
 			select {
 			case <-conn.Context().Ctx.Done():
 				return count, conn.Context().Err()
