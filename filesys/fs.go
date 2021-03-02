@@ -492,6 +492,7 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
+	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
 	gzip := strings.ToUpper(fs.GetProp("COMPRESSION")) == "GZIP"
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
 	bytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
@@ -507,11 +508,13 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 	processStream := func(ds *iop.Datastream, partURL string) {
 		defer df.Context.Wg.Read.Done()
-		conc := runtime.NumCPU()
-		if conc > 7 {
-			conc = 7
+		if concurrency == 0 {
+			concurrency = runtime.NumCPU()
+			if concurrency > 7 {
+				concurrency = 7
+			}
 		}
-		localCtx := g.NewContext(ds.Context.Ctx, conc)
+		localCtx := g.NewContext(ds.Context.Ctx, concurrency)
 
 		writePart := func(reader io.Reader, partURL string) {
 			defer localCtx.Wg.Read.Done()
@@ -531,8 +534,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		// pre-add to WG to not hold next reader in memory while waiting
 		localCtx.Wg.Read.Add()
 		fileCount := 0
-		// for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) { // faster? but dangerous. Holds data in memory
-		for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) { // slower? but safer, waits for compression but does not hold data in memory
+		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) { // faster? but dangerous. Holds data in memory
+			// for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) { // slower! but safer, waits for compression but does not hold data in memory
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
 			if singleFile {
@@ -552,6 +555,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				go writePart(reader, subPartURL)
 			}
 			localCtx.Wg.Read.Add()
+			localCtx.MemBasedLimit(90) // wait until memory is lower than 90%
 
 			if df.Err() != nil {
 				break

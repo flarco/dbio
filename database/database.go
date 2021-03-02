@@ -182,6 +182,7 @@ var (
 	filePathStorageSlug = "temp"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
+	usePool  = os.Getenv("DBIO_USE_POOL") == "TRUE"
 )
 
 func init() {
@@ -524,10 +525,10 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		connURL = conn.Self().GetURL(connURL)
 
 		connPool.Mux.Lock()
-		db, ok := connPool.Dbs[connURL]
+		db, poolOk := connPool.Dbs[connURL]
 		connPool.Mux.Unlock()
 
-		if !ok || true { // do not use pool for now. Db is closed after use.
+		if !usePool || !poolOk {
 			db, err = sqlx.Open(getDriverName(conn.Type), connURL)
 			if err != nil {
 				return g.Error(err, "Could not connect to DB: "+getDriverName(conn.Type))
@@ -546,12 +547,12 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		}
 
 		// add to pool after successful connection
-		if !ok {
+		if usePool && !poolOk {
 			connPool.Mux.Lock()
 			connPool.Dbs[connURL] = db
 			connPool.Mux.Unlock()
 
-			// expire the connection from pool after 10 minutes
+			// expire the connection from pool after 10 minutes of
 			timer := time.NewTimer(time.Duration(10*60) * time.Second)
 			go func() {
 				select {
@@ -810,8 +811,10 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	g.Trace("query responded in %f secs", conn.Data.Duration)
 
 	nextFunc := func(it *iop.Iterator) bool {
-		if Limit > 0 && it.Counter == Limit {
-			// result.Close() // closing will pull rows
+		if Limit > 0 && it.Counter >= Limit {
+			queryContext.Cancel()
+			result.Next()
+			result.Close()
 			return false
 		}
 
