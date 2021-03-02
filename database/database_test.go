@@ -948,7 +948,7 @@ func TestDatatypes(t *testing.T) {
 		// DBs["bigquery"], // Almost OK, date/time require proper format, Bool fails to insert as go typed
 	}
 
-	TypesNativeFile, err := g.PkgerFile("templates/types_native_to_general.tsv")
+	TypesNativeFile, err := templatesFolder.Open("templates/types_native_to_general.tsv")
 	assert.NoError(t, err)
 
 	TypesNativeCSV := iop.CSV{Reader: bufio.NewReader(TypesNativeFile)}

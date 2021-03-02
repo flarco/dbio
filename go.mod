@@ -1,6 +1,6 @@
 module github.com/flarco/dbio
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.66.0
@@ -21,7 +21,7 @@ require (
 	github.com/godror/godror v0.20.5
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/lib/pq v1.3.0
-	github.com/mattn/go-sqlite3 v1.11.0
+	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/pkg/sftp v1.12.0
 	github.com/rs/zerolog v1.20.0
@@ -47,7 +47,8 @@ require (
 	gopkg.in/mattn/go-runewidth.v0 v0.0.4 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gorm.io/driver/postgres v1.0.5
-	gorm.io/gorm v1.20.5
+	gorm.io/driver/sqlite v1.1.4 // indirect
+	gorm.io/gorm v1.20.7
 	syreclabs.com/go/faker v1.2.2
 )
 

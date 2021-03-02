@@ -50,7 +50,7 @@ func NewDatasetFromMap(m map[string]interface{}) (data Dataset) {
 		for _, f := range fieldsI.([]interface{}) {
 			fields = append(fields, cast.ToString(f))
 		}
-		data.Columns = NewColumnsFromFields(fields)
+		data.Columns = NewColumnsFromFields(fields...)
 	}
 	if rowsI, ok := m["rows"]; ok {
 		for _, rowI := range rowsI.([]interface{}) {

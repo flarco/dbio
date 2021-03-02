@@ -66,6 +66,11 @@ func init() {
 	}
 }
 
+// Row is a row
+func Row(vals ...interface{}) []interface{} {
+	return vals
+}
+
 //NewStreamProcessor returns a new StreamProcessor
 func NewStreamProcessor() *StreamProcessor {
 	sp := StreamProcessor{
@@ -150,7 +155,7 @@ func IsDummy(columns []Column) bool {
 }
 
 // NewColumnsFromFields creates Columns from fields
-func NewColumnsFromFields(fields []string) (cols Columns) {
+func NewColumnsFromFields(fields ...string) (cols Columns) {
 	cols = make(Columns, len(fields))
 	for i, field := range fields {
 		cols[i].Name = field

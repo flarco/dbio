@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/cast"
 	"gopkg.in/yaml.v2"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -185,6 +186,9 @@ var (
 	usePool  = os.Getenv("DBIO_USE_POOL") == "TRUE"
 )
 
+//go:embed templates/*
+var templatesFolder embed.FS
+
 func init() {
 	if os.Getenv("DBIO_SAMPLE_SIZE") != "" {
 		SampleSize = cast.ToInt(os.Getenv("DBIO_SAMPLE_SIZE"))
@@ -320,6 +324,10 @@ func getDialector(conn Connection) (driverDialector gorm.Dialector) {
 	switch conn.GetType() {
 	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 		driverDialector = postgres.Open(conn.BaseURL())
+	case dbio.TypeDbSQLite:
+		driverDialector = sqlite.Open(conn.BaseURL())
+	default:
+		g.LogError(g.Error("No Gorm Dialector found for %s", conn.GetType()))
 	}
 	return
 }
@@ -616,7 +624,7 @@ func (conn *BaseConn) GetTemplateValue(path string) (value string) {
 // ToData convert is dataset
 func (template Template) ToData() (data iop.Dataset) {
 	columns := []string{"key", "value"}
-	data = iop.NewDataset(iop.NewColumnsFromFields(columns))
+	data = iop.NewDataset(iop.NewColumnsFromFields(columns...))
 	data.Rows = append(data.Rows, []interface{}{"core", template.Core})
 	data.Rows = append(data.Rows, []interface{}{"analysis", template.Analysis})
 	data.Rows = append(data.Rows, []interface{}{"function", template.Function})
@@ -641,12 +649,7 @@ func (conn *BaseConn) LoadTemplates() error {
 		Variable:       map[string]string{},
 	}
 
-	baseTemplateFile, err := g.PkgerFile("templates/base.yaml")
-	if err != nil {
-		return g.Error(err, `cannot read templates/base.yaml`)
-	}
-
-	baseTemplateBytes, err := ioutil.ReadAll(baseTemplateFile)
+	baseTemplateBytes, err := templatesFolder.ReadFile("templates/base.yaml")
 	if err != nil {
 		return g.Error(err, "ioutil.ReadAll(baseTemplateFile)")
 	}
@@ -655,13 +658,7 @@ func (conn *BaseConn) LoadTemplates() error {
 		return g.Error(err, "yaml.Unmarshal")
 	}
 
-	fName := "templates/" + conn.Type.String() + ".yaml"
-	templateFile, err := g.PkgerFile(fName)
-	if err != nil {
-		return g.Error(err, `cannot read `+fName)
-	}
-
-	templateBytes, err := ioutil.ReadAll(templateFile)
+	templateBytes, err := templatesFolder.ReadFile("templates/" + conn.Type.String() + ".yaml")
 	if err != nil {
 		return g.Error(err, "ioutil.ReadAll(templateFile) for "+conn.Type)
 	}
@@ -692,7 +689,7 @@ func (conn *BaseConn) LoadTemplates() error {
 		conn.template.Variable[key] = val
 	}
 
-	TypesNativeFile, err := g.PkgerFile("templates/types_native_to_general.tsv")
+	TypesNativeFile, err := templatesFolder.Open("templates/types_native_to_general.tsv")
 	if err != nil {
 		return g.Error(err, `cannot open types_native_to_general`)
 	}
@@ -716,7 +713,7 @@ func (conn *BaseConn) LoadTemplates() error {
 		}
 	}
 
-	TypesGeneralFile, err := g.PkgerFile("templates/types_general_to_native.tsv")
+	TypesGeneralFile, err := templatesFolder.Open("templates/types_general_to_native.tsv")
 	if err != nil {
 		return g.Error(err, `cannot open types_general_to_native`)
 	}
@@ -2438,7 +2435,7 @@ func settingMppBulkImportFlow(conn Connection) {
 // ToData converts schema objects to tabular format
 func (schema *Schema) ToData() (data iop.Dataset) {
 	columns := []string{"schema_name", "table_name", "is_view", "column_id", "column_name", "column_type"}
-	data = iop.NewDataset(iop.NewColumnsFromFields(columns))
+	data = iop.NewDataset(iop.NewColumnsFromFields(columns...))
 
 	for _, table := range schema.Tables {
 		for _, col := range table.Columns {
