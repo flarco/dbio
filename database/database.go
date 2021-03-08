@@ -470,6 +470,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		to = timeOut[0]
 	}
 
+	usePool = os.Getenv("DBIO_USE_POOL") == "TRUE"
 	g.Trace("conn.Type: %s", conn.Type)
 	g.Trace("conn.URL: " + conn.Self().GetURL())
 	if conn.Type == "" {
@@ -541,6 +542,8 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 			if err != nil {
 				return g.Error(err, "Could not connect to DB: "+getDriverName(conn.Type))
 			}
+		} else {
+			g.Debug(`Using Pool`)
 		}
 
 		conn.db = db
