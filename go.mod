@@ -15,7 +15,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.9.0
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0
-	github.com/flarco/g v0.0.0
+	github.com/flarco/g v0.0.2
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.20.5
@@ -24,7 +24,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/pkg/sftp v1.12.0
-	github.com/rs/zerolog v1.20.0
 	github.com/shirou/gopsutil v2.20.8+incompatible
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/snowflakedb/gosnowflake v1.3.10
@@ -37,7 +36,6 @@ require (
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	google.golang.org/api v0.34.0
-	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/VividCortex/ewma.v1 v1.1.1 // indirect
 	gopkg.in/cheggaaa/pb.v2 v2.0.7
 	gopkg.in/fatih/color.v1 v1.7.0 // indirect
@@ -47,9 +45,9 @@ require (
 	gopkg.in/mattn/go-runewidth.v0 v0.0.4 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gorm.io/driver/postgres v1.0.5
-	gorm.io/driver/sqlite v1.1.4 // indirect
+	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.20.7
 	syreclabs.com/go/faker v1.2.2
 )
 
-replace github.com/flarco/g v0.0.0 => ../g
+// replace github.com/flarco/g v0.0.1 => ../g

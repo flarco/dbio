@@ -36,7 +36,7 @@ func TestConnection(t *testing.T) {
 	}
 
 	_, err = NewConnection("Db", "someother", m)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	_, err = NewConnectionFromURL("Db", os.Getenv("POSTGRES_URL"))
 	assert.NoError(t, err)
