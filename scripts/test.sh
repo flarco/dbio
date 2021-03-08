@@ -3,7 +3,7 @@ set -e  # exit on error
 go mod tidy
 
 cd connection
-go test .
+# go test .
 cd -
 
 # cd database
