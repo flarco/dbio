@@ -14,9 +14,7 @@ func TestConnection(t *testing.T) {
 	)
 	c1, err := NewConnection("POSTGRES", "postgres", m)
 	assert.NoError(t, err)
-	if !g.LogError(err) {
-		g.P(c1.Info())
-	}
+	_ = c1
 
 	m = g.M(
 		"username", "postgres",
@@ -28,12 +26,7 @@ func TestConnection(t *testing.T) {
 	)
 	c2, err := NewConnection("POSTGRES", "postgres", m)
 	assert.NoError(t, err)
-
-	// res, err = c.AsDatabase().Query("select 1")
-	// g.P(res)
-	if !g.LogError(err) {
-		g.P(c2.Info())
-	}
+	_ = c2
 
 	_, err = NewConnection("Db", "someother", m)
 	assert.NoError(t, err)
