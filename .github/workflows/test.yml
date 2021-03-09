@@ -9,7 +9,7 @@ name: Test
 on: [push]
 
 jobs:
-  build:
+  test:
 
     runs-on: self-hosted
 
