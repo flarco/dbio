@@ -1,10 +1,5 @@
 set -e  # exit on error
 
-go mod tidy
-
-x
-# go test .
-
 cd connection
 go test
 cd -
