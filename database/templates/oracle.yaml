@@ -10,7 +10,7 @@ core:
     END;
   drop_view: |
     BEGIN
-      EXECUTE IMMEDIATE 'DROP TABLE {view} cascade constraints purge';
+      EXECUTE IMMEDIATE 'DROP VIEW {view}';
     EXCEPTION
       WHEN OTHERS THEN
         IF SQLCODE != -942 THEN
