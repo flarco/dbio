@@ -77,7 +77,7 @@ func NewStreamProcessor() *StreamProcessor {
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{emptyAsNull: true, maxDecimals: -1},
+		config:          &streamConfig{delimiter: ",", emptyAsNull: true, maxDecimals: -1},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
