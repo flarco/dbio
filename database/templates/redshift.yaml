@@ -22,7 +22,7 @@ core:
     COPY {tgt_table}
     FROM '{s3_path}'
     credentials 'aws_access_key_id={aws_access_key_id};aws_secret_access_key={aws_secret_access_key}'
-    CSV delimiter ',' EMPTYASNULL BLANKSASNULL GZIP IGNOREHEADER 1 DATEFORMAT 'auto'
+    CSV delimiter ',' EMPTYASNULL BLANKSASNULL GZIP IGNOREHEADER 1 DATEFORMAT 'auto' TIMEFORMAT 'auto'
   copy_to_s3: |
     unload ('{sql}')   
     to '{s3_path}'
