@@ -29,6 +29,7 @@ jobs:
     - name: Test
       run: |
         source /__/devbox/.env.sh
+        export _DEBUG=''
         bash scripts/test.sh
 
     
