@@ -50,6 +50,8 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 
 	if configMap["delimiter"] != "" {
 		sp.config.delimiter = cast.ToString(configMap["delimiter"])
+	} else {
+		sp.config.delimiter = ","
 	}
 
 	if configMap["file_max_rows"] != "" {
