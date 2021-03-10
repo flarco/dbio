@@ -81,7 +81,7 @@ metadata:
     order by view_name
 
   columns: |
-    select column_name, data_type
+    select column_name, data_type, coalesce(data_precision, data_length) as precision, data_scale as scale
     from sys.all_tab_columns
     where owner = upper('{schema}')
       and table_name = upper('{table}')

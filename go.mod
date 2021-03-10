@@ -50,4 +50,4 @@ require (
 	syreclabs.com/go/faker v1.2.2
 )
 
-// replace github.com/flarco/g v0.0.1 => ../g
+replace github.com/flarco/g => ../g

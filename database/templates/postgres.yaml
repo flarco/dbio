@@ -48,7 +48,7 @@ metadata:
     order by table_name
 
   columns: |
-    select column_name, data_type, coalesce(character_maximum_length, numeric_precision) as precision, numeric_scale as scale
+    select column_name, data_type, coalesce(numeric_precision, character_maximum_length) as precision, numeric_scale as scale
     from information_schema.columns
     where table_catalog = ( select current_catalog )
       and table_schema = '{schema}'
