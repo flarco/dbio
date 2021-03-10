@@ -389,7 +389,6 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 	for {
 
 		for _, cp := range result.CommonPrefixes {
-			println(*cp.Prefix)
 			prefixes = append(prefixes, urlPrefix+*cp.Prefix)
 		}
 
@@ -528,7 +527,7 @@ func (fs *S3cFileSysClient) List(path string) (paths []string, err error) {
 	// List all objects from a bucket-name with a matching prefix.
 	for object := range fs.client.ListObjectsV2(bucket, key, false, doneCh) {
 		if object.Err != nil {
-			fmt.Println(object.Err)
+			g.LogError(object.Err)
 			return
 		}
 		// fmt.Println(object)
