@@ -558,7 +558,7 @@ func (fs *S3cFileSysClient) ListRecursive(path string) (paths []string, err erro
 	// List all objects from a bucket-name with a matching prefix.
 	for object := range fs.client.ListObjectsV2(bucket, key, true, doneCh) {
 		if object.Err != nil {
-			fmt.Println(object.Err)
+			g.LogError(object.Err)
 			return
 		}
 		paths = append(paths, urlPrefix+object.Key)

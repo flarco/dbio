@@ -172,9 +172,8 @@ func TestFileSysLarge(t *testing.T) {
 	assert.NoError(t, err)
 
 	for ds := range df.StreamCh {
-		data, err := ds.Collect(0)
+		_, err := ds.Collect(0)
 		assert.NoError(t, err)
-		println(len(data.Rows))
 	}
 	assert.NoError(t, df.Context.Err())
 }
