@@ -32,7 +32,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/xitongsys/parquet-go v1.5.4
 	github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e
-	github.com/xo/dburl v0.0.0-20200910011426-652e0d5720a3
+	github.com/xo/dburl v0.3.0
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	google.golang.org/api v0.34.0

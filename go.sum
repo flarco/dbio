@@ -501,6 +501,8 @@ github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e h1:Hxk
 github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e/go.mod h1:3VZ3awxJ1Vi7gnDi67ydmYLNgOrWxZBFJcBCEuTfbSY=
 github.com/xo/dburl v0.0.0-20200910011426-652e0d5720a3 h1:WchQs0yWhP3iA3CFE57fmCltE5dx5FkbUZOJZBjEtJ8=
 github.com/xo/dburl v0.0.0-20200910011426-652e0d5720a3/go.mod h1:TM8VMBT+LWqC3MBOulZjb8FAthcvZq0t/qvDLwS6skU=
+github.com/xo/dburl v0.3.0 h1:KGkeJB/oQhY/DeeJoYl/1+pNE/JnF6ouAuA8nzpQEQ8=
+github.com/xo/dburl v0.3.0/go.mod h1:TM8VMBT+LWqC3MBOulZjb8FAthcvZq0t/qvDLwS6skU=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
