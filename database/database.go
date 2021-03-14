@@ -58,6 +58,7 @@ type Connection interface {
 	Rollback() error
 	Query(sql string, limit ...int) (iop.Dataset, error)
 	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
+	GetNativeType(col iop.Column) (nativeType string, err error)
 	GenerateDDL(tableFName string, data iop.Dataset) (string, error)
 	Quote(string) string
 	Unquote(string) string
@@ -1849,7 +1850,8 @@ func (conn *BaseConn) InsertStream(tableFName string, ds *iop.Datastream) (count
 	return count, nil
 }
 
-func (conn *BaseConn) getNativeType(col iop.Column) (nativeType string, err error) {
+// GetNativeType returns the native column type from generic
+func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err error) {
 
 	nativeType, ok := conn.template.GeneralTypeMap[col.Type]
 	if !ok {
@@ -1953,7 +1955,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, 
 
 	for _, col := range data.Columns {
 		// convert from general type to native type
-		nativeType, err := conn.getNativeType(col)
+		nativeType, err := conn.GetNativeType(col)
 		if err != nil {
 			return "", g.Error(err, "no native mapping")
 		}
@@ -2297,7 +2299,7 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats []iop.Column) 
 	// compare, and alter or recreate as needed
 	colDDLs := []string{}
 	for _, col := range columns {
-		nativeType, err := conn.getNativeType(col)
+		nativeType, err := conn.GetNativeType(col)
 		if err != nil {
 			return g.Error(err, "no native mapping")
 		}
