@@ -70,7 +70,7 @@ func NewDatastreamContext(ctx context.Context, columns []Column) (ds *Datastream
 		Columns:    columns,
 		Context:    g.NewContext(ctx),
 		Sp:         NewStreamProcessor(),
-		config:     &streamConfig{emptyAsNull: true, header: true},
+		config:     &streamConfig{emptyAsNull: true, header: true, delimiter: ","},
 		deferFuncs: []func(){},
 	}
 	ds.Sp.ds = ds
