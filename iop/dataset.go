@@ -117,6 +117,7 @@ func (data *Dataset) Append(row []interface{}) {
 // Stream returns a datastream of the dataset
 func (data *Dataset) Stream() *Datastream {
 	ds := NewDatastream(data.Columns)
+	ds.Inferred = data.Inferred
 
 	go func() {
 		ds.Ready = true

@@ -43,6 +43,7 @@ type Connection interface {
 	Connect(timeOut ...int) error
 	Kill() error
 	Close() error
+	DbX() *DbX
 	GetType() dbio.Type
 	GetGormConn(config *gorm.Config) (*gorm.DB, error)
 	LoadTemplates() error
@@ -398,6 +399,11 @@ func (conn *BaseConn) Self() Connection {
 // Db returns the sqlx db object
 func (conn *BaseConn) Db() *sqlx.DB {
 	return conn.db
+}
+
+// DbX returns the DbX object
+func (conn *BaseConn) DbX() *DbX {
+	return &DbX{db: conn.db}
 }
 
 // Tx returns the current sqlx tx object
