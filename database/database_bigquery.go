@@ -134,8 +134,8 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 }
 
 type bqResult struct {
-	it  *bigquery.RowIterator
-	res driver.Result
+	TotalRows uint64
+	res       driver.Result
 }
 
 func (r bqResult) LastInsertId() (int64, error) {
@@ -143,7 +143,7 @@ func (r bqResult) LastInsertId() (int64, error) {
 }
 
 func (r bqResult) RowsAffected() (int64, error) {
-	return cast.ToInt64(r.it.TotalRows), nil
+	return cast.ToInt64(r.TotalRows), nil
 }
 
 // ExecContext runs a sql query with context, returns `error`
@@ -180,27 +180,38 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 		}
 	}
 
-	noTrace := strings.Contains(sql, "\n\n-- nT --")
-	if !noTrace {
-		g.Debug(sql)
+	res := bqResult{}
+	exec := func(sql string) error {
+		noTrace := strings.Contains(sql, "\n\n-- nT --")
+		if !noTrace {
+			g.Debug(sql)
+		}
+
+		q := conn.Client.Query(sql)
+		q.QueryConfig = bigquery.QueryConfig{
+			Q:                sql,
+			DefaultDatasetID: conn.GetProp("schema"),
+		}
+		it, err := q.Read(ctx)
+		if err != nil {
+			return g.Error(err, "SQL Error for:\n"+sql)
+		}
+
+		if err != nil {
+			err = g.Error(err, "Error executing "+CleanSQL(conn, sql))
+		} else {
+			res.TotalRows = it.TotalRows + res.TotalRows
+		}
+		return nil
 	}
 
-	q := conn.Client.Query(sql)
-	q.QueryConfig = bigquery.QueryConfig{
-		Q:                sql,
-		DefaultDatasetID: conn.GetProp("schema"),
+	for _, sql := range ParseSQLMultiStatements(sql) {
+		err = exec(sql)
+		if err != nil {
+			err = g.Error(err, "Error executing query")
+		}
 	}
-	it, err := q.Read(ctx)
-	if err != nil {
-		err = g.Error(err, "SQL Error for:\n"+sql)
-		return
-	}
-
-	result = bqResult{it: it}
-
-	if err != nil {
-		err = g.Error(err, "Error executing "+sql)
-	}
+	result = res
 
 	return
 }

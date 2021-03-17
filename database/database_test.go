@@ -867,6 +867,30 @@ func TestExport(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestMultiStatement(t *testing.T) {
+	db := DBs["oracle"]
+	conn, err := NewConn(db.URL)
+	assert.NoError(t, err)
+	sql := `select 1 from dual ;
+	-- ;
+	select 2 as n, ';' as t, ' '' /*' as t2 from dual
+	/* ;
+	 hello
+	*/;
+	select 'a' done from dual
+	;
+
+	`
+	_, err = conn.Exec(sql)
+	assert.NoError(t, err)
+
+	db = DBs["bigquery"]
+	conn, err = NewConn(db.URL)
+	assert.NoError(t, err)
+	_, err = conn.Exec("select 1 as a; select 2 /* hey; */ as a; -- sselect")
+	assert.NoError(t, err)
+}
+
 func TestPasswordSSH(t *testing.T) {
 	// with password
 	dbURL := "POSTGRES_URL"

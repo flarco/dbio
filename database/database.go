@@ -935,26 +935,56 @@ func (conn *BaseConn) Exec(sql string, args ...interface{}) (result sql.Result, 
 	return
 }
 
+type Result struct {
+	rowsAffected int64
+}
+
+func (r Result) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (r Result) RowsAffected() (int64, error) {
+	return r.rowsAffected, nil
+}
+
 // ExecContext runs a sql query with context, returns `error`
-func (conn *BaseConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
-	if strings.TrimSpace(sql) == "" {
-		err = g.Error(errors.New("Empty Query"))
-		return
+func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+
+	Res := Result{rowsAffected: 0}
+	exec := func(q string) error {
+		if strings.TrimSpace(q) == "" {
+			return g.Error(errors.New("Empty Query"))
+		}
+
+		noTrace := strings.Contains(q, "\n\n-- nT --")
+		if !noTrace {
+			g.Debug(CleanSQL(conn, q), args...)
+		}
+
+		var res sql.Result
+		if conn.tx != nil {
+			res, err = conn.tx.ExecContext(ctx, q, args...)
+		} else {
+			res, err = conn.db.ExecContext(ctx, q, args...)
+		}
+		if err != nil {
+			err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+		} else {
+			ra, _ := res.RowsAffected()
+			Res.rowsAffected = Res.rowsAffected + ra
+		}
+		return nil
 	}
 
-	noTrace := strings.Contains(sql, "\n\n-- nT --")
-	if !noTrace {
-		g.Debug(CleanSQL(conn, sql), args...)
+	for _, sql := range ParseSQLMultiStatements(q) {
+		err = exec(sql)
+		if err != nil {
+			err = g.Error(err, "Error executing query")
+		}
 	}
 
-	if conn.tx != nil {
-		result, err = conn.tx.ExecContext(ctx, sql, args...)
-	} else {
-		result, err = conn.db.ExecContext(ctx, sql, args...)
-	}
-	if err != nil {
-		err = g.Error(err, "Error executing: "+CleanSQL(conn, sql))
-	}
+	result = Res
+
 	return
 }
 
@@ -2633,4 +2663,68 @@ func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
 	}
 
 	return nil
+}
+
+// ParseSQLMultiStatements splits a sql text into statements
+// typically by a ';'
+func ParseSQLMultiStatements(sql string) (sqls g.Strings) {
+	inQuote := false
+	inCommentLine := false
+	inCommentMulti := false
+	char := ""
+	pChar := ""
+	nChar := ""
+	currState := ""
+
+	inComment := func() bool {
+		return inCommentLine || inCommentMulti
+	}
+
+	for i := range sql {
+		char = string(sql[i])
+
+		// previous
+		if i > 0 {
+			pChar = string(sql[i-1])
+		}
+
+		// next
+		nChar = ""
+		if i+1 < len(sql) {
+			nChar = string(sql[i+1])
+		}
+
+		switch {
+		case !inQuote && !inComment() && char == "'":
+			inQuote = true
+		case inQuote && char == "'" && nChar != "'":
+			inQuote = false
+		case !inQuote && !inComment() && pChar == "-" && char == "-":
+			inCommentLine = true
+		case inCommentLine && char == "\n":
+			inCommentLine = false
+		case !inQuote && !inComment() && pChar == "/" && char == "*":
+			inCommentMulti = true
+		case inCommentMulti && pChar == "*" && char == "/":
+			inCommentMulti = false
+		}
+
+		currState = currState + char
+
+		// detect end
+		if char == ";" && !inQuote && !inComment() {
+			if strings.TrimSpace(currState) != "" {
+				sqls = append(sqls, currState)
+			}
+			currState = ""
+		}
+	}
+
+	if len(currState) > 0 {
+		if strings.TrimSpace(currState) != "" {
+			sqls = append(sqls, currState)
+		}
+	}
+
+	return
 }
