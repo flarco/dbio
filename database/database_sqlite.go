@@ -1,9 +1,9 @@
 package database
 
 import (
-	"database/sql"
-	"github.com/flarco/dbio"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/g"
 )
@@ -46,13 +46,7 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-
-	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
+	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -89,12 +83,6 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 	rowAffCnt, err = res.RowsAffected()
 	if err != nil {
 		rowAffCnt = -1
-	}
-
-	err = conn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
 	}
 
 	return

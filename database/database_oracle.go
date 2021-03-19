@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -289,12 +288,7 @@ func (conn *OracleConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
+	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already used") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -330,11 +324,6 @@ func (conn *OracleConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		rowAffCnt = -1
 	}
 
-	err = conn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
-	}
 	return
 }
 

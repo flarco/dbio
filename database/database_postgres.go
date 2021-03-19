@@ -2,12 +2,12 @@ package database
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
-	"github.com/flarco/dbio"
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -110,13 +110,8 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	}
 
 	colNames := ColumnNames(columns)
-	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction")
-		return
-	}
 
-	stmt, err := conn.Tx().Prepare(pq.CopyInSchema(schema, table, colNames...))
+	stmt, err := conn.Prepare(pq.CopyInSchema(schema, table, colNames...))
 	if err != nil {
 		g.Trace("%s: %#v", table, colNames)
 		return count, g.Error(err, "could not prepare statement")
@@ -145,12 +140,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	err = stmt.Close()
 	if err != nil {
-		return count, g.Error(err, "could not close transaction")
-	}
-
-	err = conn.Commit()
-	if err != nil {
-		return count, g.Error(err, "could not commit transaction")
+		return count, g.Error(err, "could not close statement")
 	}
 
 	return count, nil
@@ -189,13 +179,7 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-
-	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
+	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -221,7 +205,7 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
 		"insert_fields", upsertMap["insert_fields"],
 	)
-	res, err := conn.Tx().ExecContext(conn.Context().Ctx, sql)
+	res, err := conn.ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
@@ -230,12 +214,6 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 	rowAffCnt, err = res.RowsAffected()
 	if err != nil {
 		rowAffCnt = -1
-	}
-
-	err = conn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
 	}
 
 	return

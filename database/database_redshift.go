@@ -3,8 +3,9 @@ package database
 import (
 	"errors"
 	"fmt"
-	"github.com/flarco/dbio"
 	"strings"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -243,13 +244,7 @@ func (conn *RedshiftConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"src_tgt_pk_equal", srcTgtPkEqual,
 	)
 
-	txn, err := conn.Db().Begin()
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-
-	_, err = txn.ExecContext(conn.Context().Ctx, sql)
+	_, err = conn.ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
@@ -268,7 +263,7 @@ func (conn *RedshiftConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", upsertMap["src_fields"],
 	)
-	res, err := txn.ExecContext(conn.Context().Ctx, sql)
+	res, err := conn.ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
@@ -281,12 +276,6 @@ func (conn *RedshiftConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		if cnt > 0 {
 			rowAffCnt = cast.ToInt64(cnt)
 		}
-	}
-
-	err = txn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
 	}
 
 	return

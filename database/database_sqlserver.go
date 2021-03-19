@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -390,12 +389,7 @@ func (conn *MsSQLServerConn) Upsert(srcTable string, tgtTable string, pkFields [
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false})
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-	_, err = conn.Tx().ExecContext(conn.Context().Ctx, indexSQL)
+	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
 	if err != nil && !strings.Contains(err.Error(), "already used") {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
@@ -431,11 +425,6 @@ func (conn *MsSQLServerConn) Upsert(srcTable string, tgtTable string, pkFields [
 		rowAffCnt = -1
 	}
 
-	err = conn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
-	}
 	return
 }
 

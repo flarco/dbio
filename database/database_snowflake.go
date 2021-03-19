@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/flarco/dbio"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/flarco/dbio"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -657,12 +658,8 @@ func (conn *SnowflakeConn) Upsert(srcTable string, tgtTable string, pkFields []s
 		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", strings.ReplaceAll(upsertMap["placehold_fields"], "ph.", "src."),
 	)
-	txn, err := conn.Db().Begin()
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction for upsert")
-		return
-	}
-	res, err := txn.ExecContext(conn.Context().Ctx, sql)
+
+	res, err := conn.ExecContext(conn.Context().Ctx, sql)
 	if err != nil {
 		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
 		return
@@ -677,10 +674,5 @@ func (conn *SnowflakeConn) Upsert(srcTable string, tgtTable string, pkFields []s
 		}
 	}
 
-	err = txn.Commit()
-	if err != nil {
-		err = g.Error(err, "Could not commit upsert transaction")
-		return
-	}
 	return
 }

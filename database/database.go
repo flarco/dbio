@@ -38,78 +38,81 @@ import (
 
 // Connection is the Base interface for Connections
 type Connection interface {
-	Self() Connection
-	Init() error
-	Connect(timeOut ...int) error
-	Kill() error
-	Close() error
-	DbX() *DbX
-	GetType() dbio.Type
-	GetGormConn(config *gorm.Config) (*gorm.DB, error)
-	LoadTemplates() error
-	GetURL(newURL ...string) string
-	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
-	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
-	BulkExportStream(sql string) (*iop.Datastream, error)
-	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
-	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
-	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
+	BaseURL() string
 	Begin(options ...*sql.TxOptions) error
-	Commit() error
-	Rollback() error
-	Query(sql string, limit ...int) (iop.Dataset, error)
-	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
-	GetNativeType(col iop.Column) (nativeType string, err error)
-	GenerateDDL(tableFName string, data iop.Dataset) (string, error)
-	Quote(string) string
-	Unquote(string) string
-	GenerateInsertStatement(tableName string, fields []string, numRows int) string
-	GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error)
-	DropTable(...string) error
-	DropView(...string) error
-	InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
-	InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
-	Db() *sqlx.DB
-	Tx() *sqlx.Tx
-	Exec(sql string, args ...interface{}) (result sql.Result, err error)
-	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
-	MustExec(sql string, args ...interface{}) (result sql.Result)
-	Schemata() Schemata
-	Template() Template
-	SetProp(string, string)
-	GetProp(string) string
-	PropsArr() []string
-	Props() map[string]string
-	GetTemplateValue(path string) (value string)
-	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
-	SwapTable(srcTable string, tgtTable string) (err error)
-	RenameTable(table string, newTable string) (err error)
-	Context() *g.Context
-	setContext(ctx context.Context, concurrency int)
-
-	StreamRecords(sql string) (<-chan map[string]interface{}, error)
-	GetDDL(string) (string, error)
-	GetSchemaObjects(string) (Schema, error)
-	GetSchemas() (iop.Dataset, error)
-	GetTables(string) (iop.Dataset, error)
-	GetViews(string) (iop.Dataset, error)
-	GetSQLColumns(sqls ...string) (columns []iop.Column, err error)
-	TableExists(tableFName string) (exists bool, err error)
-	GetColumns(tableFName string, fields ...string) ([]iop.Column, error)
-	GetColumnStats(tableName string, fields ...string) (columns []iop.Column, err error)
-	GetPrimaryKeys(string) (iop.Dataset, error)
-	GetIndexes(string) (iop.Dataset, error)
-	GetColumnsFull(string) (iop.Dataset, error)
-	GetCount(string) (uint64, error)
-	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
-	RunAnalysisTable(string, ...string) (iop.Dataset, error)
-	RunAnalysisField(string, string, ...string) (iop.Dataset, error)
+	BeginContext(ctx context.Context, options ...*sql.TxOptions) error
+	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
+	BulkExportStream(sql string) (*iop.Datastream, error)
+	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
+	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	CastColumnForSelect(srcColumn iop.Column, tgtColumn iop.Column) string
 	CastColumnsForSelect(srcColumns []iop.Column, tgtColumns []iop.Column) []string
-	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
-	OptimizeTable(tableName string, columns []iop.Column) (err error)
+	Close() error
+	Commit() error
 	CompareChecksums(tableName string, columns []iop.Column) (err error)
-	BaseURL() string
+	Connect(timeOut ...int) error
+	Context() *g.Context
+	Db() *sqlx.DB
+	DbX() *DbX
+	DropTable(...string) error
+	DropView(...string) error
+	ExecMulti(sql string, args ...interface{}) (result sql.Result, err error)
+	ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
+	Exec(sql string, args ...interface{}) (result sql.Result, err error)
+	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
+	GenerateDDL(tableFName string, data iop.Dataset) (string, error)
+	GenerateInsertStatement(tableName string, fields []string, numRows int) string
+	GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error)
+	GetColumns(tableFName string, fields ...string) ([]iop.Column, error)
+	GetColumnsFull(string) (iop.Dataset, error)
+	GetColumnStats(tableName string, fields ...string) (columns []iop.Column, err error)
+	GetCount(string) (uint64, error)
+	GetDDL(string) (string, error)
+	GetGormConn(config *gorm.Config) (*gorm.DB, error)
+	GetIndexes(string) (iop.Dataset, error)
+	GetNativeType(col iop.Column) (nativeType string, err error)
+	GetPrimaryKeys(string) (iop.Dataset, error)
+	GetProp(string) string
+	GetSchemaObjects(string) (Schema, error)
+	GetSchemas() (iop.Dataset, error)
+	GetSQLColumns(sqls ...string) (columns []iop.Column, err error)
+	GetTables(string) (iop.Dataset, error)
+	GetTemplateValue(path string) (value string)
+	GetType() dbio.Type
+	GetURL(newURL ...string) string
+	GetViews(string) (iop.Dataset, error)
+	Init() error
+	InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
+	InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
+	Kill() error
+	LoadTemplates() error
+	MustExec(sql string, args ...interface{}) (result sql.Result)
+	OptimizeTable(tableName string, columns []iop.Column) (err error)
+	Prepare(query string) (stmt *sql.Stmt, err error)
+	Props() map[string]string
+	PropsArr() []string
+	Query(sql string, limit ...int) (iop.Dataset, error)
+	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
+	Quote(string) string
+	RenameTable(table string, newTable string) (err error)
+	Rollback() error
+	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
+	RunAnalysisField(string, string, ...string) (iop.Dataset, error)
+	RunAnalysisTable(string, ...string) (iop.Dataset, error)
+	Schemata() Schemata
+	Self() Connection
+	setContext(ctx context.Context, concurrency int)
+	SetProp(string, string)
+	StreamRecords(sql string) (<-chan map[string]interface{}, error)
+	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
+	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
+	SwapTable(srcTable string, tgtTable string) (err error)
+	TableExists(tableFName string) (exists bool, err error)
+	Template() Template
+	Tx() *Transaction
+	Unquote(string) string
+	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
+	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
 }
 
 // BaseConn is a database connection
@@ -118,7 +121,7 @@ type BaseConn struct {
 	URL         string
 	Type        dbio.Type // the type of database for sqlx: postgres, mysql, sqlite
 	db          *sqlx.DB
-	tx          *sqlx.Tx
+	tx          *Transaction
 	Data        iop.Dataset
 	defaultPort int
 	instance    *Connection
@@ -407,7 +410,7 @@ func (conn *BaseConn) DbX() *DbX {
 }
 
 // Tx returns the current sqlx tx object
-func (conn *BaseConn) Tx() *sqlx.Tx {
+func (conn *BaseConn) Tx() *Transaction {
 	return conn.tx
 }
 
@@ -793,7 +796,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	var result *sqlx.Rows
 	if conn.tx != nil {
-		result, err = conn.tx.QueryxContext(queryContext.Ctx, sql)
+		result, err = conn.tx.Tx.QueryxContext(queryContext.Ctx, sql)
 	} else {
 		result, err = conn.db.QueryxContext(queryContext.Ctx, sql)
 	}
@@ -857,62 +860,72 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	return
 }
 
-// Begin starts a connection wide transaction
-func (conn *BaseConn) Begin(options ...*sql.TxOptions) (err error) {
-	if conn.db == nil {
-		return
-	}
+// NewTransaction creates a new transaction
+func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (*Transaction, error) {
+	context := g.NewContext(ctx)
 
 	if len(options) == 0 {
 		options = []*sql.TxOptions{&sql.TxOptions{}}
 	}
 
-	if conn.tx == nil {
-		conn.tx, err = conn.db.BeginTxx(conn.Context().Ctx, options[0])
-		if err != nil {
-			err = g.Error(err, "could not begin Tx")
-		}
+	tx, err := conn.Db().BeginTxx(context.Ctx, options[0])
+	if err != nil {
+		return nil, g.Error(err, "could not begin Tx")
 	}
+	return &Transaction{Tx: tx, conn: conn.Self(), Context: &context}, nil
+}
+
+// Begin starts a connection wide transaction
+func (conn *BaseConn) Begin(options ...*sql.TxOptions) (err error) {
+	return conn.BeginContext(conn.Context().Ctx, options...)
+}
+
+// BeginContext starts a connection wide transaction
+func (conn *BaseConn) BeginContext(ctx context.Context, options ...*sql.TxOptions) (err error) {
+	if conn.db == nil {
+		return
+	}
+
+	tx, err := conn.NewTransaction(ctx, options...)
+	if err != nil {
+		return g.Error(err, "could not create transaction")
+	}
+
+	conn.tx = tx
 	return
 }
 
-// Commit commits connection wide transaction
+// Commit commits a connection wide transaction
 func (conn *BaseConn) Commit() (err error) {
-	if conn.tx == nil {
-		return
+	if conn.tx != nil {
+		err = conn.tx.Commit()
+		conn.tx = nil
 	}
-	err = conn.tx.Commit()
-	conn.tx = nil
 	if err != nil {
-		if strings.Contains(err.Error(), " already ") {
-			err = nil
-		} else {
-			err = g.Error(err, "could not commit Tx")
-		}
+		return g.Error(err, "Could not commit")
 	}
-	return
+	return nil
 }
 
-// Rollback rolls back connection wide transaction
+// Rollback rolls back a connection wide transaction
 func (conn *BaseConn) Rollback() (err error) {
-	if conn.tx == nil {
-		return
+	if conn.tx != nil {
+		err = conn.tx.Rollback()
+		conn.tx = nil
 	}
-	err = conn.tx.Rollback()
-	conn.tx = nil
 	if err != nil {
-		err = g.Error(err, "could not rollback Tx")
+		return g.Error(err, "Could not rollback")
 	}
-	return
+	return nil
 }
 
 // Prepare prepares the statement
-func (conn *BaseConn) Prepare(ctx context.Context, query string) (stmt *sql.Stmt, err error) {
-	if conn.tx == nil {
-		err = g.Error("transaction closed")
-		return
+func (conn *BaseConn) Prepare(query string) (stmt *sql.Stmt, err error) {
+	if conn.tx != nil {
+		stmt, err = conn.tx.Prepare(query)
+	} else {
+		stmt, err = conn.db.PrepareContext(conn.Context().Ctx, query)
 	}
-	stmt, err = conn.tx.PrepareContext(ctx, query)
 	if err != nil {
 		err = g.Error(err, "could not prepare Tx")
 	}
@@ -935,51 +948,58 @@ func (conn *BaseConn) Exec(sql string, args ...interface{}) (result sql.Result, 
 	return
 }
 
-type Result struct {
-	rowsAffected int64
-}
-
-func (r Result) LastInsertId() (int64, error) {
-	return 0, nil
-}
-
-func (r Result) RowsAffected() (int64, error) {
-	return r.rowsAffected, nil
+// ExecMulti runs mutiple sql queries, returns `error`
+func (conn *BaseConn) ExecMulti(sql string, args ...interface{}) (result sql.Result, err error) {
+	if conn.GetProp("connected") != "true" {
+		err = conn.Self().Connect()
+		if err != nil {
+			err = g.Error(err, "Could not connect")
+			return
+		}
+	}
+	result, err = conn.Self().ExecMultiContext(conn.Context().Ctx, sql, args...)
+	if err != nil {
+		err = g.Error(err, "Could not execute SQL")
+	}
+	return
 }
 
 // ExecContext runs a sql query with context, returns `error`
 func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
 
+	if strings.TrimSpace(q) == "" {
+		err = g.Error(errors.New("Empty Query"))
+		return
+	}
+
+	noTrace := strings.Contains(q, "\n\n-- nT --")
+	if !noTrace {
+		g.Debug(CleanSQL(conn, q), args...)
+	}
+
+	if conn.tx != nil {
+		result, err = conn.tx.ExecContext(ctx, q, args...)
+	} else {
+		result, err = conn.db.ExecContext(ctx, q, args...)
+	}
+	if err != nil {
+		err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+	}
+	return
+}
+
+// ExecMultiContext runs multiple sql queries with context, returns `error`
+func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+
 	Res := Result{rowsAffected: 0}
-	exec := func(q string) error {
-		if strings.TrimSpace(q) == "" {
-			return g.Error(errors.New("Empty Query"))
-		}
 
-		noTrace := strings.Contains(q, "\n\n-- nT --")
-		if !noTrace {
-			g.Debug(CleanSQL(conn, q), args...)
-		}
-
-		var res sql.Result
-		if conn.tx != nil {
-			res, err = conn.tx.ExecContext(ctx, q, args...)
-		} else {
-			res, err = conn.db.ExecContext(ctx, q, args...)
-		}
+	for _, sql := range ParseSQLMultiStatements(q) {
+		res, err := conn.ExecContext(ctx, sql, args...)
 		if err != nil {
-			return g.Error(err, "Error executing "+CleanSQL(conn, q))
+			err = g.Error(err, "Error executing query")
 		} else {
 			ra, _ := res.RowsAffected()
 			Res.rowsAffected = Res.rowsAffected + ra
-		}
-		return nil
-	}
-
-	for _, sql := range ParseSQLMultiStatements(q) {
-		err = exec(sql)
-		if err != nil {
-			err = g.Error(err, "Error executing query")
 		}
 	}
 
@@ -1617,26 +1637,13 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		return
 	}
 
-	txOptions := sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: false}
-	switch conn.GetType() {
-	case dbio.TypeDbSnowflake:
-		txOptions = sql.TxOptions{}
-	}
-
-	err = conn.Begin(&txOptions)
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction")
-		return
-	}
-	defer conn.Rollback()
-
 	insertBatch := func(rows [][]interface{}) error {
 		var err error
 		defer conn.Context().Wg.Write.Done()
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 
 		// open statement
-		stmt, err := conn.Prepare(ds.Context.Ctx, insertTemplate)
+		stmt, err := conn.db.Prepare(insertTemplate)
 		if err != nil {
 			err = g.Error(err, "Error in PrepareContext")
 			conn.Context().CaptureErr(err)
@@ -1727,12 +1734,6 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		return count, g.Error(ds.Err(), "context error")
 	}
 
-	err = conn.Commit()
-	if err != nil {
-		ds.Context.Cancel()
-		return 0, g.Error(err, "could not commit transaction")
-	}
-
 	return count, nil
 }
 
@@ -1801,20 +1802,12 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 	tgtTableTemp := tgtTable + "_tmp" + g.RandString(g.AlphaRunesLower, 2)
 	conn.DropTable(tgtTableTemp)
 
-	err = conn.Begin()
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction")
-		return
-	}
-	closeTx := func() { conn.Rollback() } // rollback in case of error
-	defer closeTx()
-
 	sql := g.R(
 		conn.GetTemplateValue("core.rename_table"),
 		"table", tgtTable,
 		"new_table", tgtTableTemp,
 	)
-	_, err = conn.tx.Exec(sql)
+	_, err = conn.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+tgtTable)
 	}
@@ -1824,7 +1817,7 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 		"table", srcTable,
 		"new_table", tgtTable,
 	)
-	_, err = conn.tx.Exec(sql)
+	_, err = conn.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+srcTable)
 	}
@@ -1834,16 +1827,10 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 		"table", tgtTableTemp,
 		"new_table", srcTable,
 	)
-	_, err = conn.tx.Exec(sql)
+	_, err = conn.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not rename table "+tgtTableTemp)
 	}
-	err = conn.tx.Commit()
-	if err != nil {
-		return g.Error(err, "could not commit")
-	}
-
-	closeTx = func() { conn.Commit() } // change to commit
 
 	return
 }
