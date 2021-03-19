@@ -111,6 +111,16 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	colNames := ColumnNames(columns)
 
+	// COPY needs a transaction
+	if conn.Tx() == nil {
+		err = conn.Begin()
+		if err != nil {
+			err = g.Error(err, "could not begin")
+			return
+		}
+		defer conn.Commit()
+	}
+
 	stmt, err := conn.Prepare(pq.CopyInSchema(schema, table, colNames...))
 	if err != nil {
 		g.Trace("%s: %#v", table, colNames)
@@ -122,7 +132,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		// Do insert
 		_, err := stmt.Exec(row...)
 		if err != nil {
-			conn.Tx().Rollback()
 			ds.Context.Cancel()
 			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)
@@ -134,7 +143,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	_, err = stmt.Exec()
 	if err != nil {
-		conn.Tx().Rollback()
 		return count, g.Error(err, "could not execute statement")
 	}
 

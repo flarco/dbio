@@ -603,8 +603,6 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 			strings.ToUpper(tTable), 1,
 		)
 	}
-	err = tgtConn.Begin()
-	g.AssertNoError(t, err)
 
 	err = tgtConn.DropTable(tgtTable)
 	g.AssertNoError(t, err)
@@ -643,9 +641,6 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 	}
 
 	err = tgtConn.DropTable(tgtTable)
-	g.AssertNoError(t, err)
-
-	err = tgtConn.Commit()
 	g.AssertNoError(t, err)
 
 	srcConn.Close()

@@ -927,7 +927,7 @@ func (conn *BaseConn) Prepare(query string) (stmt *sql.Stmt, err error) {
 		stmt, err = conn.db.PrepareContext(conn.Context().Ctx, query)
 	}
 	if err != nil {
-		err = g.Error(err, "could not prepare Tx")
+		err = g.Error(err, "could not prepare statement")
 	}
 	return
 }
