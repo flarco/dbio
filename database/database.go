@@ -968,7 +968,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 			res, err = conn.db.ExecContext(ctx, q, args...)
 		}
 		if err != nil {
-			err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+			return g.Error(err, "Error executing "+CleanSQL(conn, q))
 		} else {
 			ra, _ := res.RowsAffected()
 			Res.rowsAffected = Res.rowsAffected + ra
