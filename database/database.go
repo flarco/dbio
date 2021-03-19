@@ -1643,7 +1643,7 @@ func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 
 		// open statement
-		stmt, err := conn.db.Prepare(insertTemplate)
+		stmt, err := conn.Prepare(insertTemplate)
 		if err != nil {
 			err = g.Error(err, "Error in PrepareContext")
 			conn.Context().CaptureErr(err)

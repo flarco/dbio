@@ -214,7 +214,7 @@ func TestPostgres(t *testing.T) {
 	t.Parallel()
 	db := DBs["postgres"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
@@ -224,7 +224,7 @@ func TestSQLite(t *testing.T) {
 	os.Remove(dbPath)
 	db := DBs["sqlite3"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 	os.Remove(dbPath)
 }
@@ -233,7 +233,7 @@ func TestMySQL(t *testing.T) {
 	t.Parallel()
 	db := DBs["mysql"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
@@ -241,21 +241,21 @@ func TestSnowflake(t *testing.T) {
 	t.Parallel()
 	db := DBs["snowflake"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
 func TestOracle(t *testing.T) {
 	db := DBs["oracle"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
 func TestRedshift(t *testing.T) {
 	db := DBs["redshift"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
@@ -263,31 +263,31 @@ func TestSqlServer(t *testing.T) {
 	t.Parallel()
 	db := DBs["sqlserver"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 
 	return
 
 	db = DBs["azuresql"]
 	conn, err = NewConn(db.URL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = conn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	db = DBs["azuredwh"]
 	conn, err = NewConn(db.URL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = conn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 }
 
 func TestBigQuery(t *testing.T) {
 	t.Parallel()
 	db := DBs["bigquery"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 }
 
@@ -304,13 +304,13 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	g.Info("Testing " + conn.GetType().String())
 
 	err := conn.DropTable(db.schema+".person", db.schema+".place", db.schema+".transact")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = conn.DropView(db.schema + ".place_vw")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	// gConn, err := conn.GetGormConn()
-	// assert.NoError(t, err)
+	// g.AssertNoError(t, err)
 	// gConn.SingularTable(true)
 	// gConn.AutoMigrate(&person{}, &place{}, &transact{})
 
@@ -323,14 +323,14 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	personColumns, err := conn.GetColumns(db.schema + ".person")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	placeColumns, err := conn.GetColumns(db.schema + ".place")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	transactColumns, err := conn.GetColumns(db.schema + ".transact")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	insFields, err := conn.ValidateColumnNames(ColumnNames(personColumns), []string{"first_name", "last_name", "email"}, true)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	personInsertStatement := conn.GenerateInsertStatement(
 		"person",
 		insFields,
@@ -338,7 +338,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	)
 
 	insFields, err = conn.ValidateColumnNames(ColumnNames(placeColumns), []string{"country", "city", "telcode"}, true)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	placeInsertStatement := conn.GenerateInsertStatement(
 		"place",
 		insFields,
@@ -346,7 +346,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	)
 
 	insFields, err = conn.ValidateColumnNames(ColumnNames(transactColumns), []string{"date_time", "description", "amount"}, true)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	transactInsertStatement := conn.GenerateInsertStatement(
 		"transact",
 		insFields,
@@ -363,7 +363,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 	// Test Streaming
 	// streamRec, err := conn.StreamRecords(`select * from person`)
-	// assert.NoError(t, err)
+	// g.AssertNoError(t, err)
 
 	// recs := []map[string]interface{}{}
 	// for rec := range streamRec {
@@ -372,7 +372,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// assert.Len(t, recs, 2)
 
 	stream, err := conn.StreamRows(`select * from person`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	rows := [][]interface{}{}
 	for row := range stream.Rows {
@@ -381,44 +381,44 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Len(t, rows, 2)
 
 	data, err := conn.Query(`select * from person`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 
 	data, err = conn.Query(`select * from place`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
 
 	data, err = conn.Query(`select * from transact`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 	assert.Contains(t, []interface{}{65.657, 5.567, 5.657}, cast.ToFloat64(data.Records()[0]["amount"]))
 
 	// GetSchemas
 	data, err = conn.GetSchemas()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Greater(t, len(data.Rows), 0)
 
 	// GetTables
 	data, err = conn.GetTables(db.schema)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Greater(t, len(data.Rows), 0)
 
 	// GetViews
 	data, err = conn.GetViews(db.schema)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Greater(t, len(data.Rows), 0)
 	assert.Greater(t, data.Duration, 0.0)
 
 	// GetColumns
 	columns, err := conn.GetColumns(db.schema + ".person")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, columns, 3)
 	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, columns[0].DbType)
 
 	// GetPrimaryKeys
 	if !strings.Contains("redshift,bigquery,snowflake", db.name) {
 		data, err = conn.GetPrimaryKeys(db.schema + ".person")
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Len(t, data.Rows, 1)
 		assert.Equal(t, "first_name", strings.ToLower(cast.ToString(data.Records()[0]["column_name"])))
 	}
@@ -426,28 +426,28 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// GetIndexes
 	if !strings.Contains("redshift,bigquery,azuredwh,snowflake,sqlite3", db.name) {
 		data, err = conn.GetIndexes(db.schema + ".place")
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Len(t, data.Rows, 2)
 		assert.Equal(t, "city", strings.ToLower(cast.ToString(data.Records()[1]["column_name"])))
 	}
 
 	// GetColumnsFull
 	data, err = conn.GetColumnsFull(db.schema + ".place")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
 	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64"}, data.Records()[2]["data_type"])
 
 	// GetDDL of table
 	if !strings.Contains("redshift,bigquery,sqlserver,azuresql,azuredwh", db.name) {
 		ddl, err := conn.GetDDL(db.schema + ".place")
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Equal(t, db.placeDDL, ddl)
 	}
 
 	// GetDDL of view
 	if !strings.Contains("redshift,bigquery", db.name) {
 		ddl, err := conn.GetDDL(db.schema + ".place_vw")
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Equal(t, db.placeVwSelect, ddl)
 	}
 
@@ -455,36 +455,41 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	csv1 := iop.CSV{Path: "test/test1.csv"}
 
 	stream, err = csv1.ReadStream()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	csvTable := db.schema + ".test1"
 	err = conn.DropTable(csvTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	sampleData := iop.NewDataset(stream.Columns)
 	sampleData.Rows = stream.Buffer
 	ddl, err := conn.GenerateDDL(csvTable, sampleData)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	ok := assert.NotEmpty(t, ddl)
 
 	if ok {
 		_, err = conn.Exec(ddl)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		// import to database
 		conn.SetProp("AWS_BUCKET", os.Getenv("AWS_BUCKET"))
+		err = conn.Begin()
+		g.AssertNoError(t, err)
 		_, err = conn.BulkImportStream(csvTable, stream)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		// select back to assert equality
 		count, err := conn.GetCount(csvTable)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Equal(t, uint64(1000), count)
+
+		err = conn.Commit()
+		g.AssertNoError(t, err)
 	}
 
 	// Test Schemata
 	sData, err := conn.GetSchemaObjects(db.schema)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Equal(t, db.schema, sData.Name)
 	assert.Contains(t, sData.Tables, "person")
 	assert.Contains(t, sData.Tables, "place_vw")
@@ -507,28 +512,28 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		"conds":      `lower(t1.country) = lower(t2.country)`,
 	}
 	data, err = conn.RunAnalysis("table_join_match", values)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 	assert.Contains(t, []interface{}{0.0, int64(0), "0"}, data.Records()[0]["t1_null_cnt"])
 	assert.Equal(t, 100.0, cast.ToFloat64(data.Records()[1]["match_rate"]))
 
 	// RunAnalysisTable field_stat
 	data, err = conn.RunAnalysisTable("table_count", db.schema+".person", db.schema+".place")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[0]["cnt"]))
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[1]["cnt"]))
 
 	// RunAnalysisField field_stat_deep
 	data, err = conn.RunAnalysisField("field_stat_deep", db.schema+".person")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
 	assert.EqualValues(t, 2, cast.ToInt(data.Records()[0]["tot_cnt"]))
 	assert.EqualValues(t, 0, cast.ToInt(data.Records()[1]["f_dup_cnt"]))
 
 	// Not used
 	// columns, err = conn.GetColumnStats(db.schema + ".transact")
-	// assert.NoError(t, err)
+	// g.AssertNoError(t, err)
 	// assert.Len(t, columns, 9)
 	// assert.Contains(t, []string{"date", "datetime"}, columns[0].Type)
 	// assert.EqualValues(t, "original_description", strings.ToLower(columns[2].Name))
@@ -542,7 +547,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 	// Drop all tables
 	err = conn.DropTable("person", "place", "transact", "test1")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh", db.name) {
 		// test sleep function
@@ -551,7 +556,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 			"seconds", "1",
 		)
 		dd, err := conn.Query(sleepSQL)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Greater(t, dd.Duration, 1.0)
 
 		// Test cancel query
@@ -569,7 +574,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	err = conn.Close()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 }
 
 func ELTest(t *testing.T, db *testDB, srcTable string) {
@@ -579,18 +584,18 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 
 	// var srcConn, tgtConn PostgresConn
 	srcConn, err := NewConn(db.URL, db.propStrs...)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	tgtConn, err := NewConn(db.URL, db.propStrs...)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = srcConn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = tgtConn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	ddl, err := srcConn.GetDDL(srcTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	newDdl := strings.Replace(ddl, sTable, tTable, 1)
 	if strings.Contains("oracle,snowflake", db.name) {
 		newDdl = strings.Replace(
@@ -598,45 +603,50 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 			strings.ToUpper(tTable), 1,
 		)
 	}
+	err = tgtConn.Begin()
+	g.AssertNoError(t, err)
 
 	err = tgtConn.DropTable(tgtTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	_, err = tgtConn.Exec(newDdl)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	stream, err := srcConn.StreamRows(`select * from ` + srcTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
-	if assert.NoError(t, err) {
+	if g.AssertNoError(t, err) {
 		_, err = tgtConn.InsertBatchStream(tgtTable, stream)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		data, err := tgtConn.RunAnalysisTable("table_count", srcTable, tgtTable)
-		if assert.NoError(t, err) {
+		if g.AssertNoError(t, err) {
 			assert.Equal(t, data.Records()[0]["cnt"], data.Records()[1]["cnt"])
 		}
 	}
 
 	// use Bulk
-	_, err = tgtConn.Query("truncate table " + tgtTable)
-	assert.NoError(t, err)
+	_, err = tgtConn.Query("delete from " + tgtTable)
+	g.AssertNoError(t, err)
 
 	stream, err = srcConn.BulkExportStream(`select * from ` + srcTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	if err == nil {
 		_, err = tgtConn.BulkImportStream(tgtTable, stream)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		data, err := tgtConn.RunAnalysisTable("table_count", srcTable, tgtTable)
-		if assert.NoError(t, err) {
+		if g.AssertNoError(t, err) {
 			assert.Equal(t, data.Records()[0]["cnt"], data.Records()[1]["cnt"])
 		}
 	}
 
 	err = tgtConn.DropTable(tgtTable)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
+
+	err = tgtConn.Commit()
+	g.AssertNoError(t, err)
 
 	srcConn.Close()
 	tgtConn.Close()
@@ -650,10 +660,10 @@ func tInsertStreamLarge(t *testing.T, conn Connection, data iop.Dataset, tableNa
 	}
 
 	df, err := iop.MakeDataFlow(data.Stream())
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	cnt, err := conn.BulkImportFlow(tableName, df)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	g.Debug("inserted %d rows [%s r/s]", cnt, getRate(cnt))
 }
@@ -671,7 +681,7 @@ func tSelectStreamLarge(t *testing.T, conn Connection, tableName string, dfMult 
 	}
 	UseBulkExportFlowCSV = false
 	df, err := conn.BulkExportFlow(sqls...)
-	if !assert.NoError(t, err) {
+	if !g.AssertNoError(t, err) {
 		return
 	}
 	for ds := range df.StreamCh {
@@ -679,7 +689,7 @@ func tSelectStreamLarge(t *testing.T, conn Connection, tableName string, dfMult 
 			// do nothing
 		}
 		ds.SetEmpty()
-		assert.NoError(t, ds.Err())
+		g.AssertNoError(t, ds.Err())
 	}
 	count = df.Count()
 	assert.True(t, df.IsEmpty())
@@ -794,7 +804,7 @@ func TestLargeDataset(t *testing.T) {
 		defer ctx.Wg.Write.Done()
 		os.Setenv("FILE_MAX_ROWS", "13000")
 		conn, err := connect(db)
-		ok := assert.NoError(t, err)
+		ok := g.AssertNoError(t, err)
 		if !ok {
 			return
 		}
@@ -803,17 +813,17 @@ func TestLargeDataset(t *testing.T) {
 
 		tableName := db.schema + ".test1"
 		err = conn.DropTable(tableName)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		ddl, err := conn.GenerateDDL(tableName, data)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		_, err = conn.Exec(ddl)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		tInsertStreamLarge(t, conn, data, tableName)
 
 		cnt, err := conn.GetCount(tableName)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		if !assert.EqualValues(t, numRows, cnt, "Got %d", cnt) {
 			return
 		}
@@ -825,7 +835,7 @@ func TestLargeDataset(t *testing.T) {
 		assert.EqualValues(t, numRows*dfMult, cnt)
 
 		err = conn.DropTable(tableName)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 	}
 
@@ -862,15 +872,15 @@ func TestURL(t *testing.T) {
 func TestExport(t *testing.T) {
 	db := DBs["bigquery"]
 	conn, err := NewConn(db.URL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	_, err = conn.BulkExportFlow("select * from `proven-cider-633.pg_home.bank_mint_transactions`")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 }
 
 func TestMultiStatement(t *testing.T) {
 	db := DBs["oracle"]
 	conn, err := NewConn(db.URL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	sql := `select 1 from dual ;
 	-- ;
 	select 2 as n, ';' as t, ' '' /*' as t2 from dual
@@ -882,13 +892,13 @@ func TestMultiStatement(t *testing.T) {
 
 	`
 	_, err = conn.Exec(sql)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	db = DBs["bigquery"]
 	conn, err = NewConn(db.URL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	_, err = conn.Exec("select 1 as a; select 2 /* hey; */ as a; -- sselect")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 }
 
 func TestPasswordSSH(t *testing.T) {
@@ -897,9 +907,9 @@ func TestPasswordSSH(t *testing.T) {
 	// sshURL := "ssh://user:hello@bionic:2222"
 	sshURL := os.Getenv("SSH_TEST_PASSWD_URL")
 	conn, err := NewConn(dbURL, "SSH_TUNNEL="+sshURL)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	err = conn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	conn.Close()
 }
 
@@ -918,23 +928,23 @@ func TestPrivateKeySSH(t *testing.T) {
 			dbURL, "SSH_TUNNEL="+sshURL,
 			"SSH_PRIVATE_KEY=/root/.ssh/id_rsa",
 		)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		err = conn.Connect()
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		conn.Close()
 	}
 }
 
 func testOracleClob(t *testing.T) {
 	conn, err := NewConn("ORACLE_URL")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	err = conn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	// sql := `SELECT *	FROM dba_hist_sqltext`
 	sql := `SELECT * FROM SYS.METASTYLESHEET where rownum < 10`
 	data, err := conn.Query(sql)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	g.P(data.Rows[0])
 }
 
@@ -973,19 +983,19 @@ func TestDatatypes(t *testing.T) {
 	}
 
 	TypesNativeFile, err := templatesFolder.Open("templates/types_native_to_general.tsv")
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	TypesNativeCSV := iop.CSV{Reader: bufio.NewReader(TypesNativeFile)}
 
 	data, err := TypesNativeCSV.Read()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	for _, db := range dbs {
 		conn, err := NewConn(db.URL, db.propStrs...)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		err = conn.Connect()
-		if !assert.NoError(t, err) {
+		if !g.AssertNoError(t, err) {
 			continue
 		}
 
@@ -1018,15 +1028,15 @@ func TestDatatypes(t *testing.T) {
 			tableName, strings.Join(colsDDL, ", "),
 		)
 		_, err = conn.Exec(ddl)
-		if !assert.NoError(t, err) {
+		if !g.AssertNoError(t, err) {
 			return
 		}
 
 		columns, err := conn.GetColumns(tableName)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 
 		insertCols, err = conn.ValidateColumnNames(ColumnNames(columns), insertCols, true)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		insertStatement := conn.GenerateInsertStatement(
 			tableName,
 			insertCols,
@@ -1035,7 +1045,7 @@ func TestDatatypes(t *testing.T) {
 		conn.MustExec(insertStatement, testVals...)
 
 		columns, err = conn.GetColumnStats(tableName)
-		assert.NoError(t, err)
+		g.AssertNoError(t, err)
 		assert.Greater(t, len(columns), 0)
 		for _, col := range columns {
 			g.Debug("%s - %#v", col.Name, col.Stats)
@@ -1056,7 +1066,7 @@ func TestDatatypes(t *testing.T) {
 func TestCastColumnsForSelect(t *testing.T) {
 	db := DBs["postgres"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = conn.DropTable(`public.tgt1`, `public.src1`)
 	_, err = conn.Exec(`
@@ -1070,7 +1080,7 @@ func TestCastColumnsForSelect(t *testing.T) {
 		"COL5" varchar(40)
 	)
 	`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	_, err = conn.Exec(`
 	create table public.src1 (
@@ -1081,12 +1091,12 @@ func TestCastColumnsForSelect(t *testing.T) {
 		col5 varchar(50)
 	)
 	`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	tgtColumns, err := conn.GetColumns(`public.tgt1`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	srcColumns, err := conn.GetColumns(`public.src1`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	assert.EqualValues(t, 7, len(tgtColumns))
 	assert.EqualValues(t, 5, len(srcColumns))
@@ -1096,7 +1106,7 @@ func TestCastColumnsForSelect(t *testing.T) {
 		ColumnNames(srcColumns),
 		true,
 	)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	assert.EqualValues(t, 5, len(tgtFields))
 	assert.EqualValues(t, `"CoL1"`, tgtFields[0])
@@ -1113,42 +1123,42 @@ func TestCastColumnsForSelect(t *testing.T) {
 func TestGetSQLColumnsLarge(t *testing.T) {
 	conn, err := NewConn(os.Getenv("PG_BIONIC_URL"))
 	// conn, err := NewConn(DBs["bigquery"].URL)
-	if !assert.NoError(t, err) {
+	if !g.AssertNoError(t, err) {
 		return
 	}
 
 	err = conn.Connect()
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	// sql := `select * from public.ccxt_price_second limit 500000`
 	sql := `select * from crypto.ccxt_price_second limit 500000`
 	cols, err := conn.GetSQLColumns(sql)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	g.P(cols)
 }
 
 func TestDecimal(t *testing.T) {
 	db := DBs["postgres"]
 	conn, err := connect(db)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	err = conn.DropTable(`public.table1`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	_, err = conn.Exec(`
 	create table public.table1 (
 		col1 numeric(30,9)
 	)
 	`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	_, err = conn.Exec(`insert into public.table1 values(1032.442)`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	_, err = conn.Exec(`commit`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 
 	result, err := conn.Db().Queryx(`select col1 from public.table1`)
-	assert.NoError(t, err)
+	g.AssertNoError(t, err)
 	result.Next()
 	var val interface{}
 	result.Scan(&val)

@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 
 	"github.com/flarco/g"
@@ -68,13 +67,8 @@ func (t *Transaction) Exec(sql string, args ...interface{}) (result sql.Result, 
 // ExecContext runs a sql query with context, returns `error`
 func (t *Transaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
 	if strings.TrimSpace(q) == "" {
-		err = g.Error(errors.New("Empty Query"))
+		err = g.Error("Empty Query")
 		return
-	}
-
-	noTrace := strings.Contains(q, "\n\n-- nT --")
-	if !noTrace {
-		g.Debug(CleanSQL(t.conn, q), args...)
 	}
 
 	result, err = t.Tx.ExecContext(ctx, q, args...)
