@@ -1203,6 +1203,7 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 	// get column types
 	g.Trace("GetSQLColumns: %s", sql)
 	rows, err := conn.Self().StreamRows(sql, 1)
+	rows.Collect(0) // advance the datastream so it can close
 	if err != nil {
 		err = g.Error(err, "SQL Error for:\n"+sql)
 		return columns, err

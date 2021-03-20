@@ -794,7 +794,7 @@ func TestLargeDataset(t *testing.T) {
 
 	// dbs = []*testDB{DBs["sqlserver"]}
 
-	ctx := g.NewContext(context.Background(), 20)
+	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
 		defer ctx.Wg.Write.Done()
 		os.Setenv("FILE_MAX_ROWS", "13000")
@@ -832,6 +832,7 @@ func TestLargeDataset(t *testing.T) {
 		err = conn.DropTable(tableName)
 		g.AssertNoError(t, err)
 
+		g.Info("Finished TestLargeDataset for %s", db.name)
 	}
 
 	testSnowflake := func() {
