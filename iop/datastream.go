@@ -16,7 +16,7 @@ import (
 
 // Datastream is a stream of rows
 type Datastream struct {
-	Columns       []Column
+	Columns       Columns
 	Rows          chan []interface{}
 	Buffer        [][]interface{}
 	Count         uint64
@@ -30,6 +30,7 @@ type Datastream struct {
 	deferFuncs    []func()
 	closed        bool
 	empty         bool
+	clones        []*Datastream
 	it            *Iterator
 	config        *streamConfig
 	df            *Dataflow
@@ -47,12 +48,12 @@ type Iterator struct {
 }
 
 // NewDatastream return a new datastream
-func NewDatastream(columns []Column) (ds *Datastream) {
+func NewDatastream(columns Columns) (ds *Datastream) {
 	return NewDatastreamContext(context.Background(), columns)
 }
 
 // NewDatastreamIt with it
-func NewDatastreamIt(ctx context.Context, columns []Column, nextFunc func(it *Iterator) bool) (ds *Datastream) {
+func NewDatastreamIt(ctx context.Context, columns Columns, nextFunc func(it *Iterator) bool) (ds *Datastream) {
 	ds = NewDatastreamContext(ctx, columns)
 	ds.it = &Iterator{
 		Row:      make([]interface{}, len(columns)),
@@ -64,7 +65,7 @@ func NewDatastreamIt(ctx context.Context, columns []Column, nextFunc func(it *It
 }
 
 // NewDatastreamContext return a new datastream
-func NewDatastreamContext(ctx context.Context, columns []Column) (ds *Datastream) {
+func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream) {
 	ds = &Datastream{
 		Rows:       MakeRowsChan(),
 		Columns:    columns,
@@ -72,6 +73,7 @@ func NewDatastreamContext(ctx context.Context, columns []Column) (ds *Datastream
 		Sp:         NewStreamProcessor(),
 		config:     &streamConfig{emptyAsNull: true, header: true, delimiter: ","},
 		deferFuncs: []func(){},
+		clones:     []*Datastream{},
 	}
 	ds.Sp.ds = ds
 
@@ -105,11 +107,30 @@ func (ds *Datastream) IsEmpty() bool {
 
 // Push return the fields of the Data
 func (ds *Datastream) Push(row []interface{}) {
-	ds.Rows <- row
-	ds.Count++
 	if !ds.Ready {
 		ds.Ready = true
 	}
+	select {
+	case <-ds.Context.Ctx.Done():
+		ds.Close()
+		return
+	case ds.Rows <- row:
+	}
+	for _, cDs := range ds.clones {
+		cDs.Push(row)
+	}
+	ds.Count++
+}
+
+// Clone returns a new datastream of the same source
+func (ds *Datastream) Clone() *Datastream {
+	cDs := NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+	cDs.Inferred = ds.Inferred
+	cDs.config = ds.config
+	cDs.Sp.config = ds.Sp.config
+	cDs.Ready = true
+	ds.clones = append(ds.clones, cDs)
+	return cDs
 }
 
 // IsClosed is true is ds is closed
@@ -195,7 +216,7 @@ func (ds *Datastream) GetFields(toLower ...bool) []string {
 // SetFields sets the fields/columns of the Datastream
 func (ds *Datastream) SetFields(fields []string) {
 	if ds.Columns == nil || len(ds.Columns) != len(fields) {
-		ds.Columns = make([]Column, len(fields))
+		ds.Columns = make(Columns, len(fields))
 	}
 
 	for i, field := range fields {
@@ -312,6 +333,8 @@ func (ds *Datastream) Start() (err error) {
 		var err error
 		defer ds.Close()
 
+		ds.Ready = true
+
 		for _, row := range ds.Buffer {
 			row = ds.Sp.CastRow(row, ds.Columns)
 			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
@@ -319,8 +342,6 @@ func (ds *Datastream) Start() (err error) {
 			}
 			ds.Push(row)
 		}
-
-		ds.Ready = true
 
 		row := make([]interface{}, len(ds.Columns))
 		rowPtrs := make([]interface{}, len(ds.Columns))
@@ -516,7 +537,7 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 // Shape changes the column types as needed, to the provided columns var
 // It will cast the already wrongly casted rows, and not recast the
 // correctly casted rows
-func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
+func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 	if len(columns) != len(ds.Columns) {
 		err = g.Error("number of columns do not match")
 		return ds, err
@@ -559,8 +580,7 @@ func (ds *Datastream) Shape(columns []Column) (nDs *Datastream, err error) {
 			case <-nDs.Context.Ctx.Done():
 				break loop
 			default:
-				nDs.Rows <- row
-				nDs.Count++
+				nDs.Push(row)
 			}
 		}
 		ds.SetEmpty()

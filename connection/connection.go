@@ -41,7 +41,7 @@ type Connection struct {
 	Name    string                 `json:"name"`
 	Type    dbio.Type              `json:"type"`
 	Data    map[string]interface{} `json:"data"`
-	context g.Context              `json:"-"`
+	context *g.Context             `json:"-"`
 }
 
 // NewConnection creates a new connection
@@ -52,7 +52,7 @@ func NewConnection(Name string, t dbio.Type, Data map[string]interface{}) (conn 
 		Name:    strings.TrimLeft(Name, "$"),
 		Type:    t,
 		Data:    g.AsMap(Data, true),
-		context: c,
+		context: &c,
 	}
 
 	err = conn.setURL()
@@ -117,7 +117,7 @@ func (c *Connection) DataS(lowerCase ...bool) map[string]string {
 }
 
 // Context returns the context
-func (c *Connection) Context() g.Context {
+func (c *Connection) Context() *g.Context {
 	return c.context
 }
 

@@ -329,7 +329,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	transactColumns, err := conn.GetColumns(db.schema + ".transact")
 	g.AssertNoError(t, err)
 
-	insFields, err := conn.ValidateColumnNames(ColumnNames(personColumns), []string{"first_name", "last_name", "email"}, true)
+	insFields, err := conn.ValidateColumnNames(personColumns.Names(), []string{"first_name", "last_name", "email"}, true)
 	g.AssertNoError(t, err)
 	personInsertStatement := conn.GenerateInsertStatement(
 		"person",
@@ -337,7 +337,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		1,
 	)
 
-	insFields, err = conn.ValidateColumnNames(ColumnNames(placeColumns), []string{"country", "city", "telcode"}, true)
+	insFields, err = conn.ValidateColumnNames(placeColumns.Names(), []string{"country", "city", "telcode"}, true)
 	g.AssertNoError(t, err)
 	placeInsertStatement := conn.GenerateInsertStatement(
 		"place",
@@ -345,7 +345,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		1,
 	)
 
-	insFields, err = conn.ValidateColumnNames(ColumnNames(transactColumns), []string{"date_time", "description", "amount"}, true)
+	insFields, err = conn.ValidateColumnNames(transactColumns.Names(), []string{"date_time", "description", "amount"}, true)
 	g.AssertNoError(t, err)
 	transactInsertStatement := conn.GenerateInsertStatement(
 		"transact",
@@ -1030,7 +1030,7 @@ func TestDatatypes(t *testing.T) {
 		columns, err := conn.GetColumns(tableName)
 		g.AssertNoError(t, err)
 
-		insertCols, err = conn.ValidateColumnNames(ColumnNames(columns), insertCols, true)
+		insertCols, err = conn.ValidateColumnNames(columns.Names(), insertCols, true)
 		g.AssertNoError(t, err)
 		insertStatement := conn.GenerateInsertStatement(
 			tableName,
@@ -1097,8 +1097,8 @@ func TestCastColumnsForSelect(t *testing.T) {
 	assert.EqualValues(t, 5, len(srcColumns))
 
 	tgtFields, err := conn.ValidateColumnNames(
-		ColumnNames(tgtColumns),
-		ColumnNames(srcColumns),
+		tgtColumns.Names(),
+		srcColumns.Names(),
 		true,
 	)
 	g.AssertNoError(t, err)

@@ -109,8 +109,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		return
 	}
 
-	colNames := ColumnNames(columns)
-
 	// COPY needs a transaction
 	if conn.Tx() == nil {
 		err = conn.Begin()
@@ -121,9 +119,11 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		defer conn.Commit()
 	}
 
-	stmt, err := conn.Prepare(pq.CopyInSchema(schema, table, colNames...))
+	stmt, err := conn.Prepare(
+		pq.CopyInSchema(schema, table, columns.Names()...),
+	)
 	if err != nil {
-		g.Trace("%s: %#v", table, colNames)
+		g.Trace("%s: %#v", table, columns.Names())
 		return count, g.Error(err, "could not prepare statement")
 	}
 
@@ -170,11 +170,10 @@ func (conn *PostgresConn) CastColumnForSelect(srcCol iop.Column, tgtCol iop.Colu
 	return selectStr
 }
 
-// Upsert inserts / updates from a srcTable into a target table.
-// Assuming the srcTable has some or all of the tgtTable fields with matching types
-func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error) {
+// GenerateUpsertSQL generates the upsert SQL
+func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
-	upsertMap, err := conn.Self().GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
 		return
@@ -187,13 +186,11 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		"cols", strings.Join(pkFields, ", "),
 	)
 
-	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
-	if err != nil && !strings.Contains(err.Error(), "already") {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
-		return
-	}
-
+	// in order to use on conflict, the target table needs
+	//  a unique index on the PK. We will not use it since
+	// it complicates matters
 	sqlTempl := `
+	{indexSQL};
 	insert into {tgt_table}
 	({insert_fields})
 	select {src_fields} from {src_table} src
@@ -202,27 +199,47 @@ func (conn *PostgresConn) Upsert(srcTable string, tgtTable string, pkFields []st
 	SET {set_fields}
 	`
 
-	sql := g.R(
+	sqlTempl = `
+	CREATE TEMPORARY TABLE {temp_table} as
+	with src_table as (
+		select {src_fields} from {src_table}
+	)
+	, updates as (
+		update {tgt_table} tgt
+		set {set_fields}
+		from src_table src
+		where {src_tgt_pk_equal}
+		returning tgt.*
+	)
+	select * from updates;
+
+	with src_table as (
+		select {src_fields} from {src_table}
+	)
+	insert into {tgt_table}
+	({insert_fields})
+	select {src_fields} from src_table src
+	where not exists (
+		select 1
+		from {temp_table} upd
+		where {src_upd_pk_equal}
+	)
+	`
+
+	sql = g.R(
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
+		"temp_table", g.RandSuffix("temp", 5),
+		"indexSQL", indexSQL,
 		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
 		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
 		"src_fields", upsertMap["src_fields"],
 		"pk_fields", upsertMap["pk_fields"],
-		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
+		// "set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
+		"set_fields", upsertMap["set_fields"],
 		"insert_fields", upsertMap["insert_fields"],
 	)
-	res, err := conn.ExecContext(conn.Context().Ctx, sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
-
-	rowAffCnt, err = res.RowsAffected()
-	if err != nil {
-		rowAffCnt = -1
-	}
 
 	return
 }

@@ -14,7 +14,7 @@ import (
 // Dataset is a query returned dataset
 type Dataset struct {
 	Result        *sqlx.Rows
-	Columns       []Column
+	Columns       Columns
 	Rows          [][]interface{}
 	SQL           string
 	Duration      float64
@@ -25,7 +25,7 @@ type Dataset struct {
 }
 
 // NewDataset return a new dataset
-func NewDataset(columns []Column) (data Dataset) {
+func NewDataset(columns Columns) (data Dataset) {
 	data = Dataset{
 		Result:  nil,
 		Columns: columns,
@@ -40,7 +40,7 @@ func NewDataset(columns []Column) (data Dataset) {
 func NewDatasetFromMap(m map[string]interface{}) (data Dataset) {
 	data = Dataset{
 		Result:  nil,
-		Columns: []Column{},
+		Columns: Columns{},
 		Rows:    [][]interface{}{},
 		Sp:      NewStreamProcessor(),
 	}
@@ -100,7 +100,7 @@ func (data *Dataset) GetFields() []string {
 // SetFields sets the fields/columns of the Datastream
 func (data *Dataset) SetFields(fields []string) {
 	if data.Columns == nil || len(data.Columns) != len(fields) {
-		data.Columns = make([]Column, len(fields))
+		data.Columns = make(Columns, len(fields))
 	}
 
 	for i, field := range fields {
@@ -193,7 +193,7 @@ func (data *Dataset) ToJSONMap() map[string]interface{} {
 
 // InferColumnTypes determines the columns types
 func (data *Dataset) InferColumnTypes() {
-	var columns []Column
+	var columns Columns
 
 	if len(data.Rows) == 0 {
 		g.Debug("skipping InferColumnTypes")

@@ -174,13 +174,29 @@ func (cols Columns) IsDummy() bool {
 	return true
 }
 
-// Fields return the fields of the Data
-func (cols Columns) Fields() []string {
+// Names return the column names
+func (cols Columns) Names() []string {
 	fields := make([]string, len(cols))
 	for j, column := range cols {
 		fields[j] = column.Name
 	}
 	return fields
+}
+
+// FieldMap return the fields map of indexes
+func (cols Columns) FieldMap() map[string]int {
+	fieldColIDMap := map[string]int{}
+	for i, col := range cols {
+		fieldColIDMap[col.Name] = i
+	}
+	return fieldColIDMap
+}
+
+// Dataset return an empty inferred dataset
+func (cols Columns) Dataset() Dataset {
+	d := NewDataset(cols)
+	d.Inferred = true
+	return d
 }
 
 // GetColumn returns the matched Col
@@ -249,6 +265,63 @@ func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err er
 		}
 	}
 	return
+}
+
+// MakeColumns makes columns from a struct
+func MakeColumns(obj interface{}, useTag string, typeMap ...map[string]string) Columns {
+	TypeMap := map[string]string{
+		"string":    "string",
+		"bool":      "boolean",
+		"g.Map":     "json",
+		"int":       "integer",
+		"int64":     "bigint",
+		"float32":   "float",
+		"float64":   "float",
+		"time.Time": "datetime",
+	}
+	if len(typeMap) > 0 {
+		for k, v := range typeMap[0] {
+			TypeMap[k] = v
+		}
+	}
+
+	cols := Columns{}
+
+	var t reflect.Type
+	value := reflect.ValueOf(obj)
+	if value.Kind() == reflect.Ptr {
+		t = reflect.Indirect(value).Type()
+	} else {
+		t = reflect.TypeOf(obj)
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fType := field.Type.String()
+		mappedType, ok := TypeMap[fType]
+		switch {
+		case ok:
+		case strings.HasPrefix(fType, "int"):
+			mappedType = "integer"
+		case strings.HasPrefix(fType, "map["):
+			mappedType = "json"
+		default:
+			g.Warn("could not map type '%s' using iop.MakeColumns", fType)
+			mappedType = "string"
+		}
+
+		col := Column{Name: field.Name, Type: mappedType}
+		if useTag != "" {
+			tagName := field.Tag.Get(useTag)
+			if tagName != "" && tagName != "-" {
+				col.Name = tagName
+				cols = append(cols, col)
+			}
+		} else {
+			cols = append(cols, col)
+		}
+	}
+
+	return cols
 }
 
 // InferFromStats using the stats to infer data types
@@ -325,7 +398,7 @@ func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 
 // MakeRowsChan returns a buffered channel with default size
 func MakeRowsChan() chan []interface{} {
-	return make(chan []interface{}, SampleSize*2)
+	return make(chan []interface{})
 }
 
 // IsString returns whether the column is a string

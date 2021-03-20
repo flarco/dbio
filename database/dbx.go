@@ -15,8 +15,9 @@ var Debug = false
 
 // DbX is db express
 type DbX struct {
-	db          *sqlx.DB    `json:"-"`
-	whereClause WhereClause `json:"-"`
+	db          *sqlx.DB     `json:"-"`
+	tx          *Transaction `json:"-"`
+	whereClause WhereClause  `json:"-"`
 }
 
 // ModelDbX is the base for any SQL model

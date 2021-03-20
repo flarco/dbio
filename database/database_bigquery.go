@@ -351,6 +351,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 	go func() {
 		// Ensure that at the end of the loop we close the channel!
 		defer ds.Close()
+		ds.Ready = true
 
 		for _, row := range ds.Buffer {
 			for i, val := range row {
@@ -358,8 +359,6 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 			}
 			ds.Push(row)
 		}
-
-		ds.Ready = true
 
 		for {
 			if Limit > 0 && counter == Limit {
@@ -800,11 +799,10 @@ func (conn *BigQueryConn) CopyToGCS(tableFName string, gcsURI string) error {
 	return nil
 }
 
-// Upsert inserts / updates from a srcTable into a target table.
-// Assuming the srcTable has some or all of the tgtTable fields with matching types
-func (conn *BigQueryConn) Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error) {
+// GenerateUpsertSQL generates the upsert SQL
+func (conn *BigQueryConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
-	upsertMap, err := conn.Self().GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
 		return
@@ -817,20 +815,8 @@ func (conn *BigQueryConn) Upsert(srcTable string, tgtTable string, pkFields []st
 			FROM {src_table} src
 			WHERE {src_tgt_pk_equal}
 	)
-	`
-	sql := g.R(
-		sqlTempl,
-		"src_table", srcTable,
-		"tgt_table", tgtTable,
-		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
-	)
-	_, err = conn.Exec(sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
+	;
 
-	sqlTempl = `
 	INSERT INTO {tgt_table}
 		({insert_fields})
 	SELECT {src_fields}
@@ -840,20 +826,10 @@ func (conn *BigQueryConn) Upsert(srcTable string, tgtTable string, pkFields []st
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
+		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
 		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", upsertMap["src_fields"],
 	)
-	_, err = conn.Exec(sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
 
-	rowAffCnt = -1
-	cnt, _ := conn.GetCount(srcTable)
-	if cnt > 0 {
-		rowAffCnt = cast.ToInt64(cnt)
-	}
 	return
-
 }

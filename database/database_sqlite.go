@@ -27,28 +27,12 @@ func (conn *SQLiteConn) Init() error {
 	return conn.BaseConn.Init()
 }
 
-// Upsert inserts / updates from a srcTable into a target table.
-// Assuming the srcTable has some or all of the tgtTable fields with matching types
-func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error) {
+// GenerateUpsertSQL generates the upsert SQL
+func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
-	upsertMap, err := conn.Self().GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
-		return
-	}
-
-	_, table := SplitTableFullName(tgtTable)
-
-	indexSQL := g.R(
-		conn.GetTemplateValue("core.create_unique_index"),
-		"index", strings.Join(pkFields, "_")+"_idx",
-		"table", table,
-		"cols", strings.Join(pkFields, ", "),
-	)
-
-	_, err = conn.ExecContext(conn.Context().Ctx, indexSQL)
-	if err != nil && !strings.Contains(err.Error(), "already") {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, indexSQL)
 		return
 	}
 
@@ -63,7 +47,7 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 	SET {set_fields}
 	`
 
-	sql := g.R(
+	sql = g.R(
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
@@ -74,16 +58,6 @@ func (conn *SQLiteConn) Upsert(srcTable string, tgtTable string, pkFields []stri
 		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
 		"insert_fields", upsertMap["insert_fields"],
 	)
-	res, err := conn.Tx().ExecContext(conn.Context().Ctx, sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
-
-	rowAffCnt, err = res.RowsAffected()
-	if err != nil {
-		rowAffCnt = -1
-	}
 
 	return
 }

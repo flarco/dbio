@@ -46,12 +46,13 @@ type Connection interface {
 	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
 	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	CastColumnForSelect(srcColumn iop.Column, tgtColumn iop.Column) string
-	CastColumnsForSelect(srcColumns []iop.Column, tgtColumns []iop.Column) []string
+	CastColumnsForSelect(srcColumns iop.Columns, tgtColumns iop.Columns) []string
 	Close() error
 	Commit() error
-	CompareChecksums(tableName string, columns []iop.Column) (err error)
+	CompareChecksums(tableName string, columns iop.Columns) (err error)
 	Connect(timeOut ...int) error
 	Context() *g.Context
+	CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error)
 	Db() *sqlx.DB
 	DbX() *DbX
 	DropTable(...string) error
@@ -62,10 +63,10 @@ type Connection interface {
 	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
 	GenerateDDL(tableFName string, data iop.Dataset) (string, error)
 	GenerateInsertStatement(tableName string, fields []string, numRows int) string
-	GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error)
-	GetColumns(tableFName string, fields ...string) ([]iop.Column, error)
+	GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error)
+	GetColumns(tableFName string, fields ...string) (iop.Columns, error)
 	GetColumnsFull(string) (iop.Dataset, error)
-	GetColumnStats(tableName string, fields ...string) (columns []iop.Column, err error)
+	GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error)
 	GetCount(string) (uint64, error)
 	GetDDL(string) (string, error)
 	GetGormConn(config *gorm.Config) (*gorm.DB, error)
@@ -75,7 +76,7 @@ type Connection interface {
 	GetProp(string) string
 	GetSchemaObjects(string) (Schema, error)
 	GetSchemas() (iop.Dataset, error)
-	GetSQLColumns(sqls ...string) (columns []iop.Column, err error)
+	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
 	GetTemplateValue(path string) (value string)
 	GetType() dbio.Type
@@ -87,7 +88,8 @@ type Connection interface {
 	Kill() error
 	LoadTemplates() error
 	MustExec(sql string, args ...interface{}) (result sql.Result)
-	OptimizeTable(tableName string, columns []iop.Column) (err error)
+	NewTransaction(ctx context.Context, options ...*sql.TxOptions) (*Transaction, error)
+	OptimizeTable(tableName string, columns iop.Columns) (err error)
 	Prepare(query string) (stmt *sql.Stmt, err error)
 	Props() map[string]string
 	PropsArr() []string
@@ -137,7 +139,7 @@ type Table struct {
 	Name       string `json:"name"`
 	FullName   string `json:"full_name"`
 	IsView     bool   `json:"is_view"` // whether is a view
-	Columns    []iop.Column
+	Columns    iop.Columns
 	ColumnsMap map[string]*iop.Column
 }
 
@@ -796,7 +798,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	var result *sqlx.Rows
 	if conn.tx != nil {
-		result, err = conn.tx.Tx.QueryxContext(queryContext.Ctx, sql)
+		result, err = conn.tx.QueryContext(queryContext.Ctx, sql)
 	} else {
 		result, err = conn.db.QueryxContext(queryContext.Ctx, sql)
 	}
@@ -897,13 +899,23 @@ func (conn *BaseConn) BeginContext(ctx context.Context, options ...*sql.TxOption
 
 // Commit commits a connection wide transaction
 func (conn *BaseConn) Commit() (err error) {
-	if conn.tx != nil {
+	if conn.tx == nil {
+		return
+	}
+
+	select {
+	case <-conn.tx.Context.Ctx.Done():
+		conn.Rollback()
+		err = conn.tx.Context.Err()
+		return
+	default:
 		err = conn.tx.Commit()
 		conn.tx = nil
+		if err != nil {
+			return g.Error(err, "Could not commit")
+		}
 	}
-	if err != nil {
-		return g.Error(err, "Could not commit")
-	}
+
 	return nil
 }
 
@@ -993,16 +1005,18 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 
 	Res := Result{rowsAffected: 0}
 
+	eG := g.ErrorGroup{}
 	for _, sql := range ParseSQLMultiStatements(q) {
 		res, err := conn.ExecContext(ctx, sql, args...)
 		if err != nil {
-			err = g.Error(err, "Error executing query")
+			eG.Capture(g.Error(err, "Error executing query"))
 		} else {
 			ra, _ := res.RowsAffected()
 			Res.rowsAffected = Res.rowsAffected + ra
 		}
 	}
 
+	err = eG.Err()
 	result = Res
 
 	return
@@ -1013,7 +1027,7 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 func (conn *BaseConn) MustExec(sql string, args ...interface{}) (result sql.Result) {
 	res, err := conn.Self().Exec(sql, args...)
 	if err != nil {
-		g.LogFatal(err, "query error for: "+sql)
+		g.LogFatal(err, "fatal query error")
 	}
 	return res
 }
@@ -1112,15 +1126,6 @@ func (conn *BaseConn) GetViews(schema string) (iop.Dataset, error) {
 	return conn.Self().Query(sql)
 }
 
-// ColumnNames return column names of columns array
-func ColumnNames(columns []iop.Column) (colNames []string) {
-	colNames = make([]string, len(columns))
-	for i := range columns {
-		colNames[i] = columns[i].Name
-	}
-	return
-}
-
 // CommonColumns return common columns
 func CommonColumns(colNames1 []string, colNames2 []string) (commCols []string) {
 	commCols = []string{}
@@ -1134,8 +1139,8 @@ func CommonColumns(colNames1 []string, colNames2 []string) (commCols []string) {
 }
 
 // SQLColumns returns the columns from database ColumnType
-func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (columns []iop.Column) {
-	columns = make([]iop.Column, len(colTypes))
+func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (columns iop.Columns) {
+	columns = make(iop.Columns, len(colTypes))
 
 	for i, colType := range colTypes {
 		dbType := strings.ToLower(colType.DatabaseTypeName())
@@ -1183,7 +1188,7 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 }
 
 // GetSQLColumns return columns from a sql query result
-func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns []iop.Column, err error) {
+func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err error) {
 	sql := ""
 	if len(sqls) > 0 {
 		sql = sqls[0]
@@ -1224,8 +1229,8 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 // GetColumns returns columns for given table. `tableFName` should
 // include schema and table, example: `schema1.table2`
 // fields should be `column_name|data_type`
-func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns []iop.Column, err error) {
-	columns = []iop.Column{}
+func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
+	columns = iop.Columns{}
 	sql := getMetadataTableFName(conn, "columns", tableFName)
 
 	colData, err := conn.Self().Query(sql)
@@ -1355,6 +1360,33 @@ func getMetadataTableFName(conn *BaseConn, template string, tableFName string) s
 	return sql
 }
 
+func (conn *BaseConn) CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error) {
+
+	// check table existence
+	exists, err := conn.TableExists(tableName)
+	if err != nil {
+		return g.Error(err, "Error checking table "+tableName)
+	} else if exists {
+		return nil
+	}
+
+	// generate ddl
+	if tableDDL == "" {
+		tableDDL, err = conn.GenerateDDL(tableName, cols.Dataset())
+		if err != nil {
+			return g.Error(err, "Could not generate DDL for "+tableName)
+		}
+	}
+
+	// execute ddl
+	_, err = conn.Exec(tableDDL)
+	if err != nil {
+		return g.Error(err, "Could not create table "+tableName)
+	}
+
+	return
+}
+
 // DropTable drops given table.
 func (conn *BaseConn) DropTable(tableNames ...string) (err error) {
 
@@ -1440,7 +1472,7 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 		table := Table{
 			Name:       tableName,
 			IsView:     cast.ToBool(rec["is_view"]),
-			Columns:    []iop.Column{},
+			Columns:    iop.Columns{},
 			ColumnsMap: map[string]*iop.Column{},
 		}
 
@@ -1513,7 +1545,7 @@ func (conn *BaseConn) RunAnalysisField(analysisName string, tableFName string, f
 			return iop.NewDataset(nil), err
 		}
 
-		fields = ColumnNames(columns)
+		fields = columns.Names()
 	}
 
 	for _, field := range fields {
@@ -1536,7 +1568,7 @@ func (conn *BaseConn) CastColumnForSelect(srcCol iop.Column, tgtCol iop.Column) 
 }
 
 // CastColumnsForSelect cast the source columns into the target Column types
-func (conn *BaseConn) CastColumnsForSelect(srcColumns []iop.Column, tgtColumns []iop.Column) []string {
+func (conn *BaseConn) CastColumnsForSelect(srcColumns iop.Columns, tgtColumns iop.Columns) []string {
 	selectExprs := []string{}
 
 	tgtFields := map[string]iop.Column{}
@@ -1613,128 +1645,22 @@ func (conn *BaseConn) ValidateColumnNames(tgtColNames []string, colNames []strin
 	return
 }
 
+// InsertStream inserts a stream into a table
+func (conn *BaseConn) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	count, err = InsertStream(conn.Self(), nil, tableFName, ds)
+	if err != nil {
+		err = g.Error(err, "Could not insert into %s", tableFName)
+	}
+	return
+}
+
 // InsertBatchStream inserts a stream into a table in batch
 func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-
-	// make sure fields match
-	columns, err := conn.GetColumns(tableFName)
+	count, err = InsertBatchStream(conn.Self(), nil, tableFName, ds)
 	if err != nil {
-		err = g.Error(err, "could not get column list")
-		return
+		err = g.Error(err, "Could not batch insert into %s", tableFName)
 	}
-
-	batchSize := cast.ToInt(conn.GetTemplateValue("variable.batch_values")) / len(columns)
-
-	ds, err = ds.Shape(columns)
-	if err != nil {
-		err = g.Error(err, "could not shape stream")
-		return
-	}
-
-	insFields, err := conn.ValidateColumnNames(ColumnNames(columns), ds.GetFields(), true)
-	if err != nil {
-		err = g.Error(err, "columns mismatch")
-		return
-	}
-
-	insertBatch := func(rows [][]interface{}) error {
-		var err error
-		defer conn.Context().Wg.Write.Done()
-		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
-
-		// open statement
-		stmt, err := conn.Prepare(insertTemplate)
-		if err != nil {
-			err = g.Error(err, "Error in PrepareContext")
-			conn.Context().CaptureErr(err)
-			conn.Context().Cancel()
-			return conn.Context().Err()
-		}
-
-		vals := []interface{}{}
-		for _, row := range rows {
-			vals = append(vals, row...)
-		}
-
-		// Do insert
-		_, err = stmt.ExecContext(ds.Context.Ctx, vals...)
-		if err != nil {
-			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d", len(rows), len(rows[0]), len(rows)*len(rows[0]))
-			if len(insertTemplate) > 3000 {
-				insertTemplate = insertTemplate[:3000]
-			}
-			if len(rows) > 10 {
-				rows = rows[:10]
-			}
-			g.Debug(g.F(
-				"%s\n%s \n%s",
-				err.Error(), batchErrStr,
-				fmt.Sprintf("Insert: %s", insertTemplate),
-				// fmt.Sprintf("\n\nRows: %#v", rows),
-			))
-			conn.Context().CaptureErr(err)
-			conn.Context().Cancel()
-			return conn.Context().Err()
-		}
-
-		// close statement
-		err = stmt.Close()
-		if err != nil {
-			err = g.Error(
-				err,
-				fmt.Sprintf("stmt.Close: %s", insertTemplate),
-			)
-			conn.Context().CaptureErr(err)
-			conn.Context().Cancel()
-		}
-		return conn.Context().Err()
-	}
-
-	batchRows := [][]interface{}{}
-	g.Trace("batchRows")
-	for row := range ds.Rows {
-		batchRows = append(batchRows, row)
-		count++
-		if len(batchRows) == batchSize {
-			g.Trace("batchSize %d", len(batchRows))
-			select {
-			case <-conn.Context().Ctx.Done():
-				return count, conn.Context().Err()
-			case <-ds.Context.Ctx.Done():
-				return count, ds.Context.Err()
-			default:
-				conn.Context().Wg.Write.Add()
-				go insertBatch(batchRows)
-			}
-
-			batchRows = [][]interface{}{}
-		}
-	}
-
-	// remaining batch
-	g.Trace("remaining batch")
-	if len(batchRows) > 0 {
-		conn.Context().Wg.Write.Add()
-		err = insertBatch(batchRows)
-		if err != nil {
-			return count - cast.ToUint64(len(batchRows)), g.Error(err, "insertBatch")
-		}
-	}
-
-	conn.Context().Wg.Write.Wait()
-	err = conn.Context().Err()
-	ds.SetEmpty()
-
-	if err != nil {
-		ds.Context.Cancel()
-		return count - cast.ToUint64(batchSize), g.Error(err, "insertBatch")
-	}
-
-	if ds.Err() != nil {
-		return count, g.Error(ds.Err(), "context error")
-	}
-
-	return count, nil
+	return
 }
 
 // bindVar return proper bind var according to https://jmoiron.github.io/sqlx/#bindvars
@@ -1791,9 +1717,16 @@ func (conn *BaseConn) GenerateInsertStatement(tableName string, fields []string,
 // Upsert inserts / updates from a srcTable into a target table.
 // Assuming the srcTable has some or all of the tgtTable fields with matching types
 func (conn *BaseConn) Upsert(srcTable string, tgtTable string, primKeys []string) (rowAffCnt int64, err error) {
-	err = g.Error("Upsert is not implemented for %s", conn.GetType())
-	err = g.Error(err, "")
-	return
+	var cnt int64
+	if conn.tx != nil {
+		cnt, err = Upsert(conn.Self(), conn.tx, srcTable, tgtTable, primKeys)
+	} else {
+		cnt, err = Upsert(conn.Self(), nil, srcTable, tgtTable, primKeys)
+	}
+	if err != nil {
+		err = g.Error(err, "could not upsert")
+	}
+	return cast.ToInt64(cnt), err
 }
 
 // SwapTable swaps two table
@@ -1833,44 +1766,6 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 	}
 
 	return
-}
-
-// InsertStream inserts a stream into a table
-func (conn *BaseConn) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	// make sure fields match
-	columns, err := conn.GetColumns(tableFName)
-	if err != nil {
-		err = g.Error(err, "could not get column list")
-		return
-	}
-	insFields, err := conn.ValidateColumnNames(ColumnNames(columns), ds.GetFields(), true)
-	if err != nil {
-		err = g.Error(err, "columns mismatch")
-		return
-	}
-
-	insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, 1)
-
-	tx, err := conn.db.Begin()
-	if err != nil {
-		err = g.Error(err, "Could not begin transaction")
-		return
-	}
-	for row := range ds.Rows {
-		count++
-		// Do insert
-		_, err := tx.Exec(insertTemplate, row...)
-		if err != nil {
-			tx.Rollback()
-			return count, g.Error(
-				err,
-				fmt.Sprintf("Insert: %s\nFor Row: %#v", insertTemplate, row),
-			)
-		}
-	}
-	tx.Commit()
-
-	return count, nil
 }
 
 // GetNativeType returns the native column type from generic
@@ -1964,17 +1859,12 @@ func (conn *BaseConn) generateColumnDDL(col iop.Column, nativeType string) (colu
 func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, error) {
 
 	if !data.Inferred || data.SafeInference {
+		if len(data.Columns) > 0 && data.Columns[0].Stats.TotalCnt == 0 && data.Columns[0].Type == "" {
+			g.Warn("Generating DDL from 0 rows. Will use string for unknown types.")
+		}
 		data.InferColumnTypes()
 	}
 	columnsDDL := []string{}
-
-	if !data.NoTrace && len(data.Rows) > 0 {
-		g.Trace("%#v", data.Rows[len(data.Rows)-1])
-	}
-
-	if len(data.Columns) > 0 && data.Columns[0].Stats.TotalCnt == 0 && data.Columns[0].Type == "" {
-		g.Warn("Generating DDL from 0 rows. Will use string for unknown types.")
-	}
 
 	for _, col := range data.Columns {
 		// convert from general type to native type
@@ -2177,6 +2067,11 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	return
 }
 
+// GenerateUpsertSQL returns a sql for upsert
+func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
+	return
+}
+
 // GenerateUpsertExpressions returns a map with needed expressions
 func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error) {
 
@@ -2185,14 +2080,14 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 		err = g.Error(err, "could not get columns for "+srcTable)
 		return
 	}
-	srcCols := ColumnNames(srcColumns)
 	tgtColumns, err := conn.GetColumns(tgtTable)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
 	}
 
-	pkFields, err = conn.ValidateColumnNames(ColumnNames(tgtColumns), pkFields, true)
+	tgtColumns.Names()
+	pkFields, err = conn.ValidateColumnNames(tgtColumns.Names(), pkFields, true)
 	if err != nil {
 		err = g.Error(err, "PK columns mismatch")
 		return
@@ -2205,7 +2100,7 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 		pkFieldMap[pkField] = ""
 	}
 
-	srcFields, err := conn.ValidateColumnNames(ColumnNames(tgtColumns), srcCols, true)
+	srcFields, err := conn.ValidateColumnNames(tgtColumns.Names(), srcColumns.Names(), true)
 	if err != nil {
 		err = g.Error(err, "columns mismatch")
 		return
@@ -2243,7 +2138,7 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 }
 
 // GetColumnStats analyzes the table and returns the column statistics
-func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns []iop.Column, err error) {
+func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error) {
 
 	tableColumns, err := conn.Self().GetColumns(tableName)
 	if err != nil {
@@ -2271,7 +2166,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 		return
 	}
 
-	columns = []iop.Column{}
+	columns = iop.Columns{}
 	for _, rec := range data.Records() {
 		colName := cast.ToString(rec["field"])
 		column := iop.Column{
@@ -2304,7 +2199,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 // Hole in this: will truncate data points, since it is based
 // only on new data being inserted... would need a complete
 // stats of the target table to properly optimize.
-func (conn *BaseConn) OptimizeTable(tableName string, newColStats []iop.Column) (err error) {
+func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (err error) {
 
 	// stats are already provided with columns
 	tgtColStats, err := conn.Self().GetColumnStats(tableName)
@@ -2363,7 +2258,7 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats []iop.Column) 
 
 // CompareChecksums compares the checksum values from the database side
 // to the checkum values from the StreamProcessor
-func (conn *BaseConn) CompareChecksums(tableName string, columns []iop.Column) (err error) {
+func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (err error) {
 	tColumns, err := conn.GetColumns(tableName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
@@ -2371,13 +2266,13 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns []iop.Column) (
 	}
 
 	// make sure columns exist in table, get common columns into fields
-	fields, err := conn.ValidateColumnNames(ColumnNames(tColumns), ColumnNames(columns), false)
+	fields, err := conn.ValidateColumnNames(tColumns.Names(), columns.Names(), false)
 	if err != nil {
 		err = g.Error(err, "columns mismatch")
 		return
 	}
 	fieldsMap := g.ArrMapString(fields, true)
-	g.Debug("comparing checksums %#v vs %#v: %#v", ColumnNames(tColumns), ColumnNames(columns), fields)
+	g.Debug("comparing checksums %#v vs %#v: %#v", tColumns.Names(), columns.Names(), fields)
 
 	exprs := []string{}
 	colChecksum := map[string]uint64{}

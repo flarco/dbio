@@ -216,70 +216,43 @@ func (conn *RedshiftConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	return conn.BulkImportFlow(tableFName, df)
 }
 
-// Upsert inserts / updates from a srcTable into a target table.
-// Assuming the srcTable has some or all of the tgtTable fields with matching types
-func (conn *RedshiftConn) Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error) {
+// GenerateUpsertSQL generates the upsert SQL
+func (conn *RedshiftConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
-	upsertMap, err := conn.Self().GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
 		return
 	}
 
-	sqlTempl := `
-	DELETE FROM {tgt_table}
-	USING {src_table}
-	WHERE {src_tgt_pk_equal}
-	`
 	srcTgtPkEqual := strings.ReplaceAll(
 		upsertMap["src_tgt_pk_equal"], "src.", srcTable+".",
 	)
 	srcTgtPkEqual = strings.ReplaceAll(
 		srcTgtPkEqual, "tgt.", tgtTable+".",
 	)
-	sql := g.R(
-		sqlTempl,
-		"src_table", srcTable,
-		"tgt_table", tgtTable,
-		"src_tgt_pk_equal", srcTgtPkEqual,
-	)
 
-	_, err = conn.ExecContext(conn.Context().Ctx, sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
+	sqlTempl := `
+	DELETE FROM {tgt_table}
+	USING {src_table}
+	WHERE {src_tgt_pk_equal}
+	;
 
-	sqlTempl = `
 	INSERT INTO {tgt_table}
 		({insert_fields})
 	SELECT {src_fields}
 	FROM {src_table} src
 	`
+
 	sql = g.R(
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
 		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", upsertMap["src_fields"],
+		"src_tgt_pk_equal", srcTgtPkEqual,
 	)
-	res, err := conn.ExecContext(conn.Context().Ctx, sql)
-	if err != nil {
-		err = g.Error(err, "Could not execute upsert from %s to %s -> %s", srcTable, tgtTable, sql)
-		return
-	}
-
-	rowAffCnt, err = res.RowsAffected()
-	if err != nil {
-		rowAffCnt = -1
-		cnt, _ := conn.GetCount(srcTable)
-		if cnt > 0 {
-			rowAffCnt = cast.ToInt64(cnt)
-		}
-	}
-
 	return
-
 }
 
 // CopyFromS3 uses the COPY INTO Table command from AWS S3
