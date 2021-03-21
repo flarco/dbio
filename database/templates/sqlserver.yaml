@@ -1,6 +1,7 @@
 core:
   drop_table: drop table if exists {table}
   drop_view: drop view if exists {view}
+  create_temporary_table: 'create table #{table} ({col_types})'
   replace: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
   replace_temp: |
     insert into {table} ({names})
@@ -30,7 +31,6 @@ core:
       FIELDTERMINATOR = ','
     )
   column_names: '{sql}'
-  # column_names: select * from ({sql}) t where 1=0
 
 
 metadata:

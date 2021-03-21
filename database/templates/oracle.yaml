@@ -1,4 +1,13 @@
 core:
+  create_table: |
+    BEGIN
+      EXECUTE IMMEDIATE 'create table {table} ({col_types})';
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE != -955 THEN
+          RAISE;
+        END IF;
+    END;
   drop_table: |
     BEGIN
       EXECUTE IMMEDIATE 'DROP TABLE {table} cascade constraints purge';
@@ -17,6 +26,7 @@ core:
           RAISE;
         END IF;
     END;
+  create_temporary_table: create global temporary table {table} ({col_types})
   create_index: create index {index} on {table} ({cols})
   insert: INSERT {options} INTO {table} ({fields}) VALUES ({values})
   alter_columns: alter table {table} modify ({col_ddls})
@@ -60,7 +70,6 @@ core:
     (
       {columns}
     )
-  # column_names: select * from ({sql}) t where 1=0
 
 metadata:
   schemas: |

@@ -463,7 +463,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 	sampleData := iop.NewDataset(stream.Columns)
 	sampleData.Rows = stream.Buffer
-	ddl, err := conn.GenerateDDL(csvTable, sampleData)
+	ddl, err := conn.GenerateDDL(csvTable, sampleData, false)
 	g.AssertNoError(t, err)
 	ok := assert.NotEmpty(t, ddl)
 
@@ -812,7 +812,7 @@ func TestLargeDataset(t *testing.T) {
 		err = conn.DropTable(tableName)
 		g.AssertNoError(t, err)
 
-		ddl, err := conn.GenerateDDL(tableName, data)
+		ddl, err := conn.GenerateDDL(tableName, data, false)
 		g.AssertNoError(t, err)
 
 		_, err = conn.Exec(ddl)

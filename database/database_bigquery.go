@@ -182,7 +182,7 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 
 	res := bqResult{}
 	exec := func(sql string) error {
-		noTrace := strings.Contains(sql, "\n\n-- nT --")
+		noTrace := strings.Contains(sql, noTraceKey)
 		if !noTrace {
 			g.Debug(sql)
 		}
@@ -265,7 +265,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 		return ds, errors.New("Empty Query")
 	}
 
-	noTrace := strings.Contains(sql, "\n\n-- nT --")
+	noTrace := strings.Contains(sql, noTraceKey)
 	if !noTrace {
 		g.Debug(sql)
 	}

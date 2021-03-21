@@ -52,6 +52,7 @@ type Connection interface {
 	CompareChecksums(tableName string, columns iop.Columns) (err error)
 	Connect(timeOut ...int) error
 	Context() *g.Context
+	CreateTempTable(tableName string, cols iop.Columns) (err error)
 	CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error)
 	Db() *sqlx.DB
 	DbX() *DbX
@@ -61,7 +62,7 @@ type Connection interface {
 	ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
 	Exec(sql string, args ...interface{}) (result sql.Result, err error)
 	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
-	GenerateDDL(tableFName string, data iop.Dataset) (string, error)
+	GenerateDDL(tableFName string, data iop.Dataset, temporary bool) (string, error)
 	GenerateInsertStatement(tableName string, fields []string, numRows int) string
 	GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error)
 	GetColumns(tableFName string, fields ...string) (iop.Columns, error)
@@ -188,6 +189,8 @@ var (
 	ddlMinDecScale = 4
 
 	filePathStorageSlug = "temp"
+
+	noTraceKey = " -- nT --"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
 	usePool  = os.Getenv("DBIO_USE_POOL") == "TRUE"
@@ -789,7 +792,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 		return ds, errors.New("Empty Query")
 	}
 
-	noTrace := strings.Contains(sql, "\n\n-- nT --")
+	noTrace := strings.Contains(sql, noTraceKey)
 	if !noTrace {
 		g.Debug(sql)
 	}
@@ -984,7 +987,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 		return
 	}
 
-	noTrace := strings.Contains(q, "\n\n-- nT --")
+	noTrace := strings.Contains(q, noTraceKey)
 	if !noTrace {
 		g.Debug(CleanSQL(conn, q), args...)
 	}
@@ -1101,28 +1104,28 @@ func (conn *BaseConn) GetCount(tableFName string) (uint64, error) {
 // GetSchemas returns schemas
 func (conn *BaseConn) GetSchemas() (iop.Dataset, error) {
 	// fields: [schema_name]
-	sql := conn.template.Metadata["schemas"] + "\n\n-- nT --"
+	sql := conn.template.Metadata["schemas"] + noTraceKey
 	return conn.Self().Query(sql)
 }
 
 // GetObjects returns objects (tables or views) for given schema
 // `objectType` can be either 'table', 'view' or 'all'
 func (conn *BaseConn) GetObjects(schema string, objectType string) (iop.Dataset, error) {
-	sql := g.R(conn.template.Metadata["objects"], "schema", schema, "object_type", objectType) + "\n\n-- nT --"
+	sql := g.R(conn.template.Metadata["objects"], "schema", schema, "object_type", objectType) + noTraceKey
 	return conn.Self().Query(sql)
 }
 
 // GetTables returns tables for given schema
 func (conn *BaseConn) GetTables(schema string) (iop.Dataset, error) {
 	// fields: [table_name]
-	sql := g.R(conn.template.Metadata["tables"], "schema", schema) + "\n\n-- nT --"
+	sql := g.R(conn.template.Metadata["tables"], "schema", schema) + noTraceKey
 	return conn.Self().Query(sql)
 }
 
 // GetViews returns views for given schema
 func (conn *BaseConn) GetViews(schema string) (iop.Dataset, error) {
 	// fields: [table_name]
-	sql := g.R(conn.template.Metadata["views"], "schema", schema) + "\n\n-- nT --"
+	sql := g.R(conn.template.Metadata["views"], "schema", schema) + noTraceKey
 	return conn.Self().Query(sql)
 }
 
@@ -1202,13 +1205,21 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 
 	// get column types
 	g.Trace("GetSQLColumns: %s", sql)
-	rows, err := conn.Self().StreamRows(sql, 1)
-	rows.Collect(0) // advance the datastream so it can close
+	sql = "/* GetSQLColumns */ " + sql + noTraceKey
+	ds, err := conn.Self().StreamRows(sql, 1)
 	if err != nil {
 		err = g.Error(err, "SQL Error for:\n"+sql)
 		return columns, err
 	}
-	return rows.Columns, nil
+
+	err = ds.WaitReady()
+	if err != nil {
+		err = g.Error(err, "Datastream Error ")
+		return columns, err
+	}
+
+	ds.Collect(0) // advance the datastream so it can close
+	return ds.Columns, nil
 }
 
 // TableExists returns true if the table exists
@@ -1324,12 +1335,12 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 		conn.template.Metadata["ddl_table"],
 		"schema", schema,
 		"table", table,
-	) + "\n\n-- nT --"
+	) + noTraceKey
 	sqlView := g.R(
 		conn.template.Metadata["ddl_view"],
 		"schema", schema,
 		"table", table,
-	) + "\n\n-- nT --"
+	) + noTraceKey
 
 	data, err := conn.Self().Query(sqlView)
 	if err != nil {
@@ -1357,10 +1368,29 @@ func getMetadataTableFName(conn *BaseConn, template string, tableFName string) s
 		"schema", schema,
 		"table", table,
 	)
-	sql = sql + "\n\n-- nT --"
+	sql = sql + noTraceKey
 	return sql
 }
 
+// CreateTable creates a temp table based on provided columns
+func (conn *BaseConn) CreateTempTable(tableName string, cols iop.Columns) (err error) {
+	// generate ddl
+	tableDDL, err := conn.GenerateDDL(tableName, cols.Dataset(), true)
+	if err != nil {
+		return g.Error(err, "Could not generate DDL for "+tableName)
+	}
+
+	// execute ddl
+	_, err = conn.Exec(tableDDL)
+	if err != nil {
+		return g.Error(err, "Could not create table "+tableName)
+	}
+
+	return
+}
+
+// CreateTable creates a new table based on provided columns
+// `tableName` should have 'schema.table' format
 func (conn *BaseConn) CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error) {
 
 	// check table existence
@@ -1373,7 +1403,7 @@ func (conn *BaseConn) CreateTable(tableName string, cols iop.Columns, tableDDL s
 
 	// generate ddl
 	if tableDDL == "" {
-		tableDDL, err = conn.GenerateDDL(tableName, cols.Dataset())
+		tableDDL, err = conn.GenerateDDL(tableName, cols.Dataset(), false)
 		if err != nil {
 			return g.Error(err, "Could not generate DDL for "+tableName)
 		}
@@ -1440,7 +1470,7 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 		Tables: map[string]Table{},
 	}
 
-	sql := g.R(conn.template.Metadata["schemata"], "schema", schemaName) + "\n\n-- nT --"
+	sql := g.R(conn.template.Metadata["schemata"], "schema", schemaName) + noTraceKey
 	schemaData, err := conn.Self().Query(sql)
 	if err != nil {
 		return schema, g.Error(err, "Could not GetSchemaObjects for "+schemaName)
@@ -1541,7 +1571,7 @@ func (conn *BaseConn) RunAnalysisField(analysisName string, tableFName string, f
 
 	if len(fields) == 0 {
 		// get fields
-		columns, err := conn.GetColumns(tableFName)
+		columns, err := conn.GetSQLColumns("select * from " + tableFName)
 		if err != nil {
 			return iop.NewDataset(nil), err
 		}
@@ -1857,7 +1887,7 @@ func (conn *BaseConn) generateColumnDDL(col iop.Column, nativeType string) (colu
 }
 
 // GenerateDDL genrate a DDL based on a dataset
-func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, error) {
+func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary bool) (string, error) {
 
 	if !data.Inferred || data.SafeInference {
 		if len(data.Columns) > 0 && data.Columns[0].Stats.TotalCnt == 0 && data.Columns[0].Type == "" {
@@ -1896,8 +1926,13 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset) (string, 
 		columnsDDL = append(columnsDDL, columnDDL)
 	}
 
+	createTemplate := conn.template.Core["create_table"]
+	if temporary {
+		createTemplate = conn.template.Core["create_temporary_table"]
+	}
+
 	ddl := g.R(
-		conn.template.Core["create_table"],
+		createTemplate,
 		"table", tableFName,
 		"col_types", strings.Join(columnsDDL, ",\n"),
 	)
@@ -2076,18 +2111,17 @@ func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFiel
 // GenerateUpsertExpressions returns a map with needed expressions
 func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error) {
 
-	srcColumns, err := conn.GetColumns(srcTable)
+	srcColumns, err := conn.GetSQLColumns("select * from " + srcTable)
 	if err != nil {
 		err = g.Error(err, "could not get columns for "+srcTable)
 		return
 	}
-	tgtColumns, err := conn.GetColumns(tgtTable)
+	tgtColumns, err := conn.GetSQLColumns("select * from " + tgtTable)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
 	}
 
-	tgtColumns.Names()
 	pkFields, err = conn.ValidateColumnNames(tgtColumns.Names(), pkFields, true)
 	if err != nil {
 		err = g.Error(err, "PK columns mismatch")
@@ -2141,7 +2175,7 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 // GetColumnStats analyzes the table and returns the column statistics
 func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error) {
 
-	tableColumns, err := conn.Self().GetColumns(tableName)
+	tableColumns, err := conn.Self().GetSQLColumns("select * from " + tableName)
 	if err != nil {
 		err = g.Error(err, "could not obtain columns data")
 		return
@@ -2260,7 +2294,7 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (
 // CompareChecksums compares the checksum values from the database side
 // to the checkum values from the StreamProcessor
 func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (err error) {
-	tColumns, err := conn.GetColumns(tableName)
+	tColumns, err := conn.GetSQLColumns("select * from " + tableName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -2304,7 +2338,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 	}
 
 	sql := g.F(
-		"select %s from %s",
+		"select %s from %s "+noTraceKey,
 		strings.Join(exprs, ", "),
 		tableName,
 	)

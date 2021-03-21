@@ -199,8 +199,17 @@ func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 	SET {set_fields}
 	`
 
+	tempTable := g.RandSuffix("temp", 5)
+
+	tempIndexSQL := g.R(
+		conn.GetTemplateValue("core.create_unique_index"),
+		"index", tempTable+"_idx",
+		"table", tempTable,
+		"cols", strings.Join(pkFields, ", "),
+	)
+
 	sqlTempl = `
-	CREATE TEMPORARY TABLE {temp_table} as
+	create temporary table {temp_table} as
 	with src_table as (
 		select {src_fields} from {src_table}
 	)
@@ -212,6 +221,8 @@ func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 		returning tgt.*
 	)
 	select * from updates;
+
+	{tempIndexSQL};
 
 	with src_table as (
 		select {src_fields} from {src_table}
@@ -230,8 +241,9 @@ func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
-		"temp_table", g.RandSuffix("temp", 5),
+		"temp_table", tempTable,
 		"indexSQL", indexSQL,
+		"tempIndexSQL", tempIndexSQL,
 		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
 		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
 		"src_fields", upsertMap["src_fields"],
