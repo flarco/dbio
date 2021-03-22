@@ -16,6 +16,8 @@ core:
   modify_column: '{column} {type}'
   # column_names: select * from ({sql}) as t where 1=0
   column_names: '{sql}'
+  enable_trigger: ALTER TABLE {table} ENABLE TRIGGER {trigger}
+  disable_trigger: ALTER TABLE {table} DISABLE TRIGGER {trigger}
 
 analysis:
   # table level

@@ -109,12 +109,15 @@ func (ds *Datastream) IsEmpty() bool {
 func (ds *Datastream) Push(row []interface{}) {
 	if !ds.Ready {
 		ds.Ready = true
+	} else if ds.closed {
+		return
 	}
 	select {
 	case <-ds.Context.Ctx.Done():
 		ds.Close()
 		return
-	case ds.Rows <- row:
+	default:
+		ds.Rows <- row
 	}
 	for _, cDs := range ds.clones {
 		cDs.Push(row)
@@ -249,7 +252,7 @@ func (ds *Datastream) Collect(limit int) (Dataset, error) {
 		}
 
 		if ds.Err() != nil {
-			return data, ds.Err()
+			return data, g.Error(ds.Err())
 		}
 
 		time.Sleep(50 * time.Millisecond)
@@ -271,8 +274,10 @@ func (ds *Datastream) Collect(limit int) (Dataset, error) {
 	if !limited {
 		ds.SetEmpty()
 	}
-
-	return data, ds.Err()
+	if ds.Err() != nil {
+		return data, g.Error(ds.Err())
+	}
+	return data, nil
 }
 
 // Err return the error if any

@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -407,7 +406,7 @@ func (conn *MsSQLServerConn) GenerateUpsertSQL(srcTable string, tgtTable string,
 // CopyViaAzure uses the Azure DWH COPY INTO Table command
 func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	if !conn.BaseConn.credsProvided("AZURE") {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy to azure dwh from container"))
+		err = g.Error("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy to azure dwh from container")
 		return
 	}
 
@@ -474,7 +473,7 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uint64, err error) {
 	azSasURL := conn.GetProp("AZURE_SAS_SVC_URL")
 	if azSasURL == "" {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL' to copy to azure dwh from container"))
+		err = g.Error("Need to set 'AZURE_SAS_SVC_URL' to copy to azure dwh from container")
 		return
 	}
 

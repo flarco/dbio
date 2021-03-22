@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -89,6 +88,9 @@ func (conn *SnowflakeConn) getOrCreateStage(tableFName string) string {
 	if conn.GetProp("internalStage") == "" {
 		defStaging := "_staging"
 		schema, _ := SplitTableFullName(tableFName)
+		if schema == "" {
+			schema = conn.GetProp("schema")
+		}
 		_, err := conn.Exec("USE SCHEMA " + schema)
 		_, err = conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging)
 		if err != nil {
@@ -153,7 +155,7 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
 	if AwsID == "" || AwsAccessKey == "" {
-		err = g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to S3 from snowflake"))
+		err = g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to S3 from snowflake")
 		return
 	}
 
@@ -205,7 +207,7 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 // CopyToAzure exports a query to an Azure location
 func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error) {
 	if !conn.BaseConn.credsProvided("AZURE") {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy from snowflake to azure"))
+		err = g.Error("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy from snowflake to azure")
 		return
 	}
 
@@ -313,7 +315,7 @@ func (conn *SnowflakeConn) BulkImportStream(tableFName string, ds *iop.Datastrea
 func (conn *SnowflakeConn) CopyViaAWS(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	settingMppBulkImportFlow(conn)
 	if conn.GetProp("AWS_BUCKET") == "" {
-		err = g.Error(errors.New("Need to set 'AWS_BUCKET' to copy to snowflake from S3"))
+		err = g.Error("Need to set 'AWS_BUCKET' to copy to snowflake from S3")
 		return
 	}
 
@@ -353,7 +355,7 @@ func (conn *SnowflakeConn) CopyFromS3(tableFName, s3Path string) (err error) {
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
 	if AwsID == "" || AwsAccessKey == "" {
-		err = g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3"))
+		err = g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3")
 		return
 	}
 
@@ -380,7 +382,7 @@ func (conn *SnowflakeConn) CopyFromS3(tableFName, s3Path string) (err error) {
 func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	settingMppBulkImportFlow(conn)
 	if !conn.BaseConn.credsProvided("AZURE") {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy to snowflake from azure"))
+		err = g.Error("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy to snowflake from azure")
 		return
 	}
 

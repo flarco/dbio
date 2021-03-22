@@ -3,7 +3,6 @@ package filesys
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -86,7 +85,7 @@ func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string
 	case dbio.TypeFileHTTP:
 		fsClient = &HTTPFileSysClient{}
 	default:
-		err = g.Error(errors.New("Unrecognized File System"), "")
+		err = g.Error("Unrecognized File System")
 		return
 	}
 
@@ -204,7 +203,7 @@ func ParseURL(urlStr string) (host string, path string, err error) {
 	path = u.Path
 
 	if scheme == "" || host == "" {
-		err = g.Error(errors.New("Invalid URL: "+urlStr), "")
+		err = g.Error("Invalid URL: " + urlStr)
 	}
 
 	return

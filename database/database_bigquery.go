@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -262,7 +261,8 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 
 	start := time.Now()
 	if strings.TrimSpace(sql) == "" {
-		return ds, errors.New("Empty Query")
+		g.Warn("Empty Query")
+		return ds, nil
 	}
 
 	noTrace := strings.Contains(sql, noTraceKey)
@@ -517,7 +517,7 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	gcBucket := conn.GetProp("GC_BUCKET")
 
 	if gcBucket == "" {
-		return count, errors.New("Need to set 'GC_BUCKET' to copy to google storage")
+		return count, g.Error("Need to set 'GC_BUCKET' to copy to google storage")
 	}
 	fs, err := filesys.NewFileSysClient(dbio.TypeFileGoogle, conn.PropArr()...)
 	if err != nil {

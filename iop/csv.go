@@ -149,6 +149,9 @@ func (c *CSV) Read() (data Dataset, err error) {
 	}
 
 	c.Data, err = ds.Collect(0)
+	if err != nil {
+		return c.Data, g.Error(err, "Error collecting")
+	}
 	c.Data.NoTrace = c.NoTrace
 	return c.Data, err
 }

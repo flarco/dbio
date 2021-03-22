@@ -16,7 +16,7 @@ import (
 type Transaction struct {
 	Tx      *sqlx.Tx
 	Context *g.Context
-	conn    Connection
+	Conn    Connection
 	log     []string
 }
 
@@ -50,6 +50,9 @@ func (t *Transaction) Commit() (err error) {
 
 // Rollback rolls back connection wide transaction
 func (t *Transaction) Rollback() (err error) {
+	if t == nil || t.Tx == nil {
+		return
+	}
 	err = t.Tx.Rollback()
 	if err != nil {
 		err = g.Error(err, "could not rollback Tx")
@@ -78,6 +81,9 @@ func (t *Transaction) Exec(sql string, args ...interface{}) (result sql.Result, 
 // QueryContext queries rows
 func (t *Transaction) QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error) {
 	t.log = append(t.log, q)
+	if !strings.Contains(q, noTraceKey) {
+		g.Debug(q)
+	}
 	result, err = t.Tx.QueryxContext(ctx, q, args...)
 	if err != nil {
 		err = g.Error(err, "Error executing query")
@@ -92,10 +98,14 @@ func (t *Transaction) ExecContext(ctx context.Context, q string, args ...interfa
 		return
 	}
 
+	if !strings.Contains(q, noTraceKey) {
+		g.Debug(CleanSQL(t.Conn, q), args...)
+	}
+
 	t.log = append(t.log, q)
 	result, err = t.Tx.ExecContext(ctx, q, args...)
 	if err != nil {
-		err = g.Error(err, "Error executing "+CleanSQL(t.conn, q))
+		err = g.Error(err, "Error executing "+CleanSQL(t.Conn, q))
 	}
 
 	return
@@ -124,6 +134,36 @@ func (t *Transaction) ExecMultiContext(ctx context.Context, q string, args ...in
 	return
 }
 
+// DisableTrigger disables a trigger
+func (t *Transaction) DisableTrigger(tableName, triggerName string) (err error) {
+	template := t.Conn.GetTemplateValue("core.disable_trigger")
+	sql := g.R(
+		template,
+		"table", tableName,
+		"trigger", triggerName,
+	)
+	_, err = t.Exec(sql)
+	if err != nil {
+		return g.Error(err, "could not disable trigger %s on %s", triggerName, tableName)
+	}
+	return
+}
+
+// EnableTrigger enables a trigger
+func (t *Transaction) EnableTrigger(tableName, triggerName string) (err error) {
+	template := t.Conn.GetTemplateValue("core.enable_trigger")
+	sql := g.R(
+		template,
+		"table", tableName,
+		"trigger", triggerName,
+	)
+	_, err = t.Exec(sql)
+	if err != nil {
+		return g.Error(err, "could not enable trigger %s on %s", triggerName, tableName)
+	}
+	return
+}
+
 // InsertBatchStream inserts a stream into a table in batch
 func (t *Transaction) UpsertStream(tableFName string, ds *iop.Datastream, pk []string) (count uint64, err error) {
 
@@ -133,7 +173,7 @@ func (t *Transaction) UpsertStream(tableFName string, ds *iop.Datastream, pk []s
 
 // InsertStream inserts a stream into a table
 func (t *Transaction) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	count, err = InsertStream(t.conn, t, tableFName, ds)
+	count, err = InsertStream(t.Conn, t, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not insert into %s", tableFName)
 	}
@@ -142,7 +182,7 @@ func (t *Transaction) InsertStream(tableFName string, ds *iop.Datastream) (count
 
 // InsertBatchStream inserts a stream into a table in batch
 func (t *Transaction) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	count, err = InsertBatchStream(t.conn, t, tableFName, ds)
+	count, err = InsertBatchStream(t.Conn, t, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not batch insert into %s", tableFName)
 	}
@@ -151,7 +191,7 @@ func (t *Transaction) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 
 // Upsert does an upsert from source table into target table
 func (t *Transaction) Upsert(sourceTable, targetTable string, pkFields []string) (count uint64, err error) {
-	cnt, err := Upsert(t.conn, t, sourceTable, targetTable, pkFields)
+	cnt, err := Upsert(t.Conn, t, sourceTable, targetTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "Could not upsert from %s into %s", sourceTable, targetTable)
 	}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"embed"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -52,7 +51,7 @@ type Connection interface {
 	CompareChecksums(tableName string, columns iop.Columns) (err error)
 	Connect(timeOut ...int) error
 	Context() *g.Context
-	CreateTempTable(tableName string, cols iop.Columns) (err error)
+	CreateTemporaryTable(tableName string, cols iop.Columns) (err error)
 	CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error)
 	Db() *sqlx.DB
 	DbX() *DbX
@@ -106,6 +105,7 @@ type Connection interface {
 	Self() Connection
 	setContext(ctx context.Context, concurrency int)
 	SetProp(string, string)
+	SetTx(*Transaction)
 	StreamRecords(sql string) (<-chan map[string]interface{}, error)
 	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
 	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
@@ -220,6 +220,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 
 	// URL is actually just DB Name in this case
 	// see TestEnvURL
+	OrigURL := URL
 	if newURL := os.Getenv(strings.TrimLeft(URL, "$")); newURL != "" {
 		URL = newURL
 	}
@@ -285,6 +286,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	}
 
 	// Init
+	conn.SetProp("orig_url", OrigURL)
 	conn.setContext(ctx, concurrency)
 	err = conn.Init()
 
@@ -489,7 +491,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 	g.Trace("conn.Type: %s", conn.Type)
 	g.Trace("conn.URL: " + conn.Self().GetURL())
 	if conn.Type == "" {
-		return errors.New("Invalid URL? conn.Type needs to be specified")
+		return g.Error("Invalid URL? conn.Type needs to be specified")
 	}
 
 	connURL := conn.URL
@@ -545,7 +547,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		g.Trace("new connection URL: " + conn.Self().GetURL(connURL))
 	}
 
-	if conn.Type != dbio.TypeDbBigQuery {
+	if conn.Type != dbio.TypeDbBigQuery && conn.tx == nil {
 		connURL = conn.Self().GetURL(connURL)
 
 		connPool.Mux.Lock()
@@ -789,12 +791,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	start := time.Now()
 	if strings.TrimSpace(sql) == "" {
-		return ds, errors.New("Empty Query")
-	}
-
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
-		g.Debug(sql)
+		return ds, g.Error("Empty Query")
 	}
 
 	queryContext := g.NewContext(ctx)
@@ -803,6 +800,9 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	if conn.tx != nil {
 		result, err = conn.tx.QueryContext(queryContext.Ctx, sql)
 	} else {
+		if !strings.Contains(sql, noTraceKey) {
+			g.Debug(sql)
+		}
 		result, err = conn.db.QueryxContext(queryContext.Ctx, sql)
 	}
 	if err != nil {
@@ -821,7 +821,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
 	conn.Data.Columns = SQLColumns(colTypes, conn.template.NativeTypeMap)
-	conn.Data.NoTrace = noTrace
+	conn.Data.NoTrace = !strings.Contains(sql, noTraceKey)
 
 	g.Trace("query responded in %f secs", conn.Data.Duration)
 
@@ -854,7 +854,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = noTrace
+	ds.NoTrace = !strings.Contains(sql, noTraceKey)
 	ds.Inferred = true
 
 	err = ds.Start()
@@ -877,7 +877,29 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 	if err != nil {
 		return nil, g.Error(err, "could not begin Tx")
 	}
-	return &Transaction{Tx: tx, conn: conn.Self(), Context: &context}, nil
+
+	// a cloned connection object
+	// this will enable to use transaction across all sub functions
+	URL := conn.GetProp("orig_url")
+	c, err := NewConnContext(context.Ctx, URL, conn.PropArr()...)
+	if err != nil {
+		return nil, g.Error(err, "could not clone conn object")
+	}
+
+	Tx := &Transaction{Tx: tx, Conn: c.Self(), Context: &context}
+	c.SetTx(Tx)
+
+	err = c.Connect()
+	if err != nil {
+		return nil, g.Error(err, "could not connect cloned conn object")
+	}
+
+	return Tx, nil
+}
+
+// SetTx sets the transaction
+func (conn *BaseConn) SetTx(tx *Transaction) {
+	conn.tx = tx
 }
 
 // Begin starts a connection wide transaction
@@ -983,18 +1005,16 @@ func (conn *BaseConn) ExecMulti(sql string, args ...interface{}) (result sql.Res
 func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
 
 	if strings.TrimSpace(q) == "" {
-		err = g.Error(errors.New("Empty Query"))
+		g.Warn("Empty Query")
 		return
-	}
-
-	noTrace := strings.Contains(q, noTraceKey)
-	if !noTrace {
-		g.Debug(CleanSQL(conn, q), args...)
 	}
 
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
 	} else {
+		if !strings.Contains(q, noTraceKey) {
+			g.Debug(CleanSQL(conn, q), args...)
+		}
 		result, err = conn.db.ExecContext(ctx, q, args...)
 	}
 	if err != nil {
@@ -1372,8 +1392,8 @@ func getMetadataTableFName(conn *BaseConn, template string, tableFName string) s
 	return sql
 }
 
-// CreateTable creates a temp table based on provided columns
-func (conn *BaseConn) CreateTempTable(tableName string, cols iop.Columns) (err error) {
+// CreateTemporaryTable creates a temp table based on provided columns
+func (conn *BaseConn) CreateTemporaryTable(tableName string, cols iop.Columns) (err error) {
 	// generate ddl
 	tableDDL, err := conn.GenerateDDL(tableName, cols.Dataset(), true)
 	if err != nil {
@@ -1544,7 +1564,7 @@ func (conn *BaseConn) RunAnalysis(analysisName string, values map[string]interfa
 func (conn *BaseConn) RunAnalysisTable(analysisName string, tableFNames ...string) (iop.Dataset, error) {
 
 	if len(tableFNames) == 0 {
-		return iop.NewDataset(nil), errors.New("Need to provied tables for RunAnalysisTable")
+		return iop.NewDataset(nil), g.Error("Need to provied tables for RunAnalysisTable")
 	}
 
 	sqls := []string{}
@@ -1916,7 +1936,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		}
 
 		// normalize column name uppercase/lowercase
-		if g.In(conn.Type, dbio.TypeDbOracle) {
+		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
 			col.Name = strings.ToUpper(col.Name)
 		} else {
 			col.Name = strings.ToLower(col.Name)
@@ -2515,7 +2535,7 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
 	if AwsID == "" || AwsAccessKey == "" {
-		err = g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3"))
+		err = g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3")
 		return
 	}
 
@@ -2527,7 +2547,7 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 		"aws_secret_access_key", AwsAccessKey,
 	)
 
-	g.Info("copying into snowflake from s3")
+	g.Info("copying into %s from s3", conn.GetType())
 	g.Debug("url: " + s3Path)
 	_, err = conn.Exec(sql)
 	if err != nil {
@@ -2540,7 +2560,7 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 func getAzureToken(conn Connection) (azToken string, err error) {
 	azSasURL := conn.GetProp("AZURE_SAS_SVC_URL")
 	if azSasURL == "" {
-		err = g.Error(errors.New("Need to set 'AZURE_SAS_SVC_URL' to copy to snowflake from azure"))
+		err = g.Error("Need to set 'AZURE_SAS_SVC_URL' to copy to snowflake from azure")
 		return
 	}
 
@@ -2571,7 +2591,7 @@ func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
 		"azure_sas_token", azToken,
 	)
 
-	g.Info("copying into snowflake from azure")
+	g.Info("copying into %s from azure", conn.GetType())
 	g.Debug("url: " + azPath)
 	conn.SetProp("azure_sas_token", azToken)
 	_, err = conn.Exec(sql)

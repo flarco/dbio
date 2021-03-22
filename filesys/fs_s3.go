@@ -2,7 +2,6 @@ package filesys
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -72,7 +71,7 @@ func cleanKey(key string) string {
 func (fs *S3FileSysClient) Connect() (err error) {
 
 	if fs.GetProp("AWS_ACCESS_KEY_ID") == "" || fs.GetProp("AWS_SECRET_ACCESS_KEY") == "" {
-		return g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3"))
+		return g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3")
 	}
 
 	region := fs.GetProp("AWS_REGION")
@@ -447,7 +446,7 @@ func (fs *S3cFileSysClient) Init(ctx context.Context) (err error) {
 func (fs *S3cFileSysClient) Connect() (err error) {
 
 	if fs.GetProp("AWS_ACCESS_KEY_ID") == "" || fs.GetProp("AWS_SECRET_ACCESS_KEY") == "" {
-		return g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3"))
+		return g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3")
 	}
 
 	endpoint := fs.GetProp("AWS_ENDPOINT")

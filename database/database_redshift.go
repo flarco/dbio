@@ -1,7 +1,6 @@
 package database
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -166,7 +165,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	settingMppBulkImportFlow(conn)
 	if conn.GetProp("AWS_BUCKET") == "" {
-		return count, g.Error(errors.New("Need to set 'AWS_BUCKET' to copy to redshift"))
+		return count, g.Error("Need to set 'AWS_BUCKET' to copy to redshift")
 	}
 
 	s3Path := fmt.Sprintf(
@@ -260,7 +259,7 @@ func (conn *RedshiftConn) CopyFromS3(tableFName, s3Path string) (count uint64, e
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
 	if AwsID == "" || AwsAccessKey == "" {
-		err = g.Error(errors.New("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3"))
+		err = g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to copy to snowflake from S3")
 		return
 	}
 
