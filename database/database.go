@@ -95,7 +95,7 @@ type Connection interface {
 	PropsArr() []string
 	Query(sql string, limit ...int) (iop.Dataset, error)
 	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
-	Quote(string) string
+	Quote(field string, normalize ...bool) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
@@ -1113,7 +1113,7 @@ func SplitTableFullName(tableName string) (string, string) {
 
 // GetCount returns count of records
 func (conn *BaseConn) GetCount(tableFName string) (uint64, error) {
-	sql := fmt.Sprintf(`select count(*) cnt from %s`, tableFName)
+	sql := fmt.Sprintf(`select count(1) cnt from %s`, tableFName)
 	data, err := conn.Self().Query(sql)
 	if err != nil {
 		return 0, err
@@ -1222,10 +1222,14 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 
 	// add 1=0
 	// sql = g.R(conn.GetTemplateValue("core.column_names"), "sql", sql)
+	if !strings.Contains(sql, " ") {
+		// is table
+		sql = g.R(conn.GetTemplateValue("core.limit"), "table", sql, "fields", "*", "limit", "1")
+	}
 
 	// get column types
 	g.Trace("GetSQLColumns: %s", sql)
-	sql = "/* GetSQLColumns */ " + sql + noTraceKey
+	sql = sql + " /* GetSQLColumns */ " + noTraceKey
 	ds, err := conn.Self().StreamRows(sql, 1)
 	if err != nil {
 		err = g.Error(err, "SQL Error for:\n"+sql)
@@ -1591,7 +1595,7 @@ func (conn *BaseConn) RunAnalysisField(analysisName string, tableFName string, f
 
 	if len(fields) == 0 {
 		// get fields
-		columns, err := conn.GetSQLColumns("select * from " + tableFName)
+		columns, err := conn.GetSQLColumns(tableFName)
 		if err != nil {
 			return iop.NewDataset(nil), err
 		}
@@ -1732,7 +1736,14 @@ func (conn *BaseConn) Unquote(field string) string {
 }
 
 // Quote adds quotes to the field name
-func (conn *BaseConn) Quote(field string) string {
+func (conn *BaseConn) Quote(field string, normalize ...bool) string {
+	if len(normalize) > 0 && normalize[0] {
+		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
+			field = strings.ToUpper(field)
+		} else {
+			field = strings.ToLower(field)
+		}
+	}
 	q := conn.template.Variable["quote_char"]
 	field = conn.Self().Unquote(field)
 	return q + field + q
@@ -1936,13 +1947,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		}
 
 		// normalize column name uppercase/lowercase
-		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
-			col.Name = strings.ToUpper(col.Name)
-		} else {
-			col.Name = strings.ToLower(col.Name)
-		}
-
-		columnDDL := conn.Self().Quote(col.Name) + " " + nativeType
+		columnDDL := conn.Self().Quote(col.Name, true) + " " + nativeType
 		columnsDDL = append(columnsDDL, columnDDL)
 	}
 
@@ -2131,12 +2136,12 @@ func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFiel
 // GenerateUpsertExpressions returns a map with needed expressions
 func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error) {
 
-	srcColumns, err := conn.GetSQLColumns("select * from " + srcTable)
+	srcColumns, err := conn.GetSQLColumns(srcTable)
 	if err != nil {
 		err = g.Error(err, "could not get columns for "+srcTable)
 		return
 	}
-	tgtColumns, err := conn.GetSQLColumns("select * from " + tgtTable)
+	tgtColumns, err := conn.GetSQLColumns(tgtTable)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -2195,7 +2200,7 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 // GetColumnStats analyzes the table and returns the column statistics
 func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error) {
 
-	tableColumns, err := conn.Self().GetSQLColumns("select * from " + tableName)
+	tableColumns, err := conn.Self().GetSQLColumns(tableName)
 	if err != nil {
 		err = g.Error(err, "could not obtain columns data")
 		return
@@ -2314,7 +2319,7 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (
 // CompareChecksums compares the checksum values from the database side
 // to the checkum values from the StreamProcessor
 func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (err error) {
-	tColumns, err := conn.GetSQLColumns("select * from " + tableName)
+	tColumns, err := conn.GetSQLColumns(tableName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return

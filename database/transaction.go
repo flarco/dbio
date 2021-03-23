@@ -142,6 +142,9 @@ func (t *Transaction) DisableTrigger(tableName, triggerName string) (err error) 
 		"table", tableName,
 		"trigger", triggerName,
 	)
+	if sql == "" {
+		return
+	}
 	_, err = t.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not disable trigger %s on %s", triggerName, tableName)
@@ -157,6 +160,9 @@ func (t *Transaction) EnableTrigger(tableName, triggerName string) (err error) {
 		"table", tableName,
 		"trigger", triggerName,
 	)
+	if sql == "" {
+		return
+	}
 	_, err = t.Exec(sql)
 	if err != nil {
 		return g.Error(err, "could not enable trigger %s on %s", triggerName, tableName)
@@ -164,7 +170,7 @@ func (t *Transaction) EnableTrigger(tableName, triggerName string) (err error) {
 	return
 }
 
-// InsertBatchStream inserts a stream into a table in batch
+// UpsertStream inserts a stream into a table in batch
 func (t *Transaction) UpsertStream(tableFName string, ds *iop.Datastream, pk []string) (count uint64, err error) {
 
 	// create tmp table first
@@ -202,7 +208,7 @@ func (t *Transaction) Upsert(sourceTable, targetTable string, pkFields []string)
 // InsertStream inserts a stream
 func InsertStream(conn Connection, tx *Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	// make sure fields match
-	columns, err := conn.GetColumns(tableFName)
+	columns, err := conn.GetSQLColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -249,7 +255,7 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 	}
 
 	// make sure fields match
-	columns, err := conn.GetColumns(tableFName)
+	columns, err := conn.GetSQLColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return

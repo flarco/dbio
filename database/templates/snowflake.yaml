@@ -6,8 +6,8 @@ core:
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
   limit: select {fields} from {table} limit {limit}
-  enable_trigger: 'select 1 -- not able to enable trigger on snowflake'
-  disable_trigger: 'select 1 -- not able to disable trigger on snowflake'
+  enable_trigger: ''
+  disable_trigger: ''
   copy_from_stage: |
     COPY INTO {table} 
     FROM {stage_path}

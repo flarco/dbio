@@ -10,6 +10,7 @@ core:
     update {table} as t1 set {set_fields2}
     from (select * from {temp_table}) as t2
     where {pk_fields_equal}
+  limit: select top {limit} {fields} from {table}
   insert: insert into {table} ({cols}) values ({values})
   insert_temp: insert into {table} ({cols}) select {cols} from {temp_table}
   insert_ignore: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do nothing

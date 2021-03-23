@@ -120,7 +120,7 @@ func (conn *MySQLConn) BulkImportStream(tableFName string, ds *iop.Datastream) (
 	}
 
 	// needs to get columns to shape stream
-	columns, err := conn.GetColumns(tableFName)
+	columns, err := conn.GetSQLColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
