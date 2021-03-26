@@ -596,12 +596,12 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 
 // Map applies the provided function to every row
 // and returns the result
-func (ds *Datastream) Map(transf func([]interface{}) []interface{}) (nDs *Datastream) {
+func (ds *Datastream) Map(newColumns Columns, transf func([]interface{}) []interface{}) (nDs *Datastream) {
 
-	nDs = NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+	nDs = NewDatastreamContext(ds.Context.Ctx, newColumns)
 
 	go func() {
-		defer close(nDs.Rows)
+		defer nDs.Close()
 
 	loop:
 		for row := range ds.Rows {
@@ -609,8 +609,7 @@ func (ds *Datastream) Map(transf func([]interface{}) []interface{}) (nDs *Datast
 			case <-nDs.Context.Ctx.Done():
 				break loop
 			default:
-				nDs.Rows <- transf(row)
-				nDs.Count++
+				nDs.Push(transf(row))
 			}
 		}
 		ds.SetEmpty()

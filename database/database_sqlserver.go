@@ -240,7 +240,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 	if conn.GetProp("use_bcp_map_parallel") == "true" {
 		csvRowCnt, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
 	} else {
-		csvRowCnt, err = csv.WriteStream(ds.Map(transf))
+		csvRowCnt, err = csv.WriteStream(ds.Map(ds.Columns, transf))
 	}
 
 	// delete csv
