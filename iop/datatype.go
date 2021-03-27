@@ -184,10 +184,15 @@ func (cols Columns) Names() []string {
 }
 
 // FieldMap return the fields map of indexes
-func (cols Columns) FieldMap() map[string]int {
+// when `toLower` is true, field keys are lower cased
+func (cols Columns) FieldMap(toLower bool) map[string]int {
 	fieldColIDMap := map[string]int{}
 	for i, col := range cols {
-		fieldColIDMap[col.Name] = i
+		if toLower {
+			fieldColIDMap[strings.ToLower(col.Name)] = i
+		} else {
+			fieldColIDMap[col.Name] = i
+		}
 	}
 	return fieldColIDMap
 }
