@@ -13,10 +13,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const sourceDefinitionsURL = "https://raw.githubusercontent.com/airbytehq/airbyte/master/airbyte-config/init/src/main/resources/seed/source_definitions.yaml"
+// SourceDefinitionsURL is where the master source list is
+const SourceDefinitionsURL = "https://raw.githubusercontent.com/airbytehq/airbyte/master/airbyte-config/init/src/main/resources/seed/source_definitions.yaml"
 
 //go:embed *
-var airbyteFolder embed.FS
+var AirbyteFolder embed.FS
 
 // NewAirbyteMessage creates a new airbyte message
 func NewAirbyteMessage() (am *AirbyteMessage) {
@@ -27,10 +28,10 @@ func NewAirbyteMessage() (am *AirbyteMessage) {
 // GetSourceConnectors polls and retrieves the latest connectors sources
 func GetSourceConnectors() (connectors Connectors, err error) {
 
-	sourceDefinitionsBytes, _ := airbyteFolder.ReadFile("sources.yaml")
-	_, respBytes, err := net.ClientDo("GET", sourceDefinitionsURL, nil, nil, 5)
+	sourceDefinitionsBytes, _ := AirbyteFolder.ReadFile("sources.yaml")
+	_, respBytes, err := net.ClientDo("GET", SourceDefinitionsURL, nil, nil, 5)
 	if err != nil {
-		g.Warn("Using local cache since we are unable to Reach URL: " + sourceDefinitionsURL)
+		g.Warn("Using local cache since we are unable to Reach URL: " + SourceDefinitionsURL)
 	} else {
 		sourceDefinitionsBytes = respBytes
 	}
@@ -112,6 +113,10 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 			}
 		}
 	})
+
+	if c.tempFolder == "" {
+		c.tempFolder = "/tmp"
+	}
 
 	defArgs := []string{
 		"run", "--rm",

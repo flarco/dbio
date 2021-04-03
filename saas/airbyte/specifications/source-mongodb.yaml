@@ -1,0 +1,66 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/mongodb
+changelogurl: https://docs.airbyte.io/integrations/sources/mongodb
+connectionspecification:
+    title: Mongodb Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - user
+      - password
+      - auth_source
+    properties:
+        auth_source:
+            description: Authentication source where user information is stored
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: admin
+            examples:
+              - admin
+        database:
+            description: Database to be replicated.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        host:
+            description: Host of a Mongo database to be replicated.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        password:
+            description: Password
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        port:
+            description: Port of a Mongo database to be replicated.
+            airbytesecret: false
+            type: integer
+            minimum: 0
+            maximum: 65536
+            default: 27017
+            examples:
+              - "27017"
+        user:
+            description: User
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

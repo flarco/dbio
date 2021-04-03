@@ -1,0 +1,31 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/github
+changelogurl: ""
+connectionspecification:
+    title: Github Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - access_token
+      - repository
+    properties:
+        access_token:
+            description: Log into Github and then generate a <a href="https://github.com/settings/tokens">
+                personal access token</a>.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        repository:
+            description: Space-delimited list of repositories. e.g. airbytehq/airbyte
+                singer-io/tap-github
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - airbytehq/airbyte
+supportsincremental: false
+supporteddestinationsyncmodes: []

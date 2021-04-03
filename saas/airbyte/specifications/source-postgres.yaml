@@ -1,0 +1,55 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/postgres
+changelogurl: ""
+connectionspecification:
+    title: Postgres Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - username
+    properties:
+        database:
+            description: Name of the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        host:
+            description: Hostname of the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        password:
+            description: Password associated with the username.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        port:
+            description: Port of the database.
+            airbytesecret: false
+            type: integer
+            minimum: 0
+            maximum: 65536
+            default: 5432
+            examples:
+              - "5432"
+        username:
+            description: Username to use to access the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

@@ -1,0 +1,38 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/shopify
+changelogurl: ""
+connectionspecification:
+    title: Shopify Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - start_date
+      - api_password
+      - shop
+    properties:
+        api_password:
+            description: The API password for a private application in Shopify shop.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        shop:
+            description: The name of the shopify store. For https://EXAMPLE.myshopify.com,
+                the shop name is EXAMPLE.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        start_date:
+            description: The start date for data replication in the format YYYY-MM-DD.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

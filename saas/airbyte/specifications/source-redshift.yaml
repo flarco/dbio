@@ -1,0 +1,58 @@
+documentationurl: https://docs.airbyte.io/integrations/destinations/redshift
+changelogurl: ""
+connectionspecification:
+    title: Redshift Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - username
+      - password
+    properties:
+        database:
+            description: Name of the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - master
+        host:
+            description: Host Endpoint of the Redshift Cluster (must include the cluster-id,
+                region and end with .redshift.amazonaws.com)
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        password:
+            description: Password associated with the username.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        port:
+            description: Port of the database.
+            airbytesecret: false
+            type: integer
+            minimum: 0
+            maximum: 65536
+            default: 5439
+            examples:
+              - "5439"
+        username:
+            description: Username to use to access the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

@@ -1,0 +1,60 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/braintree
+changelogurl: ""
+connectionspecification:
+    title: Braintree Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - merchant_id
+      - public_key
+      - start_date
+      - private_key
+      - environment
+    properties:
+        environment:
+            description: Environment specifies where the data will come from - Sandbox
+                or Production environment.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        merchant_id:
+            description: <a href="https://docs.airbyte.io/integrations/sources/braintree">Merchant
+                ID</a> is the unique identifier for entire gateway account.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        private_key:
+            description: This is your user-specific private identifier.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        public_key:
+            description: This is your user-specific public identifier for Braintree.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        start_date:
+            description: The date from which you'd like to replicate data for Braintree
+                API, in the format YYYY-MM-DDT00:00:00Z. All data generated after
+                this date will be replicated.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - "2020-11-16T00:00:00Z"
+supportsincremental: false
+supporteddestinationsyncmodes: []

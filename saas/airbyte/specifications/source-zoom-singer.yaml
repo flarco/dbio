@@ -1,0 +1,20 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/zoom
+changelogurl: ""
+connectionspecification:
+    title: Source Zoom Singer Spec
+    type: object
+    additionalProperties: false
+    required:
+      - jwt
+    properties:
+        jwt:
+            description: Zoom JWT Token. See the <a href="https://docs.airbyte.io/integrations/sources/zoom">docs</a>
+                for more information on how to obtain this key.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

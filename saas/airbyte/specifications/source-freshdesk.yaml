@@ -1,0 +1,39 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/freshdesk
+changelogurl: ""
+connectionspecification:
+    title: Freshdesk Spec
+    type: object
+    additionalProperties: false
+    required:
+      - domain
+      - api_key
+    properties:
+        api_key:
+            description: Freshdesk API Key. See the <a href="https://docs.airbyte.io/integrations/sources/freshdesk">docs</a>
+                for more information on how to obtain this key.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        domain:
+            description: Freshdesk domain
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - myaccount.freshdesk.com
+        requests_per_minute:
+            description: Number of requests per minute that this source allowed to
+                use.
+            airbytesecret: false
+            type: integer
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

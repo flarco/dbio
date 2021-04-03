@@ -1,0 +1,59 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/appstore
+changelogurl: ""
+connectionspecification:
+    title: Source Appstore Singer Spec
+    type: object
+    additionalProperties: false
+    required:
+      - key_id
+      - private_key
+      - issuer_id
+      - vendor
+      - start_date
+    properties:
+        issuer_id:
+            description: <a href="https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests">Issuer_id</a>
+                is used to generate the credentials to connect to appstore's API.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        key_id:
+            description: <a href="https://developer.apple.com/documentation/appstoreconnectapi/creating_api_keys_for_app_store_connect_api">Key_id</a>
+                is the API key you use to connect to appstore's API.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        private_key:
+            description: Private_key is the contents of the <a href="https://developer.apple.com/documentation/appstoreconnectapi/creating_api_keys_for_app_store_connect_api">key
+                file</a> you use to connect to appstore's API.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        start_date:
+            description: Date from which to start pulling data.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - "2020-11-16T00:00:00Z"
+        vendor:
+            description: This is the Apple ID of your account.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

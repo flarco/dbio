@@ -1,0 +1,20 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/sendgrid
+changelogurl: ""
+connectionspecification:
+    title: Sendgrid Spec
+    type: object
+    additionalProperties: false
+    required:
+      - apikey
+    properties:
+        apikey:
+            description: API Key, use <a href="https://app.sendgrid.com/settings/api_keys/">admin</a>
+                to generate this key.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

@@ -1,0 +1,65 @@
+documentationurl: https://docs.airbyte.io/integrations/destinations/mysql
+changelogurl: ""
+connectionspecification:
+    title: MySql Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - username
+    properties:
+        database:
+            description: Name of the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        host:
+            description: Hostname of the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        jdbc_url_params:
+            description: 'Additional properties to pass to the jdbc url string when
+                connecting to the database formatted as ''key=value'' pairs separated
+                by the symbol ''&''. (example: key1=value1&key2=value2&key3=value3)'
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        password:
+            description: Password associated with the username.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        port:
+            description: Port of the database.
+            airbytesecret: false
+            type: integer
+            minimum: 0
+            maximum: 65536
+            default: 3306
+            examples:
+              - "3306"
+        username:
+            description: Username to use to access the database.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

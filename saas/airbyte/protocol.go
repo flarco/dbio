@@ -166,11 +166,11 @@ type ConnectorSpecification struct {
 }
 
 type ConnectionSpecification struct {
-	Title                string               `json:"title"`
-	Type                 string               `json:"type"`
-	AdditionalProperties bool                 `json:"additionalProperties"`
-	Required             []string             `json:"required"`
-	Properties           ConnectionProperties `json:"properties"`
+	Title                string               `json:"title" yaml:"title"`
+	Type                 string               `json:"type" yaml:"type"`
+	AdditionalProperties bool                 `json:"additionalProperties" yaml:"additionalProperties"`
+	Required             []string             `json:"required" yaml:"required"`
+	Properties           ConnectionProperties `json:"properties" yaml:"properties"`
 }
 
 type ConnectionProperties map[string]ConnectionProperty
