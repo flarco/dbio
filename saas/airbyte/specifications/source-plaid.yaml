@@ -11,35 +11,23 @@ connectionSpecification:
     properties:
         access_token:
             description: The end-user's Link access token.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         api_key:
             description: The Plaid API key to use to hit the API.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         client_id:
             description: The Plaid client id
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         plaid_env:
             description: The Plaid environment
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

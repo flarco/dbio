@@ -14,47 +14,32 @@ connectionSpecification:
         client_id:
             description: Your Marketo client_id. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
                 the docs </a> for info on how to obtain this.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         client_secret:
             description: Your Marketo client secret. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
                 the docs </a> for info on how to obtain this.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         endpoint_url:
             description: Your Marketo Endpoint URL. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
                 the docs </a> for info on how to obtain this.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         identity_url:
             description: Your Marketo Identity URL. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
                 the docs </a> for info on how to obtain this.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         start_date:
             description: Data generated in Marketo after this date will be replicated.
                 This date must be specified in the format YYYY-MM-DDT00:00:00Z.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - "2020-09-25T00:00:00Z"
 supportsIncremental: false

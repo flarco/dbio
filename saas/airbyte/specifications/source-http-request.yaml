@@ -10,37 +10,25 @@ connectionSpecification:
     properties:
         body:
             description: json body to be included in the request
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         headers:
             description: json object where keys are header names and values the values.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - '{ "Accept-Charset": "utf-8", "Content-Type": "application/json"}'
         http_method:
             description: http method to use for the request
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         url:
             description: url for the request, including query params. must start with
                 http:// or https://
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

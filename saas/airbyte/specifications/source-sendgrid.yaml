@@ -10,11 +10,8 @@ connectionSpecification:
         apikey:
             description: API Key, use <a href="https://app.sendgrid.com/settings/api_keys/">admin</a>
                 to generate this key.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

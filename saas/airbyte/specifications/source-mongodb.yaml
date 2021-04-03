@@ -14,7 +14,7 @@ connectionSpecification:
     properties:
         auth_source:
             description: Authentication source where user information is stored
-            airbytesecret: false
+            airbyte_secret: false
             type: string
             minimum: null
             maximum: null
@@ -23,31 +23,22 @@ connectionSpecification:
               - admin
         database:
             description: Database to be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         host:
             description: Host of a Mongo database to be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         password:
             description: Password
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         port:
             description: Port of a Mongo database to be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: integer
             minimum: 0
             maximum: 65536
@@ -56,11 +47,8 @@ connectionSpecification:
               - "27017"
         user:
             description: User
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

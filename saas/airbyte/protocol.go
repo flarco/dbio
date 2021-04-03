@@ -175,13 +175,13 @@ type ConnectionSpecification struct {
 
 type ConnectionProperties map[string]ConnectionProperty
 type ConnectionProperty struct {
-	Description   string        `json:"description"`
-	AirbyteSecret bool          `json:"airbyte_secret"`
-	Type          string        `json:"type"`
-	Minimum       interface{}   `json:"minimum"`
-	Maximum       interface{}   `json:"maximum"`
-	Default       interface{}   `json:"default"`
-	Examples      []interface{} `json:"examples"`
+	Description   string        `json:"description,omitempty" yaml:"description,omitempty"`
+	AirbyteSecret bool          `json:"airbyte_secret,omitempty" yaml:"airbyte_secret,omitempty"`
+	Type          string        `json:"type,omitempty" yaml:"type,omitempty"`
+	Minimum       interface{}   `json:"minimum,omitempty" yaml:"minimum,omitempty"`
+	Maximum       interface{}   `json:"maximum,omitempty" yaml:"maximum,omitempty"`
+	Default       interface{}   `json:"default,omitempty" yaml:"default,omitempty"`
+	Examples      []interface{} `json:"examples,omitempty" yaml:"examples,omitempty"`
 }
 
 // Connectors is a list of Connector

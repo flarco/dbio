@@ -11,21 +11,15 @@ connectionSpecification:
         access_token:
             description: Intercom Access Token. See the <a href="https://docs.airbyte.io/integrations/sources/intercom">docs</a>
                 for more information on how to obtain this key.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         start_date:
             description: The date from which you'd like to replicate data for Intercom
                 API, in the format YYYY-MM-DDT00:00:00Z. All data generated after
                 this date will be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - "2020-11-16T00:00:00Z"
 supportsIncremental: false

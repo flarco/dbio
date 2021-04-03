@@ -10,20 +10,14 @@ connectionSpecification:
     properties:
         credentials:
             description: ""
-            airbytesecret: false
+            airbyte_secret: false
             type: object
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         start_date:
             description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
                 data before this date will not be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - "2017-01-25T00:00:00Z"
 supportsIncremental: false

@@ -11,20 +11,14 @@ connectionSpecification:
         access_token:
             description: Log into Github and then generate a <a href="https://github.com/settings/tokens">
                 personal access token</a>.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         repository:
             description: Space-delimited list of repositories. e.g. airbytehq/airbyte
                 singer-io/tap-github
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - airbytehq/airbyte
 supportsIncremental: false

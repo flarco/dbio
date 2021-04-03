@@ -12,25 +12,19 @@ connectionSpecification:
             description: The contents of the JSON service account key. See the <a
                 href="https://developers.google.com/admin-sdk/reports/v1/guides/delegation">docs</a>
                 for more information on how to generate this key.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         email:
             description: The email of the user, which has permissions to access the
                 Google Workspace Admin APIs.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         lookback:
             description: 'Sets the range of time shown in the report. Reports API
                 allows from up to 180 days ago. '
-            airbytesecret: false
+            airbyte_secret: false
             type: integer
             minimum: 0
             maximum: 180

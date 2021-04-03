@@ -9,11 +9,8 @@ connectionSpecification:
     properties:
         api_token:
             description: Tempo API Token.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

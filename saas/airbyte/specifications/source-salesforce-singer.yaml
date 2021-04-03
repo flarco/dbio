@@ -16,7 +16,7 @@ connectionSpecification:
                 of data, prefer using the BULK API. This will help avoid using up
                 all of your API call quota with Salesforce. Valid values are BULK
                 or REST.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
             minimum: null
             maximum: null
@@ -25,26 +25,20 @@ connectionSpecification:
         client_id:
             description: The Consumer Key that can be found when viewing your app
                 in Salesforce
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         client_secret:
             description: The Consumer Secret that can be found when viewing your app
                 in Salesforce
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         is_sandbox:
             description: Whether or not the the app is in a Salesforce sandbox. If
                 you do not know what this, assume it is false. We provide more info
                 on this field in the <a href="https://docs.airbyte.io/integrations/destinations/salesforce#is_sandbox">docs</a>.
-            airbytesecret: false
+            airbyte_secret: false
             type: boolean
             minimum: null
             maximum: null
@@ -55,20 +49,14 @@ connectionSpecification:
                 Salesforce account. If you don't know what this is, follow this <a
                 href="https://medium.com/@bpmmendis94/obtain-access-refresh-tokens-from-salesforce-rest-api-a324fe4ccd9b">guide</a>
                 to retrieve it.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         start_date:
             description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
                 data before this date will not be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - "2017-01-25T00:00:00Z"
 supportsIncremental: false

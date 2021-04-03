@@ -12,31 +12,22 @@ connectionSpecification:
     properties:
         database:
             description: Name of the database.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         host:
             description: Hostname of the database.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         password:
             description: Password associated with the username.
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         port:
             description: Port of the database.
-            airbytesecret: false
+            airbyte_secret: false
             type: integer
             minimum: 0
             maximum: 65536
@@ -45,11 +36,8 @@ connectionSpecification:
               - "5432"
         username:
             description: Username to use to access the database.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

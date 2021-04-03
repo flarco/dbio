@@ -13,39 +13,27 @@ connectionSpecification:
         account_sid:
             description: The Twilio account ID to use when pulling data from the Twilio
                 API.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         auth_token:
             description: The value of the access token generated. See the <a href="https://docs.airbyte.io/integrations/sources/twilio">docs</a>
                 for more information
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         start_date:
             description: The date from which you'd like to replicate data for Twilio
                 API, in the format YYYY-MM-DDT00:00:00Z. All data generated after
                 this date will be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - "2020-08-14T00:00:00Z"
         user_agent:
             description: The user email for your Twilio account
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - api_user_email@your_company.com
 supportsIncremental: false

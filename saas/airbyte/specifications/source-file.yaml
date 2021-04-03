@@ -13,16 +13,13 @@ connectionSpecification:
         dataset_name:
             description: Name of the final table where to replicate this file (should
                 include only letters, numbers dash and underscores)
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         format:
             description: 'File Format of the file to be replicated (Warning: some
                 format may be experimental, please refer to docs).'
-            airbytesecret: false
+            airbyte_secret: false
             type: string
             minimum: null
             maximum: null
@@ -30,7 +27,7 @@ connectionSpecification:
             examples: []
         provider:
             description: Storage Provider or Location of the file(s) to be replicated.
-            airbytesecret: false
+            airbyte_secret: false
             type: object
             minimum: null
             maximum: null
@@ -39,21 +36,15 @@ connectionSpecification:
         reader_options:
             description: This should be a valid JSON string used by each reader/parser
                 to provide additional options and tune its behavior
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - '{}'
               - '{''sep'': '' ''}'
         url:
             description: URL path to access the file to be replicated
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []

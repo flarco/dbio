@@ -12,38 +12,26 @@ connectionSpecification:
     properties:
         client_id:
             description: Application (client) ID
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         client_secret:
             description: Client secret
-            airbytesecret: true
+            airbyte_secret: true
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
         period:
             description: 'Specifies the length of time over which the Team Device
                 Report stream is aggregated. The supported values are: D7, D30, D90,
                 and D180.'
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples:
               - D7
         tenant_id:
             description: Directory (tenant) ID
-            airbytesecret: false
+            airbyte_secret: false
             type: string
-            minimum: null
-            maximum: null
-            default: null
             examples: []
 supportsIncremental: false
 supported_destination_sync_modes: []
