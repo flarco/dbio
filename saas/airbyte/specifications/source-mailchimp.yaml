@@ -1,0 +1,29 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/mailchimp
+changelogurl: ""
+connectionspecification:
+    title: Mailchimp Spec
+    type: object
+    additionalProperties: false
+    required:
+      - username
+      - apikey
+    properties:
+        apikey:
+            description: API Key. See the <a href="https://docs.airbyte.io/integrations/sources/mailchimp">docs</a>
+                for information on how to generate this key.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        username:
+            description: The Username or email you use to sign into Mailchimp
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

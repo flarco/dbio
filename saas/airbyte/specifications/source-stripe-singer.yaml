@@ -1,0 +1,41 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/stripe
+changelogurl: ""
+connectionspecification:
+    title: Stripe Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - client_secret
+      - account_id
+      - start_date
+    properties:
+        account_id:
+            description: Your Stripe account ID (starts with 'acct_', find yours <a
+                href="https://dashboard.stripe.com/settings/account">here</a>).
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        client_secret:
+            description: Stripe API key (usually starts with 'sk_live_'; find yours
+                <a href="https://dashboard.stripe.com/apikeys">here</a>).
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+        start_date:
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
+                data before this date will not be replicated.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - "2017-01-25T00:00:00Z"
+supportsincremental: false
+supporteddestinationsyncmodes: []

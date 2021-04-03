@@ -1,0 +1,31 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/slack
+changelogurl: ""
+connectionspecification:
+    title: Source Slack Api Singer Spec
+    type: object
+    additionalProperties: false
+    required:
+      - start_date
+      - token
+    properties:
+        start_date:
+            description: The date from which you'd like to replicate data for Slack
+                API, in the format YYYY-MM-DDT00:00:00Z. All data generated after
+                this date will be replicated.
+            airbytesecret: false
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples:
+              - "2020-12-01T00:00:00Z"
+        token:
+            description: The Slack API token to interact with your Slack workspace.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []

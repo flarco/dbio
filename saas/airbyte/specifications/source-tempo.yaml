@@ -1,0 +1,19 @@
+documentationurl: https://docs.airbyte.io/integrations/sources/
+changelogurl: ""
+connectionspecification:
+    title: Tempo Spec
+    type: object
+    additionalProperties: false
+    required:
+      - api_token
+    properties:
+        api_token:
+            description: Tempo API Token.
+            airbytesecret: true
+            type: string
+            minimum: null
+            maximum: null
+            default: null
+            examples: []
+supportsincremental: false
+supporteddestinationsyncmodes: []
