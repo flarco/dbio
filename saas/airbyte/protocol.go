@@ -158,11 +158,11 @@ const DestinationSyncModeAppendDedup DestinationSyncMode = "append_dedup"
 
 // ConnectorSpecification is the Specification of a connector (source/destination)
 type ConnectorSpecification struct {
-	DocumentationUrl              string                  `json:"documentationUrl"`
-	ChangelogUrl                  string                  `json:"changelogUrl"`
-	ConnectionSpecification       ConnectionSpecification `json:"connectionSpecification"`
-	SupportsIncremental           bool                    `json:"supportsIncremental"`
-	SupportedDestinationSyncModes []DestinationSyncMode   `json:"supported_destination_sync_modes"`
+	DocumentationUrl              string                  `json:"documentationUrl" yaml:"documentationUrl"`
+	ChangelogUrl                  string                  `json:"changelogUrl" yaml:"changelogUrl"`
+	ConnectionSpecification       ConnectionSpecification `json:"connectionSpecification" yaml:"connectionSpecification"`
+	SupportsIncremental           bool                    `json:"supportsIncremental" yaml:"supportsIncremental"`
+	SupportedDestinationSyncModes []DestinationSyncMode   `json:"supported_destination_sync_modes" yaml:"supported_destination_sync_modes"`
 }
 
 type ConnectionSpecification struct {

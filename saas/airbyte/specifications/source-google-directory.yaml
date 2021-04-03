@@ -1,6 +1,6 @@
-documentationurl: https://docsurl.com
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
     title: Google Directory Spec
     type: object
     additionalProperties: false
@@ -27,5 +27,5 @@ connectionspecification:
             maximum: null
             default: null
             examples: []
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

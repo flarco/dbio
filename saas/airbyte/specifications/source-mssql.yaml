@@ -1,6 +1,6 @@
-documentationurl: https://docs.airbyte.io/integrations/destinations/mssql
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://docs.airbyte.io/integrations/destinations/mssql
+changelogUrl: ""
+connectionSpecification:
     title: MSSQL Source Spec
     type: object
     additionalProperties: false
@@ -52,5 +52,5 @@ connectionspecification:
             maximum: null
             default: null
             examples: []
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

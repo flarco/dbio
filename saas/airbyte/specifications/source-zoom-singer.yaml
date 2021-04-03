@@ -1,6 +1,6 @@
-documentationurl: https://docs.airbyte.io/integrations/sources/zoom
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://docs.airbyte.io/integrations/sources/zoom
+changelogUrl: ""
+connectionSpecification:
     title: Source Zoom Singer Spec
     type: object
     additionalProperties: false
@@ -16,5 +16,5 @@ connectionspecification:
             maximum: null
             default: null
             examples: []
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

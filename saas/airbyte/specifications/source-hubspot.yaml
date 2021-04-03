@@ -1,6 +1,6 @@
-documentationurl: https://docs.airbyte.io/integrations/sources/hubspot
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://docs.airbyte.io/integrations/sources/hubspot
+changelogUrl: ""
+connectionSpecification:
     title: Hubspot Source Spec
     type: object
     additionalProperties: false
@@ -26,5 +26,5 @@ connectionspecification:
             default: null
             examples:
               - "2017-01-25T00:00:00Z"
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

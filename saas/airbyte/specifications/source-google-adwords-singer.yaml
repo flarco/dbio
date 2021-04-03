@@ -1,6 +1,6 @@
-documentationurl: https://hub.docker.com/r/airbyte/source-google-adwords
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://hub.docker.com/r/airbyte/source-google-adwords
+changelogUrl: ""
+connectionSpecification:
     title: Source Google Adwords Singer Spec
     type: object
     additionalProperties: false
@@ -69,5 +69,5 @@ connectionspecification:
             default: null
             examples:
               - "2017-01-25T00:00:00Z"
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

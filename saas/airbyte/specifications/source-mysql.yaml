@@ -1,6 +1,6 @@
-documentationurl: https://docs.airbyte.io/integrations/destinations/mysql
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://docs.airbyte.io/integrations/destinations/mysql
+changelogUrl: ""
+connectionSpecification:
     title: MySql Source Spec
     type: object
     additionalProperties: false
@@ -61,5 +61,5 @@ connectionspecification:
             maximum: null
             default: null
             examples: []
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -1,6 +1,6 @@
-documentationurl: https://plaid.com/docs/api/
-changelogurl: ""
-connectionspecification:
+documentationUrl: https://plaid.com/docs/api/
+changelogUrl: ""
+connectionSpecification:
     title: ""
     type: object
     additionalProperties: false
@@ -41,5 +41,5 @@ connectionspecification:
             maximum: null
             default: null
             examples: []
-supportsincremental: false
-supporteddestinationsyncmodes: []
+supportsIncremental: false
+supported_destination_sync_modes: []
