@@ -16,6 +16,7 @@ import (
 // SourceDefinitionsURL is where the master source list is
 const SourceDefinitionsURL = "https://raw.githubusercontent.com/airbytehq/airbyte/master/airbyte-config/init/src/main/resources/seed/source_definitions.yaml"
 
+// AirbyteFolder is the airbyte folder
 //go:embed *
 var AirbyteFolder embed.FS
 
@@ -53,6 +54,7 @@ func GetSourceConnectors() (connectors Connectors, err error) {
 	return
 }
 
+// Connector is an airbyte connector
 type Connector struct {
 	Definition    ConnectorDefinition
 	Specification ConnectorSpecification
@@ -60,6 +62,7 @@ type Connector struct {
 	tempFolder    string
 }
 
+// InitTempDir initalize temp directory
 func (c *Connector) InitTempDir() (err error) {
 	if c.tempFolder == "" || !g.PathExists(c.tempFolder) {
 		c.tempFolder, err = os.MkdirTemp("", c.Definition.Name)
@@ -74,6 +77,7 @@ func (c *Connector) file(name string) string {
 	return c.tempFolder + "/" + name
 }
 
+// DockerRun runs a docker command and waits for the end
 func (c *Connector) DockerRun(args ...string) (messages AirbyteMessages, err error) {
 	msgChan, err := c.DockerStart(args...)
 	if err != nil {
@@ -97,7 +101,7 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 
 	p.SetScanner(func(stderr bool, text string) {
 		if stderr {
-			g.Debug(text)
+			// g.Debug(text)
 			return
 		}
 		msg := AirbyteMessage{}
@@ -105,7 +109,7 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 		g.LogError(err, "could not unmarshall airbyte message")
 		if err == nil {
 			if msg.Type == TypeLog {
-				// g.Debug("LOG: " + msg.Log.Message)
+				// g.Debug("LOG: " + strings.TrimSpace(msg.Log.Message))
 			} else if g.In(msg.Type, TypeState) {
 				c.State = msg.State.Data
 			} else {
@@ -113,10 +117,6 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 			}
 		}
 	})
-
-	if c.tempFolder == "" {
-		c.tempFolder = "/tmp"
-	}
 
 	defArgs := []string{
 		"run", "--rm",

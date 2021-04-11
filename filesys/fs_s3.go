@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/flarco/g"
 	"github.com/minio/minio-go"
+	"github.com/spf13/cast"
 )
 
 // S3FileSysClient is a file system client to write file to Amazon's S3 file sys.
@@ -184,6 +186,14 @@ func (fs *S3FileSysClient) Delete(path string) (err error) {
 	return
 }
 
+func (fs *S3FileSysClient) getConcurrency() int {
+	conc := cast.ToInt(fs.GetProp("CONCURRENCY"))
+	if conc == 0 {
+		conc = runtime.NumCPU()
+	}
+	return conc
+}
+
 // GetReader return a reader for the given path
 // path should specify the full path with scheme:
 // `s3://my_bucket/key/to/file.txt` or `s3://my_bucket/key/to/directory`
@@ -196,8 +206,19 @@ func (fs *S3FileSysClient) GetReader(path string) (reader io.Reader, err error) 
 	fs.bucket = bucket
 	key = cleanKey(key)
 
+	// https://github.com/chanzuckerberg/s3parcp
+	PartSize := int64(os.Getpagesize()) * 1024 * 10
+	Concurrency := fs.getConcurrency()
+	BufferSize := 10485760 // 10MB
+	svc := s3.New(fs.getSession())
+
 	// Create a downloader with the session and default options
-	downloader := s3manager.NewDownloader(fs.getSession())
+	downloader := s3manager.NewDownloader(fs.getSession(), func(d *s3manager.Downloader) {
+		d.PartSize = PartSize
+		d.Concurrency = Concurrency
+		d.BufferProvider = s3manager.NewPooledBufferedWriterReadFromProvider(BufferSize)
+		d.S3 = svc
+	})
 	downloader.Concurrency = 1
 
 	pipeR, pipeW := io.Pipe()
@@ -236,7 +257,18 @@ func (fs *S3FileSysClient) GetWriter(path string) (writer io.Writer, err error) 
 	fs.bucket = bucket
 	key = cleanKey(key)
 
-	uploader := s3manager.NewUploader(fs.getSession())
+	// https://github.com/chanzuckerberg/s3parcp
+	PartSize := int64(os.Getpagesize()) * 1024 * 10
+	Concurrency := fs.getConcurrency()
+	BufferSize := 10485760 // 10MB
+	svc := s3.New(fs.getSession())
+
+	uploader := s3manager.NewUploader(fs.getSession(), func(d *s3manager.Uploader) {
+		d.PartSize = PartSize
+		d.Concurrency = Concurrency
+		d.BufferProvider = s3manager.NewBufferedReadSeekerWriteToPool(BufferSize)
+		d.S3 = svc
+	})
 	uploader.Concurrency = fs.Context().Wg.Limit
 
 	pipeR, pipeW := io.Pipe()

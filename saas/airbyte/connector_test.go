@@ -30,6 +30,7 @@ func TestAirbyte(t *testing.T) {
 	ac, err := c.Discover(config)
 	g.AssertNoError(t, err)
 	assert.NotEmpty(t, ac.Streams)
+	g.P(ac.Streams.Names())
 
 	catalog := ConfiguredAirbyteCatalog{
 		Streams: []ConfiguredAirbyteStream{
@@ -49,6 +50,5 @@ func TestAirbyte(t *testing.T) {
 		assert.Greater(t, len(data.Rows), 0)
 		g.P(data.Columns.Names())
 		g.P(len(data.Rows))
-		g.P(data.Rows[0])
 	}
 }

@@ -3,11 +3,14 @@ package airbyte
 import (
 	"strings"
 
+	"github.com/spf13/cast"
+
 	"github.com/flarco/dbio/iop"
 
 	"github.com/flarco/g"
 )
 
+// https://docs.airbyte.io/architecture/airbyte-specification
 // https://github.com/airbytehq/airbyte/blob/master/airbyte-protocol/models/src/main/resources/airbyte_protocol/airbyte_protocol.yaml
 
 // AirbyteMessage is the AirbyteMessage
@@ -86,7 +89,7 @@ const StatusFailed Status = "FAILED"
 
 // AirbyteCatalog is the Airbyte stream schema catalog
 type AirbyteCatalog struct {
-	Streams []AirbyteStream `json:"streams"`
+	Streams AirbyteStreams `json:"streams"`
 }
 
 // GetStream returns the stream by name
@@ -97,6 +100,18 @@ func (ac AirbyteCatalog) GetStream(name string) (s AirbyteStream) {
 		}
 	}
 	return AirbyteStream{}
+}
+
+// AirbyteStreams is a list of AirbyteStream
+type AirbyteStreams []AirbyteStream
+
+// Names returns the stream names
+func (ass AirbyteStreams) Names() []string {
+	names := make([]string, len(ass))
+	for i, s := range ass {
+		names[i] = s.Name
+	}
+	return names
 }
 
 // AirbyteStream is the AirbyteStream
@@ -114,14 +129,50 @@ type StreamJsonSchema struct {
 	Properties           map[string]interface{} `json:"properties"`
 }
 
+var typeMap = map[string]string{
+	"string":  "string",
+	"integer": "integer",
+	"boolean": "bool",
+	"object":  "object",
+}
+
 // Columns returns the properties as columns
 func (sjs StreamJsonSchema) Columns() (cols iop.Columns) {
 	cols = make(iop.Columns, len(sjs.Properties))
 	i := 0
-	for k := range sjs.Properties {
+	for k, val := range sjs.Properties {
+		ct := ""
+		g.P(val)
+		valM, ok := val.(map[string]interface{})
+		if ok {
+			switch t := valM["type"].(type) {
+			case []interface{}:
+				for _, v := range valM["type"].([]interface{}) {
+					if !strings.EqualFold(cast.ToString(v), "null") {
+						ct = cast.ToString(v)
+						break
+					}
+				}
+			default:
+				_ = t
+				ct = cast.ToString(valM["type"])
+			}
+		}
+
+		if ct == "" {
+			ct = "string"
+		} else {
+			ct2, ok := typeMap[ct]
+			if ok {
+				ct = ct2
+			} else {
+				g.Warn("did not find type in typeMap: %s", ct)
+				ct = "string"
+			}
+		}
 		cols[i] = iop.Column{
 			Name: k,
-			Type: "string",
+			Type: ct,
 		}
 		i++
 	}

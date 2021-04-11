@@ -270,6 +270,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	} else {
 		conn = &BaseConn{URL: URL}
 	}
+	conn.setContext(ctx, concurrency)
 
 	// Add / Extract provided Props
 	for _, propStr := range props {
@@ -287,7 +288,6 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 
 	// Init
 	conn.SetProp("orig_url", OrigURL)
-	conn.setContext(ctx, concurrency)
 	err = conn.Init()
 
 	return conn, err
@@ -443,11 +443,15 @@ func (conn *BaseConn) Template() Template {
 
 // GetProp returns the value of a property
 func (conn *BaseConn) GetProp(key string) string {
+	conn.context.Mux.Lock()
+	defer conn.context.Mux.Unlock()
 	return conn.properties[strings.ToLower(key)]
 }
 
 // SetProp sets the value of a property
 func (conn *BaseConn) SetProp(key string, val string) {
+	conn.context.Mux.Lock()
+	defer conn.context.Mux.Unlock()
 	if conn.properties == nil {
 		conn.properties = map[string]string{}
 	}
