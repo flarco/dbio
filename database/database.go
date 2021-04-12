@@ -1549,12 +1549,12 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 		table.Columns = append(table.Columns, column)
 		table.ColumnsMap[strings.ToLower(column.Name)] = &column
 
-		conn.schemata.Tables[schemaName+"."+tableName] = &table
+		// conn.schemata.Tables[schemaName+"."+tableName] = &table
 		schema.Tables[tableName] = table
 
 	}
 
-	conn.schemata.Schemas[schemaName] = schema
+	// conn.schemata.Schemas[schemaName] = schema
 
 	return schema, nil
 }
