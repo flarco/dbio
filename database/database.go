@@ -563,8 +563,6 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 			if err != nil {
 				return g.Error(err, "Could not connect to DB: "+getDriverName(conn.Type))
 			}
-		} else {
-			g.Debug(`Using Pool`)
 		}
 
 		conn.db = db
@@ -576,6 +574,8 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		err = conn.db.PingContext(pingCtx)
 		if err != nil {
 			return g.Error(err, "Could not ping DB")
+		} else if !usePool {
+			g.Info(`connected to %s`, conn.Type)
 		}
 
 		// add to pool after successful connection
@@ -599,7 +599,6 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 
 	conn.SetProp("connected", "true")
 
-	g.Info(`connected to %s`, conn.Type)
 	return nil
 }
 
