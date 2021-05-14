@@ -22,8 +22,11 @@ core:
   sample: SELECT {fields} FROM {table} TABLESAMPLE SYSTEM (50) limit {n}
   rename_table: ALTER TABLE {table} RENAME TO {new_table}
   modify_column: alter column {column} type {type}
+  use_database: SET search_path TO {database}
 
 metadata:
+  databases: |
+    SELECT datname as name FROM pg_database
     
   schemas: |
     select schema_name

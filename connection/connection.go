@@ -2,6 +2,7 @@ package connection
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"strings"
 
@@ -273,7 +274,12 @@ func (c *Connection) setURL() (err error) {
 	}
 
 	// set URL is missing
-	setIfMissing("url", g.Rm(template, c.Data))
+	urlData := g.M()
+	for k, v := range c.Data {
+		urlData[k] = v
+	}
+	urlData["password"] = url.QueryEscape(cast.ToString(urlData["password"]))
+	setIfMissing("url", g.Rm(template, urlData))
 
 	return nil
 }
