@@ -1,0 +1,6 @@
+crm_contacts:
+  method: GET
+  endpoint: /crm/v3/objects/contacts?properties={properties}&archived={archived}&hapikey={hapikey}
+  records_jp: results
+  resp_type: json
+  next_jp: paging.next.link

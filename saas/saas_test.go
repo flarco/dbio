@@ -2,6 +2,7 @@ package saas
 
 import (
 	"log"
+	"os"
 	"testing"
 
 	"github.com/flarco/g"
@@ -234,6 +235,27 @@ func TestGithub(t *testing.T) {
 			println(g.F("%d - %s - %s", i+1, fields[i], cast.ToString(val)))
 		}
 	}
+}
+
+func TestHubspot(t *testing.T) {
+
+	api, err := NewAPI(Hubspot, "HUBSPOT_API_KEY="+os.Getenv("HUBSPOT_API_KEY"))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	ds, err := api.Stream("crm_contacts", g.M("properties", "email,firstname,lastname,phone"), nil)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	data, err := ds.Collect(10)
+	if !assert.NoError(t, err) {
+		return
+	}
+	g.P(data.Columns.Names())
+	g.P(data.Rows)
+
 }
 
 func TestSurveyMonkey(t *testing.T) {

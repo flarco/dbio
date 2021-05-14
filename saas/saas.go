@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ const (
 	Git          APIProvider = "git"
 	Github       APIProvider = "github"
 	SurveyMonkey APIProvider = "surveymonkey"
+	Hubspot      APIProvider = "hubspot"
 )
 
 // String returns the db type string
@@ -104,6 +106,8 @@ func NewAPIClientContext(ctx context.Context, ap APIProvider, props ...string) (
 		api = &GithubAPI{}
 	case SurveyMonkey:
 		api = &SurveyMonkeyAPI{}
+	case Hubspot:
+		api = &HubspotAPI{}
 	default:
 		err = g.Error("unhandled provider: %#v", ap)
 		return
@@ -213,10 +217,18 @@ func (api *BaseAPI) Stream(name string, params map[string]interface{}, body []by
 		return
 	}
 
+	if params == nil {
+		params = map[string]interface{}{}
+	}
+
 	for k, v := range api.DefParams {
 		if _, ok := params[k]; !ok {
 			params[k] = v
 		}
+	}
+
+	for k, v := range params {
+		params[k] = url.QueryEscape(cast.ToString(v))
 	}
 
 	url := g.Rm(aos.URL, params)
