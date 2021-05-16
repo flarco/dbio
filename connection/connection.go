@@ -215,6 +215,7 @@ func (c *Connection) setURL() (err error) {
 		return eG.Err()
 	}
 
+	setIfMissing("username", c.Data["user"])
 	switch c.Type {
 	case dbio.TypeDbOracle:
 		setIfMissing("password", "")
