@@ -69,6 +69,10 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 	if err != nil {
 		return err
 	}
+	if cast.ToBool(conn.GetProp("POOL_USED")) {
+		return nil
+	}
+
 	// Get Warehouse
 	data, err := conn.Query("SHOW WAREHOUSES")
 	if err != nil {
@@ -615,20 +619,6 @@ func selectFromDataset(data iop.Dataset, colIDs []int) (newData iop.Dataset) {
 		newData.Rows[i] = newRow
 	}
 	return
-}
-
-// GetSchemas returns schemas
-func (conn *SnowflakeConn) GetSchemas() (iop.Dataset, error) {
-	colSelect := []int{1}
-	data, err := conn.BaseConn.GetSchemas()
-	return selectFromDataset(data, colSelect), err
-}
-
-// GetTables returns tables for given schema
-func (conn *SnowflakeConn) GetTables(schema string) (iop.Dataset, error) {
-	colSelect := []int{1}
-	data, err := conn.BaseConn.GetTables(schema)
-	return selectFromDataset(data, colSelect), err
 }
 
 // GenerateUpsertSQL generates the upsert SQL

@@ -563,6 +563,8 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 			if err != nil {
 				return g.Error(err, "Could not connect to DB: "+getDriverName(conn.Type))
 			}
+		} else {
+			conn.SetProp("POOL_USED", cast.ToString(poolOk))
 		}
 
 		conn.db = db

@@ -1135,6 +1135,16 @@ func TestGetSQLColumnsLarge(t *testing.T) {
 	g.P(cols)
 }
 
+func TestSchema(t *testing.T) {
+	db := DBs["snowflake"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+
+	data, err := conn.GetSchemas()
+	g.AssertNoError(t, err)
+	g.P(data)
+}
+
 func TestDecimal(t *testing.T) {
 	db := DBs["postgres"]
 	conn, err := connect(db)
