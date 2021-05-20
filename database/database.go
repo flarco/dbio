@@ -99,8 +99,9 @@ type Connection interface {
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
-	RunAnalysisField(string, string, ...string) (iop.Dataset, error)
-	RunAnalysisTable(string, ...string) (iop.Dataset, error)
+	GetAnalysis(string, map[string]interface{}) (string, error)
+	GetAnalysisField(string, string, ...string) (string, error)
+	GetAnalysisTable(string, ...string) (string, error)
 	Schemata() Schemata
 	Self() Connection
 	setContext(ctx context.Context, concurrency int)
@@ -1561,19 +1562,48 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 }
 
 // RunAnalysis runs an analysis
-func (conn *BaseConn) RunAnalysis(analysisName string, values map[string]interface{}) (iop.Dataset, error) {
-	sql := g.Rm(
-		conn.template.Analysis[analysisName],
-		values,
-	)
+func (conn *BaseConn) RunAnalysis(analysisName string, values map[string]interface{}) (data iop.Dataset, err error) {
+	sql, err := conn.Self().GetAnalysis(analysisName, values)
+	if err != nil {
+		err = g.Error(err, "could not run analysis %s", analysisName)
+		return
+	}
 	return conn.Self().Query(sql)
 }
 
-// RunAnalysisTable runs a table level analysis
-func (conn *BaseConn) RunAnalysisTable(analysisName string, tableFNames ...string) (iop.Dataset, error) {
+// GetAnalysis runs an analysis
+func (conn *BaseConn) GetAnalysis(analysisName string, values map[string]interface{}) (sql string, err error) {
+	template, ok := conn.template.Analysis[analysisName]
+	if !ok {
+		err = g.Error("did not find Analysis: " + analysisName)
+		return
+	}
+
+	switch analysisName {
+	case "table_count":
+		tableFNames := cast.ToStringSlice(values["tables"])
+		template, err = conn.GetAnalysisTable(analysisName, tableFNames...)
+	case "field_chars", "field_stat", "field_stat_group", "field_stat_deep":
+		tableFName := cast.ToString(values["table"])
+		fields := cast.ToStringSlice(values["fields"])
+		template, err = conn.GetAnalysisField(analysisName, tableFName, fields...)
+	default:
+	}
+
+	if err != nil {
+		err = g.Error(err, "could not get analysis %s", analysisName)
+		return
+	}
+
+	sql = g.Rm(template, values)
+	return
+}
+
+// GetAnalysisTable runs a table level analysis
+func (conn *BaseConn) GetAnalysisTable(analysisName string, tableFNames ...string) (sql string, err error) {
 
 	if len(tableFNames) == 0 {
-		return iop.NewDataset(nil), g.Error("Need to provied tables for RunAnalysisTable")
+		return "", g.Error("Need to provied tables for GetAnalysisTable")
 	}
 
 	sqls := []string{}
@@ -1588,38 +1618,38 @@ func (conn *BaseConn) RunAnalysisTable(analysisName string, tableFNames ...strin
 		sqls = append(sqls, sql)
 	}
 
-	sql := strings.Join(sqls, "\nUNION ALL\n")
-	return conn.Self().Query(sql)
+	sql = strings.Join(sqls, "\nUNION ALL\n")
+	return
 }
 
-// RunAnalysisField runs a field level analysis
-func (conn *BaseConn) RunAnalysisField(analysisName string, tableFName string, fields ...string) (iop.Dataset, error) {
+// GetAnalysisField runs a field level analysis
+func (conn *BaseConn) GetAnalysisField(analysisName string, tableFName string, fields ...string) (sql string, err error) {
 	schema, table := SplitTableFullName(tableFName)
 
 	sqls := []string{}
 
+	columns := iop.NewColumnsFromFields(fields...)
 	if len(fields) == 0 {
 		// get fields
-		columns, err := conn.GetSQLColumns(tableFName)
+		columns, err = conn.GetSQLColumns(tableFName)
 		if err != nil {
-			return iop.NewDataset(nil), err
+			return "", g.Error(err)
 		}
-
-		fields = columns.Names()
 	}
 
-	for _, field := range fields {
+	for _, col := range columns {
 		sql := g.R(
 			conn.template.Analysis[analysisName],
 			"schema", schema,
 			"table", table,
-			"field", field,
+			"field", col.Name,
+			"type", col.Type,
 		)
 		sqls = append(sqls, sql)
 	}
 
-	sql := strings.Join(sqls, "\nUNION ALL\n")
-	return conn.Self().Query(sql)
+	sql = strings.Join(sqls, "\nUNION ALL\n")
+	return
 }
 
 // CastColumnForSelect casts to the correct target column type
@@ -2225,7 +2255,8 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 	}
 
 	// run analysis field_stat_len
-	data, err := conn.Self().RunAnalysisField("field_stat_len", tableName, fields...)
+	m := g.M("table", tableName, "fields", fields)
+	data, err := conn.Self().RunAnalysis("field_stat_len", m)
 	if err != nil {
 		err = g.Error(err, "could not analyze table")
 		return

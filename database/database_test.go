@@ -518,14 +518,16 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Equal(t, 100.0, cast.ToFloat64(data.Records()[1]["match_rate"]))
 
 	// RunAnalysisTable field_stat
-	data, err = conn.RunAnalysisTable("table_count", db.schema+".person", db.schema+".place")
+	m := g.M("tables", []string{db.schema + ".person", db.schema + ".place"})
+	data, err = conn.RunAnalysis("table_count", m)
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[0]["cnt"]))
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[1]["cnt"]))
 
 	// RunAnalysisField field_stat_deep
-	data, err = conn.RunAnalysisField("field_stat_deep", db.schema+".person")
+	m = g.M("table", db.schema+".person")
+	data, err = conn.RunAnalysis("field_stat_deep", m)
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
 	assert.EqualValues(t, 2, cast.ToInt(data.Records()[0]["tot_cnt"]))
@@ -617,7 +619,8 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 		_, err = tgtConn.InsertBatchStream(tgtTable, stream)
 		g.AssertNoError(t, err)
 
-		data, err := tgtConn.RunAnalysisTable("table_count", srcTable, tgtTable)
+		m := g.M("tables", []string{srcTable, tgtTable})
+		data, err := tgtConn.RunAnalysis("table_count", m)
 		if g.AssertNoError(t, err) {
 			assert.Equal(t, data.Records()[0]["cnt"], data.Records()[1]["cnt"])
 		}
@@ -634,7 +637,8 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 		_, err = tgtConn.BulkImportStream(tgtTable, stream)
 		g.AssertNoError(t, err)
 
-		data, err := tgtConn.RunAnalysisTable("table_count", srcTable, tgtTable)
+		m := g.M("tables", []string{srcTable, tgtTable})
+		data, err := tgtConn.RunAnalysis("table_count", m)
 		if g.AssertNoError(t, err) {
 			assert.Equal(t, data.Records()[0]["cnt"], data.Records()[1]["cnt"])
 		}
