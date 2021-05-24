@@ -1584,7 +1584,7 @@ func (conn *BaseConn) GetAnalysis(analysisName string, values map[string]interfa
 		tableFNames := cast.ToStringSlice(values["tables"])
 		template, err = conn.GetAnalysisTable(analysisName, tableFNames...)
 	case "field_chars", "field_stat", "field_stat_group", "field_stat_deep":
-		tableFName := cast.ToString(values["table"])
+		tableFName := cast.ToString(values["schema"]) + "." + cast.ToString(values["table"])
 		fields := cast.ToStringSlice(values["fields"])
 		template, err = conn.GetAnalysisField(analysisName, tableFName, fields...)
 	default:
