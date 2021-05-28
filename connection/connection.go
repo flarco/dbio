@@ -17,9 +17,10 @@ import (
 
 // Info is the connection type
 type Info struct {
-	Name string
-	Type dbio.Type
-	Data map[string]interface{}
+	Name     string
+	Type     dbio.Type
+	Database string
+	Data     map[string]interface{}
 }
 
 // ConnectionInt is a connection
@@ -81,9 +82,10 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 // Info returns connection information
 func (c *Connection) Info() Info {
 	return Info{
-		Name: c.Name,
-		Type: c.Type,
-		Data: c.Data,
+		Name:     c.Name,
+		Type:     c.Type,
+		Database: c.DataS(true)["database"],
+		Data:     c.Data,
 	}
 }
 
@@ -246,8 +248,9 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbBigQuery:
 		template = "bigquery://{project_id}/{location}/{dataset_id}"
 	case dbio.TypeDbSnowflake:
-		setIfMissing("schema", "public")
-		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
+		// setIfMissing("schema", "public")
+		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
+		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?warehouse={warehouse}"
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:

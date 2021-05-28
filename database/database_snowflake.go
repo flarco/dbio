@@ -34,7 +34,7 @@ func (conn *SnowflakeConn) Init() error {
 		conn.URL = strings.ReplaceAll(conn.URL, "schema="+s, "")
 		conn.SetProp("schema", s)
 	} else {
-		conn.SetProp("schema", "public") // default schema
+		// conn.SetProp("schema", "public") // default schema
 	}
 
 	if m := conn.GetProp("CopyMethod"); m != "" {

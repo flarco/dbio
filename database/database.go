@@ -554,7 +554,6 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 
 	if conn.Type != dbio.TypeDbBigQuery && conn.tx == nil {
 		connURL = conn.Self().GetURL(connURL)
-
 		connPool.Mux.Lock()
 		db, poolOk := connPool.Dbs[connURL]
 		connPool.Mux.Unlock()

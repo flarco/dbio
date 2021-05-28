@@ -32,6 +32,8 @@ core:
     alter table {table} {col_ddls}
  
 metadata:
+  databases: |
+    SELECT datname as name FROM pg_database
     
   schemas: |
     select s.nspname as schema_name

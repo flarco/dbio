@@ -94,6 +94,9 @@ core:
 
 metadata:
     
+  databases: |
+    show databases
+    
   schemas: |
     select schema_name
     from information_schema.schemata
