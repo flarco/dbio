@@ -503,6 +503,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	doPut := func(filePath string) {
 		defer os.Remove(filePath)
 		defer conn.Context().Wg.Write.Done()
+		os.Chmod(filePath, 0777) // make file readeable everywhere
 		err = conn.PutFile(filePath, stageFolderPath)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error copying to Snowflake Stage: "+conn.GetProp("internalStage")))
