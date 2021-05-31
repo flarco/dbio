@@ -1,10 +1,8 @@
 package database
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
-	"github.com/xo/dburl"
 )
 
 // SnowflakeConn is a Snowflake connection
@@ -282,9 +279,8 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 		return conn.CopyViaAzure(tableFName, df)
 	}
 
-	_, err = exec.LookPath("snowsql")
 	stage := conn.getOrCreateStage(tableFName)
-	if err == nil && stage != "" {
+	if stage != "" {
 		return conn.CopyViaStage(tableFName, df)
 	}
 
@@ -539,68 +535,16 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 
 // PutFile Copies a local file or folder into a staging location
 func (conn *SnowflakeConn) PutFile(fPath string, internalStagePath string) (err error) {
-	var stderr, stdout bytes.Buffer
-
 	query := g.F(
 		"PUT file://%s %s PARALLEL=20",
 		fPath, internalStagePath,
 	)
 
-	// Parse URL
-	url, err := dburl.Parse(conn.URL)
+	_, err = conn.Exec(query)
 	if err != nil {
+		err = g.Error(err, "could not PUT file %s", fPath)
 		return
 	}
-
-	password, _ := url.User.Password()
-	port := url.Port()
-	host := strings.ReplaceAll(url.Host, ":"+port, "")
-	database := strings.ReplaceAll(url.Path, "/", "")
-	user := url.User.Username()
-	if port == "" {
-		port = "443"
-	}
-
-	proc := exec.Command(
-		"snowsql",
-		"--single-transaction",
-		"--abort-detached-query",
-		"-q", query,
-	)
-
-	proc.Env = []string{
-		"LC_ALL=C.UTF-8",
-		"LANG=C.UTF-8",
-		"SNOWSQL_ACCOUNT=" + host,
-		"SNOWSQL_PORT=" + port,
-		"SNOWSQL_USER=" + user,
-		"SNOWSQL_PWD=" + password,
-		"SNOWSQL_DATABASE=" + database,
-		// "SNOWSQL_WAREHOUSE=" + conn.GetProp("warehouse"),
-		"SNOWSQL_SCHEMA=" + conn.GetProp("schema"),
-	}
-
-	proc.Stderr = &stderr
-	proc.Stdout = &stdout
-
-	// run and wait for finish
-	cmdStr := strings.Join(proc.Args, " ")
-	g.Trace("" + cmdStr)
-	err = proc.Run()
-
-	if err != nil || strings.TrimSpace(stderr.String()) != "" || proc.ProcessState.ExitCode() != 0 {
-
-		err = g.Error(
-			g.Error(stderr.String()),
-			fmt.Sprintf(
-				"SnowSQL Command -> %s\nSnowSQL Error  -> %s\n%s",
-				cmdStr, stderr.String(), stdout.String(),
-			),
-		)
-		return
-	}
-
-	g.Trace("\n%s", stdout.String())
 
 	return
 }
