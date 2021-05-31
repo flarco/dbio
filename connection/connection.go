@@ -235,11 +235,13 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("password", "")
 		setIfMissing("sslmode", "disable")
 		setIfMissing("port", c.Type.DefPort())
+		setIfMissing("database", c.Data["dbname"])
 		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbRedshift:
 		setIfMissing("password", "")
 		setIfMissing("sslmode", "disable")
 		setIfMissing("port", c.Type.DefPort())
+		setIfMissing("database", c.Data["dbname"])
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbMySQL:
 		setIfMissing("password", "")
@@ -250,6 +252,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbSnowflake:
 		// setIfMissing("schema", "public")
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
+		setIfMissing("host", c.Data["account"])
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?warehouse={warehouse}"
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
