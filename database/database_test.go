@@ -526,12 +526,13 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[1]["cnt"]))
 
 	// RunAnalysisField field_stat_deep
-	m = g.M("table", db.schema+".person")
+	m = g.M("schema", db.schema, "table", "person")
 	data, err = conn.RunAnalysis("field_stat_deep", m)
-	g.AssertNoError(t, err)
-	assert.Len(t, data.Rows, 3)
-	assert.EqualValues(t, 2, cast.ToInt(data.Records()[0]["tot_cnt"]))
-	assert.EqualValues(t, 0, cast.ToInt(data.Records()[1]["f_dup_cnt"]))
+	if g.AssertNoError(t, err) {
+		assert.Len(t, data.Rows, 3)
+		assert.EqualValues(t, 2, cast.ToInt(data.Records()[0]["tot_cnt"]))
+		assert.EqualValues(t, 0, cast.ToInt(data.Records()[1]["f_dup_cnt"]))
+	}
 
 	// Not used
 	// columns, err = conn.GetColumnStats(db.schema + ".transact")
