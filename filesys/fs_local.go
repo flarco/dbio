@@ -129,7 +129,7 @@ func (fs *LocalFileSysClient) GetWriter(path string) (writer io.Writer, err erro
 // MkdirAll creates child directories
 func (fs *LocalFileSysClient) MkdirAll(path string) (err error) {
 	path = cleanLocalFilePath(path)
-	return os.MkdirAll(path, 0655)
+	return os.MkdirAll(path, 0755)
 }
 
 // Write creates the file if non-existent and writes from the reader
