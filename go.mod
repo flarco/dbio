@@ -22,7 +22,7 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
-	github.com/godror/godror v0.20.5
+	github.com/godror/godror v0.25.1
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0
@@ -38,7 +38,6 @@ require (
 	github.com/shirou/gopsutil v2.20.8+incompatible
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/snowflakedb/glog v0.0.0-20180824191149-f5055e6f21ce // indirect
 	github.com/snowflakedb/gosnowflake v1.5.0
 	github.com/solcates/go-sql-bigquery v0.2.4
 	github.com/spf13/cast v1.3.1
