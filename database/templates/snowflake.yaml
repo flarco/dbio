@@ -214,19 +214,19 @@ analysis:
     -- table_join_match "{t1}" vs "{t2}"
     with T1 as (
       select
-        {t1_fields1},
+        {t1_field},
         count(1) cnt
       from {t1}
       where {t1_filter}
-      group by {t1_fields1}
+      group by {t1_field}
     )
     , T2 as (
       select
-        {t2_fields1},
+        {t2_field},
         count(1) cnt
       from {t2}
       where {t2_filter}
-      group by {t2_fields1}
+      group by {t2_field}
     )
     select
       '{t1}' as table_1,

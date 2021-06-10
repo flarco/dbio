@@ -1371,23 +1371,27 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 		"table", table,
 	) + noTraceKey
 
+	ddlArr := []string{}
 	data, err := conn.Self().Query(sqlView)
+
+	for _, row := range data.Rows {
+		ddlArr = append(ddlArr, cast.ToString(row[ddlCol]))
+	}
+
+	if err == nil {
+		return strings.Join(ddlArr, "\n"), err
+	}
+
+	data, err = conn.Self().Query(sqlTable)
 	if err != nil {
 		return "", err
 	}
 
-	if len(data.Rows) == 0 || cast.ToString(data.Rows[0][ddlCol]) == "" {
-		data, err = conn.Self().Query(sqlTable)
-		if err != nil {
-			return "", err
-		}
+	for _, row := range data.Rows {
+		ddlArr = append(ddlArr, cast.ToString(row[ddlCol]))
 	}
 
-	if len(data.Rows) == 0 {
-		return "", nil
-	}
-
-	return cast.ToString(data.Rows[0][ddlCol]), nil
+	return strings.Join(ddlArr, "\n"), nil
 }
 
 func getMetadataTableFName(conn *BaseConn, template string, tableFName string) string {
