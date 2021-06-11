@@ -244,7 +244,7 @@ analysis:
     -- fill_cnt_group_field {table}
     select
       {field},
-      {fill_cnt_fields_sql}
+      {columns_sql}
     from {schema}.{table}
     group by {field}
     order by {field}
@@ -351,7 +351,7 @@ analysis:
       '{date_field}' as date_field,
       year({date_field}) as year,
       month({date_field}) as month,
-      {cnt_fields_sql}
+      {columns_sql}
     from {schema}.{table}
     {where_clause}
     group by year({date_field}), month({date_field})

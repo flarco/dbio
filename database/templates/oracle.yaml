@@ -227,7 +227,7 @@ analysis:
       '{date_field}' as date_field,
           extract(year from {field}) as year,
           extract(month from {field}) as month,
-      {cnt_fields_sql}
+      {columns_sql}
     from {schema}.{table}
     {where_clause}
     group by extract(year from {field}), extract(month from {field})

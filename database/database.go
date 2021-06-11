@@ -98,10 +98,9 @@ type Connection interface {
 	Quote(field string, normalize ...bool) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
+	ProcessTemplate(level, text string, values map[string]interface{}) (sql string, err error)
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
 	GetAnalysis(string, map[string]interface{}) (string, error)
-	GetAnalysisField(string, string, ...string) (string, error)
-	GetAnalysisTable(string, ...string) (string, error)
 	Schemata() Schemata
 	Self() Connection
 	setContext(ctx context.Context, concurrency int)
@@ -1378,8 +1377,9 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 		ddlArr = append(ddlArr, cast.ToString(row[ddlCol]))
 	}
 
-	if err == nil {
-		return strings.Join(ddlArr, "\n"), err
+	ddl := strings.TrimSpace(strings.Join(ddlArr, "\n"))
+	if err == nil && ddl != "" {
+		return ddl, err
 	}
 
 	data, err = conn.Self().Query(sqlTable)
@@ -1391,7 +1391,8 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 		ddlArr = append(ddlArr, cast.ToString(row[ddlCol]))
 	}
 
-	return strings.Join(ddlArr, "\n"), nil
+	ddl = strings.TrimSpace(strings.Join(ddlArr, "\n"))
+	return ddl, nil
 }
 
 func getMetadataTableFName(conn *BaseConn, template string, tableFName string) string {
@@ -1574,6 +1575,90 @@ func (conn *BaseConn) RunAnalysis(analysisName string, values map[string]interfa
 	return conn.Self().Query(sql)
 }
 
+// ProcessTemplate processes a template SQL text at a given level
+func (conn *BaseConn) ProcessTemplate(level, text string, values map[string]interface{}) (sql string, err error) {
+
+	sqls := []string{}
+
+	getColumns := func(columns []string) (cols iop.Columns) {
+		cols = iop.NewColumnsFromFields(columns...)
+		if len(cols) == 0 {
+			// get all columns then
+			tableFName := g.F("%s.%s", values["schema"], values["table"])
+			cols, err = conn.GetSQLColumns(tableFName)
+			if err != nil {
+				err = g.Error(err, "could not obtain table columns")
+			}
+		}
+		return
+	}
+
+	switch level {
+	case "single":
+		sql = g.Rm(text, values)
+	case "schema-union":
+		schemas, ok := values["schemas"]
+		if !ok {
+			err = g.Error("missing 'schemas' key")
+		} else {
+			for _, schema := range cast.ToSlice(schemas) {
+				values["schema"] = schema
+				sqls = append(sqls, g.Rm(text, values))
+			}
+			sql = strings.Join(sqls, "\nUNION ALL\n")
+		}
+	case "table-union":
+		tableFNames, ok := values["tables"]
+		if !ok {
+			err = g.Error("missing 'tables' key")
+		} else {
+			for _, tableFName := range cast.ToStringSlice(tableFNames) {
+				schema, table := SplitTableFullName(tableFName)
+				values["schema"] = schema
+				values["table"] = table
+				sqls = append(sqls, g.Rm(text, values))
+			}
+			sql = strings.Join(sqls, "\nUNION ALL\n")
+		}
+	case "column-union":
+		columns, ok := values["columns"]
+		if !ok {
+			err = g.Error("missing 'columns' key")
+		} else {
+			for _, col := range getColumns(cast.ToStringSlice(columns)) {
+				values["column"] = col.Name
+				values["field"] = col.Name
+				values["type"] = col.Type
+				sqls = append(sqls, g.Rm(text, values))
+			}
+			sql = strings.Join(sqls, "\nUNION ALL\n")
+		}
+	case "column-expres":
+		columns, ok1 := values["columns"]
+		expr, ok2 := values["expr"]
+		if !ok1 || !ok2 {
+			err = g.Error("missing 'columns' or 'expr' key")
+		} else {
+			if !strings.Contains(cast.ToString(expr), "{column}") {
+				err = g.Error("\"expr\" value must contain '{column}'")
+				return
+			}
+			exprs := []string{}
+			for _, col := range getColumns(cast.ToStringSlice(columns)) {
+				values["column"] = col.Name
+				values["field"] = col.Name
+				values["type"] = col.Type
+				exprVal := g.Rm(cast.ToString(expr), values)
+				exprs = append(exprs, exprVal)
+			}
+			values["columns_sql"] = strings.Join(exprs, ", ")
+			sql = g.Rm(text, values)
+		}
+	}
+
+	return
+}
+
 // GetAnalysis runs an analysis
 func (conn *BaseConn) GetAnalysis(analysisName string, values map[string]interface{}) (sql string, err error) {
 	template, ok := conn.template.Analysis[analysisName]
@@ -1584,13 +1669,16 @@ func (conn *BaseConn) GetAnalysis(analysisName string, values map[string]interfa
 
 	switch analysisName {
 	case "table_count":
-		tableFNames := cast.ToStringSlice(values["tables"])
-		template, err = conn.GetAnalysisTable(analysisName, tableFNames...)
+		sql, err = conn.ProcessTemplate("table-union", template, values)
 	case "field_chars", "field_stat", "field_stat_group", "field_stat_deep":
-		tableFName := cast.ToString(values["schema"]) + "." + cast.ToString(values["table"])
-		fields := cast.ToStringSlice(values["fields"])
-		template, err = conn.GetAnalysisField(analysisName, tableFName, fields...)
+		if _, ok := values["columns"]; !ok {
+			values["columns"] = values["fields"]
+		}
+		sql, err = conn.ProcessTemplate("column-union", template, values)
+	case "distro_field_date_wide", "fill_cnt_group_field":
+		sql, err = conn.ProcessTemplate("column-expres", template, values)
 	default:
+		sql, err = conn.ProcessTemplate("single", template, values)
 	}
 
 	if err != nil {
@@ -1598,60 +1686,6 @@ func (conn *BaseConn) GetAnalysis(analysisName string, values map[string]interfa
 		return
 	}
 
-	sql = g.Rm(template, values)
-	return
-}
-
-// GetAnalysisTable runs a table level analysis
-func (conn *BaseConn) GetAnalysisTable(analysisName string, tableFNames ...string) (sql string, err error) {
-
-	if len(tableFNames) == 0 {
-		return "", g.Error("Need to provied tables for GetAnalysisTable")
-	}
-
-	sqls := []string{}
-
-	for _, tableFName := range tableFNames {
-		schema, table := SplitTableFullName(tableFName)
-		sql := g.R(
-			conn.GetTemplateValue("analysis."+analysisName),
-			"schema", schema,
-			"table", table,
-		)
-		sqls = append(sqls, sql)
-	}
-
-	sql = strings.Join(sqls, "\nUNION ALL\n")
-	return
-}
-
-// GetAnalysisField runs a field level analysis
-func (conn *BaseConn) GetAnalysisField(analysisName string, tableFName string, fields ...string) (sql string, err error) {
-	schema, table := SplitTableFullName(tableFName)
-
-	sqls := []string{}
-
-	columns := iop.NewColumnsFromFields(fields...)
-	if len(fields) == 0 {
-		// get fields
-		columns, err = conn.GetSQLColumns(tableFName)
-		if err != nil {
-			return "", g.Error(err)
-		}
-	}
-
-	for _, col := range columns {
-		sql := g.R(
-			conn.template.Analysis[analysisName],
-			"schema", schema,
-			"table", table,
-			"field", col.Name,
-			"type", col.Type,
-		)
-		sqls = append(sqls, sql)
-	}
-
-	sql = strings.Join(sqls, "\nUNION ALL\n")
 	return
 }
 

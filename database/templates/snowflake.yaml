@@ -339,7 +339,7 @@ analysis:
     -- fill_cnt_group_field {table}
     select
       {field},
-      {fill_cnt_fields_sql}
+      {columns_sql}
     from {schema}.{table}
     group by {field}
     order by {field}
@@ -416,12 +416,11 @@ analysis:
     with t1 as (
         select
           '{field}' as field,
-          year({field}) as year,
-          month({field}) as month,
+          date_trunc(month, {field}) as {field},
           count(1) cnt
         from {schema}.{table}
-        group by year({field}), month({field})
-        order by year({field}), month({field})
+        group by 2
+        order by 2
       )
       , t2 as (
         select '{field}' as field, count(1) ttl_cnt
@@ -431,26 +430,23 @@ analysis:
         '{schema}' as schema_nm,
         '{table}' as table_nm,
         t1.field,
-        t1.year,
-        t1.month,
+        t1.{field},
         cnt,
         round(100.0 * cnt / ttl_cnt, 2) as prct
       from t1
       join t2
         on t1.field = t2.field
-      order by t1.year, t1.month
+      order by t1.{date_field}
 
   distro_field_date_wide: |
     -- distro_field_date {table}
     select
-      '{date_field}' as date_field,
-      year({date_field}) as year,
-      month({date_field}) as month,
-      {cnt_fields_sql}
+      date_trunc(month, {date_field}) as {date_field}_month,
+      {columns_sql}
     from {schema}.{table}
     {where_clause}
-    group by year({date_field}), month({date_field})
-    order by year({date_field}), month({date_field})
+    group by 1
+    order by 1
 
   test_pk: |
     select

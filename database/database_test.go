@@ -75,7 +75,7 @@ var DBs = map[string]*testDB{
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view place_vw as select * from place where telcode = 65`,
-		placeVwSelect: " SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
+		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 	},
 
 	"sqlite3": &testDB{
@@ -149,7 +149,7 @@ var DBs = map[string]*testDB{
 		schema:      "system",
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
 		personDDL:   `CREATE TABLE person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
-		placeDDL:    "\n  CREATE TABLE \"SYSTEM\".\"PLACE\" \n   (\t\"COUNTRY\" VARCHAR2(255), \n\t\"CITY\" VARCHAR2(255), \n\t\"TELCODE\" NUMBER(*,0)\n   ) PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING\n  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645\n  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)\n  TABLESPACE \"SYSTEM\" ",
+		placeDDL:    "CREATE TABLE \"SYSTEM\".\"PLACE\" \n   (\t\"COUNTRY\" VARCHAR2(255), \n\t\"CITY\" VARCHAR2(255), \n\t\"TELCODE\" NUMBER(*,0)\n   ) PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING\n  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645\n  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)\n  TABLESPACE \"SYSTEM\"",
 		placeIndex: `CREATE INDEX idx_country_city 
 		ON place(country, city)`,
 		placeVwDDL:    "CREATE VIEW system.place_vw as select * from place where telcode = 65",
@@ -166,7 +166,7 @@ var DBs = map[string]*testDB{
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
-		placeVwSelect: " SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
+		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 		propStrs: []string{
 			"AWS_BUCKET=" + os.Getenv("AWS_BUCKET"),
 		},
@@ -182,7 +182,7 @@ var DBs = map[string]*testDB{
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    "create or replace view public.place_vw as select * from `proven-cider-633.public.place` where telcode = 65",
-		placeVwSelect: " SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
+		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 		propStrs: []string{
 			"PROJECT_ID=proven-cider-633",
 			"schema=public",
@@ -200,7 +200,7 @@ var DBs = map[string]*testDB{
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
-		placeVwSelect: "\ncreate or replace view PLACE_VW as select * from place where telcode = 65;\n",
+		placeVwSelect: "create or replace view PLACE_VW as select * from place where telcode = 65;",
 		// propStrs: []string{
 		// 	"schema=public",
 		// 	"warehouse=COMPUTE_WH",
@@ -599,6 +599,7 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 
 	ddl, err := srcConn.GetDDL(srcTable)
 	g.AssertNoError(t, err)
+	assert.NotEmpty(t, ddl)
 	newDdl := strings.Replace(ddl, sTable, tTable, 1)
 	if strings.Contains("oracle,snowflake", db.name) {
 		newDdl = strings.Replace(
