@@ -74,7 +74,7 @@ type Connection interface {
 	GetNativeType(col iop.Column) (nativeType string, err error)
 	GetPrimaryKeys(string) (iop.Dataset, error)
 	GetProp(string) string
-	GetSchemaObjects(string) (Schema, error)
+	GetSchemata(string, string) (Schemata, error)
 	GetSchemas() (iop.Dataset, error)
 	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
@@ -138,6 +138,7 @@ type BaseConn struct {
 // Table represents a schemata table
 type Table struct {
 	Name       string `json:"name"`
+	Schema     string `json:"schema"`
 	FullName   string `json:"full_name"`
 	IsView     bool   `json:"is_view"` // whether is a view
 	Columns    iop.Columns
@@ -1115,6 +1116,22 @@ func SplitTableFullName(tableName string) (string, string) {
 	return schema, table
 }
 
+func (conn *BaseConn) SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error) {
+	template, ok := templateMap[name]
+	if !ok {
+		err = g.Error("Could not find template %s", name)
+		return
+	}
+
+	template = template + noTraceKey
+	sql, err := conn.ProcessTemplate(level, template, values)
+	if err != nil {
+		err = g.Error("error processing template")
+		return
+	}
+	return conn.Self().Query(sql)
+}
+
 // GetCount returns count of records
 func (conn *BaseConn) GetCount(tableFName string) (uint64, error) {
 	sql := fmt.Sprintf(`select count(1) cnt from %s`, tableFName)
@@ -1128,29 +1145,37 @@ func (conn *BaseConn) GetCount(tableFName string) (uint64, error) {
 // GetSchemas returns schemas
 func (conn *BaseConn) GetSchemas() (iop.Dataset, error) {
 	// fields: [schema_name]
-	sql := conn.template.Metadata["schemas"] + noTraceKey
-	return conn.Self().Query(sql)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "schemas",
+		g.M(),
+	)
 }
 
 // GetObjects returns objects (tables or views) for given schema
 // `objectType` can be either 'table', 'view' or 'all'
 func (conn *BaseConn) GetObjects(schema string, objectType string) (iop.Dataset, error) {
-	sql := g.R(conn.template.Metadata["objects"], "schema", schema, "object_type", objectType) + noTraceKey
-	return conn.Self().Query(sql)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "objects",
+		g.M("schema", schema, "object_type", objectType),
+	)
 }
 
 // GetTables returns tables for given schema
 func (conn *BaseConn) GetTables(schema string) (iop.Dataset, error) {
 	// fields: [table_name]
-	sql := g.R(conn.template.Metadata["tables"], "schema", schema) + noTraceKey
-	return conn.Self().Query(sql)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "tables",
+		g.M("schema", schema),
+	)
 }
 
 // GetViews returns views for given schema
 func (conn *BaseConn) GetViews(schema string) (iop.Dataset, error) {
 	// fields: [table_name]
-	sql := g.R(conn.template.Metadata["views"], "schema", schema) + noTraceKey
-	return conn.Self().Query(sql)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "views",
+		g.M("schema", schema),
+	)
 }
 
 // CommonColumns return common columns
@@ -1253,9 +1278,11 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 // TableExists returns true if the table exists
 func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 
-	sql := getMetadataTableFName(conn, "columns", tableFName)
-
-	colData, err := conn.Self().Query(sql)
+	schema, table := SplitTableFullName(tableFName)
+	colData, err := conn.SumbitTemplate(
+		"single", conn.template.Metadata, "columns",
+		g.M("schema", schema, "table", table),
+	)
 	if err != nil {
 		return false, g.Error(err, "could not check table existence: "+tableFName)
 	}
@@ -1271,9 +1298,11 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 // fields should be `column_name|data_type`
 func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
 	columns = iop.Columns{}
-	sql := getMetadataTableFName(conn, "columns", tableFName)
-
-	colData, err := conn.Self().Query(sql)
+	schema, table := SplitTableFullName(tableFName)
+	colData, err := conn.SumbitTemplate(
+		"single", conn.template.Metadata, "columns",
+		g.M("schema", schema, "table", table),
+	)
 	if err != nil {
 		return columns, g.Error(err, "could not get list of columns for table: "+tableFName)
 	}
@@ -1339,39 +1368,40 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 // include schema and table, example: `schema1.table2`
 // fields should be `schema_name|table_name|table_type|column_name|data_type|column_id`
 func (conn *BaseConn) GetColumnsFull(tableFName string) (iop.Dataset, error) {
-	sql := getMetadataTableFName(conn, "columns_full", tableFName)
-	return conn.Self().Query(sql)
+	schema, table := SplitTableFullName(tableFName)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "columns_full",
+		g.M("schema", schema, "table", table),
+	)
 }
 
 // GetPrimaryKeys returns primark keys for given table.
 func (conn *BaseConn) GetPrimaryKeys(tableFName string) (iop.Dataset, error) {
-	sql := getMetadataTableFName(conn, "primary_keys", tableFName)
-	return conn.Self().Query(sql)
+	schema, table := SplitTableFullName(tableFName)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "primary_keys",
+		g.M("schema", schema, "table", table),
+	)
 }
 
 // GetIndexes returns indexes for given table.
 func (conn *BaseConn) GetIndexes(tableFName string) (iop.Dataset, error) {
-	sql := getMetadataTableFName(conn, "indexes", tableFName)
-	return conn.Self().Query(sql)
+	schema, table := SplitTableFullName(tableFName)
+	return conn.SumbitTemplate(
+		"single", conn.template.Metadata, "indexes",
+		g.M("schema", schema, "table", table),
+	)
 }
 
 // GetDDL returns DDL for given table.
 func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 	schema, table := SplitTableFullName(tableFName)
 	ddlCol := cast.ToInt(conn.template.Variable["ddl_col"])
-	sqlTable := g.R(
-		conn.template.Metadata["ddl_table"],
-		"schema", schema,
-		"table", table,
-	) + noTraceKey
-	sqlView := g.R(
-		conn.template.Metadata["ddl_view"],
-		"schema", schema,
-		"table", table,
-	) + noTraceKey
-
 	ddlArr := []string{}
-	data, err := conn.Self().Query(sqlView)
+	data, err := conn.SumbitTemplate(
+		"single", conn.template.Metadata, "ddl_view",
+		g.M("schema", schema, "table", table),
+	)
 
 	for _, row := range data.Rows {
 		ddlArr = append(ddlArr, cast.ToString(row[ddlCol]))
@@ -1382,7 +1412,10 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 		return ddl, err
 	}
 
-	data, err = conn.Self().Query(sqlTable)
+	data, err = conn.SumbitTemplate(
+		"single", conn.template.Metadata, "ddl_table",
+		g.M("schema", schema, "table", table),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -1393,17 +1426,6 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 
 	ddl = strings.TrimSpace(strings.Join(ddlArr, "\n"))
 	return ddl, nil
-}
-
-func getMetadataTableFName(conn *BaseConn, template string, tableFName string) string {
-	schema, table := SplitTableFullName(tableFName)
-	sql := g.R(
-		conn.template.Metadata[template],
-		"schema", schema,
-		"table", table,
-	)
-	sql = sql + noTraceKey
-	return sql
 }
 
 // CreateTemporaryTable creates a temp table based on provided columns
@@ -1496,23 +1518,33 @@ func (conn *BaseConn) Import(data iop.Dataset, tableName string) error {
 	return nil
 }
 
-// GetSchemaObjects obtain full schemata info
-func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
+// GetSchemata obtain full schemata info for a schema
+func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error) {
 
-	schema := Schema{
-		Name:   "",
-		Tables: map[string]Table{},
+	schemata := Schemata{
+		Schemas: map[string]Schema{},
+		Tables:  map[string]*Table{},
 	}
 
-	sql := g.R(conn.template.Metadata["schemata"], "schema", schemaName) + noTraceKey
-	schemaData, err := conn.Self().Query(sql)
+	values := g.M()
+	if schemaName != "" {
+		values["schema"] = schemaName
+	}
+	if tableName != "" {
+		values["table"] = tableName
+	}
+
+	schemaData, err := conn.SumbitTemplate(
+		"single", conn.template.Metadata, "schemata",
+		values,
+	)
+
 	if err != nil {
-		return schema, g.Error(err, "Could not GetSchemaObjects for "+schemaName)
+		return schemata, g.Error(err, "Could not GetSchemata for "+schemaName)
 	}
-
-	schema.Name = schemaName
 
 	for _, rec := range schemaData.Records() {
+		schemaName = strings.ToLower(cast.ToString(rec["schema_name"]))
 		tableName := strings.ToLower(cast.ToString(rec["table_name"]))
 
 		switch v := rec["is_view"].(type) {
@@ -1534,15 +1566,26 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 			_ = rec["is_view"]
 		}
 
+		schema := Schema{
+			Name:   schemaName,
+			Tables: map[string]Table{},
+		}
+
 		table := Table{
 			Name:       tableName,
+			Schema:     schemaName,
+			FullName:   schemaName + "." + tableName,
 			IsView:     cast.ToBool(rec["is_view"]),
 			Columns:    iop.Columns{},
 			ColumnsMap: map[string]*iop.Column{},
 		}
 
-		if _, ok := schema.Tables[tableName]; ok {
-			table = schema.Tables[tableName]
+		if _, ok := schemata.Schemas[schema.Name]; ok {
+			schema = schemata.Schemas[schema.Name]
+		}
+
+		if _, ok := schemata.Schemas[schemaName].Tables[tableName]; ok {
+			table = schemata.Schemas[schemaName].Tables[tableName]
 		}
 
 		column := iop.Column{
@@ -1555,14 +1598,15 @@ func (conn *BaseConn) GetSchemaObjects(schemaName string) (Schema, error) {
 		table.Columns = append(table.Columns, column)
 		table.ColumnsMap[strings.ToLower(column.Name)] = &column
 
-		// conn.schemata.Tables[schemaName+"."+tableName] = &table
 		schema.Tables[tableName] = table
+		schemata.Schemas[schema.Name] = schema
+		schemata.Tables[table.FullName] = &table
 
 	}
 
 	// conn.schemata.Schemas[schemaName] = schema
 
-	return schema, nil
+	return schemata, nil
 }
 
 // RunAnalysis runs an analysis
@@ -1590,6 +1634,12 @@ func (conn *BaseConn) ProcessTemplate(level, text string, values map[string]inte
 				err = g.Error(err, "could not obtain table columns")
 			}
 		}
+		return
+	}
+
+	text, err = g.ExecuteTemplate(text, values)
+	if err != nil {
+		err = g.Error(err, "error execute template")
 		return
 	}
 

@@ -33,33 +33,33 @@ analysis:
     -- table_join_match "{t1}" vs "{t2}"
     with T1 as (
       select
-        {t1_fields1},
+        {t1_field},
         count(1) cnt
       from {t1}
       where {t1_filter}
-      group by {t1_fields1}
+      group by {t1_field}
     )
     , T2 as (
       select
-        {t2_fields1},
+        {t2_field},
         count(1) cnt
       from {t2}
       where {t2_filter}
-      group by {t2_fields1}
+      group by {t2_field}
     )
     select
       '{t1}' as table_1,
       '{t2}' as table_2,
-      count({t1_field}) t1_cnt,
-      count({t2_field}) t2_cnt,
-      round(100.0 * count({t2_field}) / count({t1_field}), 1) match_rate,
+      count(t1.{t1_field}) t1_cnt,
+      count(t2.{t2_field}) t2_cnt,
+      round(100.0 * count(t2.{t2_field}) / count(t1.{t1_field}), 1) match_rate,
       sum(t1.cnt) t1_sum_cnt,
       sum(t2.cnt) t2_sum_cnt,
       round(100.0 * sum(t2.cnt) / sum(t1.cnt), 1) sum_match_rate,
-      sum(case when {t1_field} is null then 0 else t1.cnt end) - count({t1_field}) t1_dup_cnt,
-      sum(case when {t2_field} is null then 0 else t2.cnt end) - count({t2_field}) t2_dup_cnt,
-      sum(case when {t1_field} is null then t1.cnt else 0 end) t1_null_cnt,
-      sum(case when {t2_field} is null then t2.cnt else 0 end) t2_null_cnt
+      sum(case when t1.{t1_field} is null then 0 else t1.cnt end) - count(t1.{t1_field}) t1_dup_cnt,
+      sum(case when t2.{t2_field} is null then 0 else t2.cnt end) - count(t2.{t2_field}) t2_dup_cnt,
+      sum(case when t1.{t1_field} is null then t1.cnt else 0 end) t1_null_cnt,
+      sum(case when t2.{t2_field} is null then t2.cnt else 0 end) t2_null_cnt
     from t1
     left join t2 on {conds}
 
@@ -68,16 +68,16 @@ analysis:
     select
       '{t2}' as table_1,
       '{t1}' as table_2,
-      count({t2_field}) t1_cnt,
-      count({t1_field}) t2_cnt,
-      round(100.0 * count({t1_field}) / count({t2_field}), 1) match_rate,
+      count(t2.{t2_field}) t1_cnt,
+      count(t1.{t1_field}) t2_cnt,
+      round(100.0 * count(t1.{t1_field}) / count(t2.{t2_field}), 1) match_rate,
       sum(t1.cnt) t1_sum_cnt,
       sum(t2.cnt) t2_sum_cnt,
       round(100.0 * sum(t2.cnt) / sum(t1.cnt), 1) sum_match_rate,
-      sum(case when {t2_field} is null then 0 else t1.cnt end) - count({t2_field}) t1_dup_cnt,
-      sum(case when {t1_field} is null then 0 else t2.cnt end) - count({t1_field}) t2_dup_cnt,
-      sum(case when {t2_field} is null then t1.cnt else 0 end) t1_null_cnt,
-      sum(case when {t1_field} is null then t2.cnt else 0 end) t2_null_cnt
+      sum(case when t2.{t2_field} is null then 0 else t1.cnt end) - count(t2.{t2_field}) t1_dup_cnt,
+      sum(case when t1.{t1_field} is null then 0 else t2.cnt end) - count(t1.{t1_field}) t2_dup_cnt,
+      sum(case when t2.{t2_field} is null then t1.cnt else 0 end) t1_null_cnt,
+      sum(case when t1.{t1_field} is null then t2.cnt else 0 end) t2_null_cnt
     from t2
     left join t1 on {conds}
 

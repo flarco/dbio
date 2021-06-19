@@ -488,8 +488,9 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	// Test Schemata
-	sData, err := conn.GetSchemaObjects(db.schema)
+	schemata, err := conn.GetSchemata(db.schema, "")
 	g.AssertNoError(t, err)
+	sData := schemata.Schemas[db.schema]
 	assert.Equal(t, db.schema, sData.Name)
 	assert.Contains(t, sData.Tables, "person")
 	assert.Contains(t, sData.Tables, "place_vw")
@@ -503,10 +504,10 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	values := map[string]interface{}{
 		"t1":         db.schema + ".place",
 		"t2":         db.schema + ".place",
-		"t1_field":   "t1.country",
+		"t1_field":   "country",
 		"t1_fields1": "country",
 		"t1_filter":  "1=1",
-		"t2_field":   "t2.country",
+		"t2_field":   "country",
 		"t2_fields1": "country",
 		"t2_filter":  "1=1",
 		"conds":      `lower(t1.country) = lower(t2.country)`,
