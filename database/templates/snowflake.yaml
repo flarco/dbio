@@ -433,7 +433,7 @@ analysis:
       from t1
       join t2
         on t1.field = t2.field
-      order by t1.{date_field}
+      order by t1.{field}
 
   distro_field_date_wide: |
     -- distro_field_date {table}
