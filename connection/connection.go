@@ -2,11 +2,13 @@ package connection
 
 import (
 	"context"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/flarco/dbio"
+	"gopkg.in/yaml.v2"
 
 	"github.com/flarco/dbio/database"
 	"github.com/flarco/dbio/filesys"
@@ -72,11 +74,29 @@ func NewConnectionFromURL(Name, URL string) (conn Connection, err error) {
 
 // NewConnectionFromMap loads a Connection from a Map
 func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
-	return NewConnection(
+	c, err = NewConnection(
 		cast.ToString(m["name"]),
 		dbio.Type(cast.ToString(m["type"])),
 		g.AsMap(m["data"]),
 	)
+	if cast.ToString(m["type"]) == "" {
+		c, err = NewConnectionFromDbt(cast.ToString(m["name"]))
+	}
+	return
+}
+
+// NewConnectionFromDbt loads a Connection from a DBT Profile
+func NewConnectionFromDbt(name string) (c Connection, err error) {
+	conns, err := ReadDbtConnections()
+	if err != nil {
+		err = g.Error(err)
+		return
+	}
+
+	if conn, ok := conns[name]; ok {
+		return conn, nil
+	}
+	return
 }
 
 // Info returns connection information
@@ -141,7 +161,6 @@ func (c *Connection) AsFile() (filesys.FileSysClient, error) {
 	)
 }
 
-// SetFromEnv set values from environment
 func (c *Connection) setFromEnv() {
 	if c.Name == "" && strings.HasPrefix(c.URL(), "$") {
 		c.Name = strings.TrimLeft(c.URL(), "$")
@@ -374,4 +393,62 @@ func GetTypeName(c Connection) string {
 		dbio.TypeAPIGithub:   "Github",
 	}
 	return mapping[c.Info().Type]
+}
+
+func ReadDbtConnections() (conns map[string]Connection, err error) {
+	conns = map[string]Connection{}
+
+	profileDir := strings.TrimSuffix(os.Getenv("DBT_PROFILES_DIR"), "/")
+	if profileDir == "" {
+		profileDir = g.UserHomeDir() + "/.dbt"
+	}
+	path := profileDir + "/profiles.yml"
+	if !g.PathExists(path) {
+		return
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		err = g.Error(err, "error reading from yaml: %s", path)
+		return
+	}
+
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		err = g.Error(err, "error reading bytes from yaml: %s", path)
+		return
+	}
+
+	type ProfileConn struct {
+		Target  string           `json:"target" yaml:"target"`
+		Outputs map[string]g.Map `json:"outputs" yaml:"outputs"`
+	}
+
+	dbtProfile := map[string]ProfileConn{}
+	err = yaml.Unmarshal(bytes, &dbtProfile)
+	if err != nil {
+		err = g.Error(err, "error parsing yaml string")
+		return
+	}
+
+	for pName, pc := range dbtProfile {
+		for target, data := range pc.Outputs {
+			connName := strings.ToUpper(pName + "/" + target)
+			data["dbt"] = true
+
+			conn, err := NewConnectionFromMap(
+				g.M("name", connName, "data", data, "type", data["type"]),
+			)
+			if err != nil {
+				g.Warn("could not load dbt connection %s", connName)
+				g.LogError(err)
+				continue
+			}
+
+			conns[connName] = conn
+			g.Trace("found connection from dbt profiles YAMML: " + connName)
+		}
+	}
+
+	return
 }

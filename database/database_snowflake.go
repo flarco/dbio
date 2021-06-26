@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/flarco/g/sizedwaitgroup"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -85,10 +86,9 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 	return err
 }
 
-func (conn *SnowflakeConn) getOrCreateStage(tableFName string) string {
+func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
 	if conn.GetProp("internalStage") == "" {
 		defStaging := "_staging"
-		schema, _ := SplitTableFullName(tableFName)
 		if schema == "" {
 			schema = conn.GetProp("schema")
 		}
@@ -123,13 +123,18 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 			err = g.Error(err, "Could not copy to S3.")
 			return
 		}
+	// case "AWS":
 	default:
-		// default is AWS
 		filePath, err = conn.CopyToS3(sqls...)
 		if err != nil {
 			err = g.Error(err, "Could not copy to S3.")
 			return
 		}
+	case "STAGE":
+		if conn.getOrCreateStage("") != "" {
+			return conn.UnloadViaStage(sqls...)
+		}
+		err = g.Error("could not get or create stage")
 	}
 
 	fs, err := filesys.NewFileSysClientFromURL(filePath, conn.PropArr()...)
@@ -279,7 +284,8 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 		return conn.CopyViaAzure(tableFName, df)
 	}
 
-	stage := conn.getOrCreateStage(tableFName)
+	schema, _ := SplitTableFullName(tableFName)
+	stage := conn.getOrCreateStage(schema)
 	if stage != "" {
 		return conn.CopyViaStage(tableFName, df)
 	}
@@ -443,6 +449,108 @@ func (conn *SnowflakeConn) CopyFromAzure(tableFName, azPath string) (err error) 
 	return nil
 }
 
+func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (df *iop.Dataflow, err error) {
+
+	unload := func(sql string, stagePartPath string) {
+
+		defer conn.Context().Wg.Write.Done()
+
+		unloadSQL := g.R(
+			conn.template.Core["copy_to_stage"],
+			"sql", sql,
+			"stage_path", stagePartPath,
+		)
+
+		_, err = conn.Exec(unloadSQL)
+		if err != nil {
+			err = g.Error(err, "SQL Error for %s", stagePartPath)
+			conn.Context().CaptureErr(err)
+		}
+
+	}
+
+	stageFolderPath := fmt.Sprintf(
+		"@%s/%s/%s",
+		conn.GetProp("internalStage"),
+		filePathStorageSlug,
+		cast.ToString(g.Now()),
+	)
+
+	conn.Exec("REMOVE " + stageFolderPath)
+	defer conn.Exec("REMOVE " + stageFolderPath)
+	for i, sql := range sqls {
+		stagePathPart := fmt.Sprintf("%s/u%02d-", stageFolderPath, i+1)
+		conn.Context().Wg.Write.Add()
+		go unload(sql, stagePathPart)
+	}
+
+	conn.Context().Wg.Write.Wait()
+	err = conn.Context().Err()
+	if err != nil {
+		err = g.Error(err, "Could not unload to stage files")
+		return
+	}
+
+	g.Debug("Unloaded to %s", stageFolderPath)
+
+	// get stream
+	data, err := conn.Query("LIST " + stageFolderPath)
+	if err != nil {
+		err = g.Error(err, "Could not LIST for %s", stageFolderPath)
+		conn.Context().CaptureErr(err)
+		return
+	}
+
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
+	if err != nil {
+		err = g.Error(err, "Could not get fs client for Local")
+		return
+	}
+
+	// Write the each stage file to temp file, read to ds
+	folderPath := fmt.Sprintf(
+		"/tmp/snowflake.get.%d.%s.csv",
+		time.Now().Unix(),
+		g.RandString(g.AlphaRunes, 3),
+	)
+
+	// GET and copy to local, read CSV stream and add to df
+	df = iop.NewDataflow()
+
+	// defer folder deletion
+	df.Defer(func() { os.RemoveAll(folderPath) })
+
+	wg := sizedwaitgroup.New(2) // 2 concurent file streams at most?
+	process := func(index int, stagePath string) {
+		defer wg.Done()
+		filePath := g.F("%s/%d", folderPath, index)
+		err := conn.GetFile(stagePath, filePath)
+		if conn.Context().CaptureErr(err) {
+			return
+		}
+		// file is ready to be read
+		fDf, err := fs.ReadDataflow(filePath)
+		if conn.Context().CaptureErr(err) {
+			return
+		}
+
+		// push to dataflow
+		df.PushStreams(iop.MergeDataflow(fDf))
+	}
+
+	// this continues to read with 2 concurrent streams at most
+	go func() {
+		for i, rec := range data.Records() {
+			name := cast.ToString(rec["name"])
+			wg.Add()
+			go process(i, "@"+name)
+		}
+		wg.Wait()
+	}()
+
+	return
+}
+
 // CopyViaStage uses the Snowflake COPY INTO Table command
 // https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html
 func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (count uint64, err error) {
@@ -487,7 +595,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}()
 
 	// Import to staging
-	stageFolderPath := g.F("@%s/%s/%s", conn.GetProp("internalStage"), tableFName, g.NowFileStr())
+	stageFolderPath := g.F("@%s.%s/%s/%s", conn.GetProp("schema"), conn.GetProp("internalStage"), tableFName, g.NowFileStr())
 	conn.Exec("USE SCHEMA " + conn.GetProp("schema"))
 	_, err = conn.Exec("REMOVE " + stageFolderPath)
 	if err != nil {
@@ -531,6 +639,22 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 
 	return df.Count(), nil
+}
+
+// GetFile Copies from a staging location to a local file or folder
+func (conn *SnowflakeConn) GetFile(internalStagePath, fPath string) (err error) {
+	query := g.F(
+		"GET %s file://%s PARALLEL=20",
+		internalStagePath, fPath,
+	)
+
+	_, err = conn.Exec(query)
+	if err != nil {
+		err = g.Error(err, "could not GET file %s", internalStagePath)
+		return
+	}
+
+	return
 }
 
 // PutFile Copies a local file or folder into a staging location

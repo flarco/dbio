@@ -38,7 +38,7 @@ require (
 	github.com/shirou/gopsutil v2.20.8+incompatible
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/snowflakedb/gosnowflake v1.5.0
+	github.com/snowflakedb/gosnowflake v1.5.1
 	github.com/solcates/go-sql-bigquery v0.2.4
 	github.com/spf13/cast v1.3.1
 	github.com/stretchr/testify v1.7.0

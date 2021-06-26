@@ -57,6 +57,19 @@ core:
     )
     PURGE = TRUE
     ON_ERROR = ABORT_STATEMENT
+  copy_to_stage: |
+    COPY INTO '{stage_path}'
+    FROM ({sql})
+    FILE_FORMAT = (
+      TYPE = CSV
+      RECORD_DELIMITER = '\n'
+      EMPTY_FIELD_AS_NULL = TRUE
+      NULL_IF = ''
+      COMPRESSION = GZIP
+      ESCAPE_UNENCLOSED_FIELD = NONE
+      FIELD_OPTIONALLY_ENCLOSED_BY='0x22'
+    )
+    HEADER = TRUE
   copy_to_s3: |
     COPY INTO '{s3_path}'
     FROM ({sql})

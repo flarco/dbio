@@ -65,7 +65,7 @@ type testDB struct {
 }
 
 var DBs = map[string]*testDB{
-	"postgres": &testDB{
+	"postgres": {
 		name:        "postgres",
 		URL:         os.Getenv("POSTGRES_URL"),
 		schema:      "public",
@@ -78,7 +78,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 	},
 
-	"sqlite3": &testDB{
+	"sqlite3": {
 		name:   "sqlite3",
 		URL:    "file:./test.db",
 		schema: "main",
@@ -92,7 +92,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "CREATE VIEW place_vw as select * from place where telcode = 65",
 	},
 
-	"mysql": &testDB{
+	"mysql": {
 		name:          "mysql",
 		URL:           os.Getenv("MYSQL_URL"),
 		schema:        "mysql",
@@ -104,7 +104,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "CREATE ALGORITHM=UNDEFINED DEFINER=`admin`@`%` SQL SECURITY DEFINER VIEW `place_vw` AS select `place`.`country` AS `country`,`place`.`city` AS `city`,`place`.`telcode` AS `telcode` from `place` where (`place`.`telcode` = 65)",
 	},
 
-	"azuresql": &testDB{
+	"azuresql": {
 		name:        "azuresql",
 		URL:         os.Getenv("AZURESQL_URL"),
 		schema:      "dbo",
@@ -117,7 +117,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "create view place_vw as select * from place where telcode = 65",
 	},
 
-	"azuredwh": &testDB{
+	"azuredwh": {
 		name:        "azuredwh",
 		URL:         os.Getenv("AZUREDWH_URL"),
 		schema:      "dbo",
@@ -130,7 +130,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "CREATE VIEW [place_vw]\r\nAS select * from place where telcode = 65;",
 	},
 
-	"sqlserver": &testDB{
+	"sqlserver": {
 		name:        "sqlserver",
 		URL:         os.Getenv("MSSQL_URL"),
 		schema:      "dbo",
@@ -143,7 +143,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "create view place_vw as select * from place where telcode = 65",
 	},
 
-	"oracle": &testDB{
+	"oracle": {
 		name:        "oracle",
 		URL:         "ORACLE_URL",
 		schema:      "system",
@@ -156,7 +156,7 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "select \"COUNTRY\",\"CITY\",\"TELCODE\" from place where telcode = 65",
 	},
 
-	"redshift": &testDB{
+	"redshift": {
 		name:        "redshift",
 		URL:         os.Getenv("REDSHIFT_URL"),
 		schema:      "public",
@@ -172,7 +172,7 @@ var DBs = map[string]*testDB{
 		},
 	},
 
-	"bigquery": &testDB{
+	"bigquery": {
 		name:        "bigquery",
 		URL:         os.Getenv("BIGQUERY_URL"),
 		schema:      "public",
@@ -190,7 +190,7 @@ var DBs = map[string]*testDB{
 		},
 	},
 
-	"snowflake": &testDB{
+	"snowflake": {
 		name:        "snowflake",
 		URL:         os.Getenv("SNOWFLAKE_URL"),
 		schema:      "public",
@@ -801,7 +801,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "public",
 	}
 
-	// dbs = []*testDB{DBs["sqlserver"]}
+	dbs = []*testDB{DBs["snowflake"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
@@ -848,10 +848,10 @@ func TestLargeDataset(t *testing.T) {
 		defer ctx.Wg.Write.Done()
 		ctx.Wg.Write.Add()
 		doTest(DBs["snowflake"])
-		ctx.Wg.Write.Add()
-		doTest(DBs["snowflake_aws"])
-		ctx.Wg.Write.Add()
-		doTest(DBs["snowflake_azure"])
+		// ctx.Wg.Write.Add()
+		// doTest(DBs["snowflake_aws"])
+		// ctx.Wg.Write.Add()
+		// doTest(DBs["snowflake_azure"])
 	}
 
 	for _, db := range dbs {
@@ -1185,4 +1185,35 @@ func TestDecimal(t *testing.T) {
 	g.P(nVal)
 	err = conn.DropTable(`public.table1`)
 
+}
+
+func TestSnowflakeStage(t *testing.T) {
+	db := DBs["snowflake"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+
+	fileName := "test1.1.csv.gz"
+	_, err = conn.Exec(g.F("PUT file://test/test1.1.csv.gz @~"))
+	g.AssertNoError(t, err)
+
+	data, err := conn.Query("LIST @~")
+	g.AssertNoError(t, err)
+	g.P(data.Records())
+	names := data.ColValuesStr(0)
+	found := false
+	for _, name := range names {
+		if name == fileName {
+			found = true
+		}
+	}
+	assert.True(t, found)
+
+	// Not implemented yet: https://github.com/snowflakedb/gosnowflake/search?q=SNOW-206124
+	// _, err = conn.Exec(g.F("GET @~/%s file:///tmp/", fileName))
+	// g.AssertNoError(t, err)
+
+	// assert.True(t, g.PathExists("/tmp/test1.1.csv.gz"))
+
+	_, err = conn.Exec(g.F("REMOVE @~/%s", fileName))
+	g.AssertNoError(t, err)
 }
