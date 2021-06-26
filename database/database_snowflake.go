@@ -123,8 +123,7 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 			err = g.Error(err, "Could not copy to S3.")
 			return
 		}
-	// case "AWS":
-	default:
+	case "AWS":
 		filePath, err = conn.CopyToS3(sqls...)
 		if err != nil {
 			err = g.Error(err, "Could not copy to S3.")
@@ -135,6 +134,8 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 			return conn.UnloadViaStage(sqls...)
 		}
 		err = g.Error("could not get or create stage")
+	default:
+		return conn.BaseConn.BulkExportFlow(sqls...)
 	}
 
 	fs, err := filesys.NewFileSysClientFromURL(filePath, conn.PropArr()...)
