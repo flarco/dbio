@@ -80,7 +80,11 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 		g.AsMap(m["data"]),
 	)
 	if cast.ToString(m["type"]) == "" {
-		c, err = NewConnectionFromDbt(cast.ToString(m["name"]))
+		c2, err1 := NewConnectionFromDbt(cast.ToString(m["name"]))
+		if c2.Type != "" {
+			c = c2
+		}
+		err = err1
 	}
 	return
 }
