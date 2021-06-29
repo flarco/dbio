@@ -332,6 +332,7 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 					} else {
 						df.Columns = ds.Columns
 						df.Buffer = ds.Buffer
+						df.Inferred = ds.Inferred
 						df.Ready = true
 					}
 

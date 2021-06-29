@@ -450,7 +450,7 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 			}
 
 			conns[connName] = conn
-			g.Trace("found connection from dbt profiles YAMML: " + connName)
+			// g.Trace("found connection from dbt profiles YAML: " + connName)
 		}
 	}
 

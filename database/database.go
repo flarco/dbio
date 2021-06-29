@@ -116,6 +116,7 @@ type Connection interface {
 	Unquote(string) string
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
 	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
+	Base() *BaseConn
 }
 
 // BaseConn is a database connection
@@ -133,6 +134,7 @@ type BaseConn struct {
 	schemata    Schemata
 	properties  map[string]string
 	sshClient   *iop.SSHClient
+	Log         []string
 }
 
 // Table represents a schemata table
@@ -275,7 +277,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 
 	// Add / Extract provided Props
 	for _, propStr := range props {
-		g.Trace("setting connection prop -> " + propStr)
+		// g.Trace("setting connection prop -> " + propStr)
 		arr := strings.Split(propStr, "=")
 		if len(arr) == 1 && arr[0] != "" {
 			conn.SetProp(arr[0], "")
@@ -343,6 +345,11 @@ func getDialector(conn Connection) (driverDialector gorm.Dialector) {
 		g.LogError(g.Error("No Gorm Dialector found for %s", conn.GetType()))
 	}
 	return
+}
+
+// BaseURL returns the base Conn
+func (conn *BaseConn) Base() *BaseConn {
+	return conn
 }
 
 // BaseURL returns the base URL with default port
@@ -493,8 +500,8 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 	}
 
 	usePool = os.Getenv("DBIO_USE_POOL") == "TRUE"
-	g.Trace("conn.Type: %s", conn.Type)
-	g.Trace("conn.URL: " + conn.Self().GetURL())
+	// g.Trace("conn.Type: %s", conn.Type)
+	// g.Trace("conn.URL: " + conn.Self().GetURL())
 	if conn.Type == "" {
 		return g.Error("Invalid URL? conn.Type needs to be specified")
 	}
@@ -615,6 +622,14 @@ func (conn *BaseConn) Close() error {
 		conn.sshClient.Close()
 	}
 	return err
+}
+
+// AddLog logs a text for debugging
+func (conn *BaseConn) AddLog(text string) {
+	conn.Log = append(conn.Log, text)
+	if len(conn.Log) > 300 {
+		conn.Log = conn.Log[1:]
+	}
 }
 
 // GetGormConn returns the gorm db connection
@@ -801,6 +816,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	queryContext := g.NewContext(ctx)
 
+	conn.AddLog(sql)
 	var result *sqlx.Rows
 	if conn.tx != nil {
 		result, err = conn.tx.QueryContext(queryContext.Ctx, sql)
@@ -914,10 +930,11 @@ func (conn *BaseConn) Begin(options ...*sql.TxOptions) (err error) {
 
 // BeginContext starts a connection wide transaction
 func (conn *BaseConn) BeginContext(ctx context.Context, options ...*sql.TxOptions) (err error) {
-	if conn.db == nil {
+	if conn.Db() == nil {
 		return
 	}
 
+	g.Trace("begin")
 	tx, err := conn.NewTransaction(ctx, options...)
 	if err != nil {
 		return g.Error(err, "could not create transaction")
@@ -933,10 +950,11 @@ func (conn *BaseConn) Commit() (err error) {
 		return
 	}
 
+	conn.AddLog("COMMIT")
 	select {
 	case <-conn.tx.Context.Ctx.Done():
-		conn.Rollback()
 		err = conn.tx.Context.Err()
+		conn.Rollback()
 		return
 	default:
 		err = conn.tx.Commit()
@@ -952,6 +970,7 @@ func (conn *BaseConn) Commit() (err error) {
 // Rollback rolls back a connection wide transaction
 func (conn *BaseConn) Rollback() (err error) {
 	if conn.tx != nil {
+		conn.AddLog("ROLLBACK")
 		err = conn.tx.Rollback()
 		conn.tx = nil
 	}
@@ -1014,6 +1033,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 		return
 	}
 
+	conn.AddLog(q)
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
 	} else {
@@ -1035,6 +1055,7 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 
 	eG := g.ErrorGroup{}
 	for _, sql := range ParseSQLMultiStatements(q) {
+		conn.AddLog(sql)
 		res, err := conn.ExecContext(ctx, sql, args...)
 		if err != nil {
 			eG.Capture(g.Error(err, "Error executing query"))
@@ -1230,7 +1251,7 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 		col.Sourced = ok
 		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
 
-		g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
+		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
 
 		columns[i] = col
 
@@ -2090,7 +2111,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 // BulkImportFlow imports the streams rows in bulk concurrently using channels
 func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 
-	g.Trace("BulkImportFlow not implemented for %s", conn.GetType())
+	// g.Trace("BulkImportFlow not implemented for %s", conn.GetType())
 	df.Context.SetConcurencyLimit(conn.Context().Wg.Limit)
 
 	doImport := func(tableFName string, ds *iop.Datastream) {

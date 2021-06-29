@@ -151,6 +151,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		return count, g.Error(err, "could not close statement")
 	}
 
+	g.Trace("COPY %d ROWS", count)
 	return count, nil
 }
 

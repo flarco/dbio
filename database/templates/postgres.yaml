@@ -329,6 +329,7 @@ function:
   number_to_int: round({field}, 0)
   sleep: select pg_sleep({seconds})
   checksum_datetime: date_part('epoch', {field})
+  checksum_string: length({field}::text)
 
 variable:
   tmp_folder: /tmp

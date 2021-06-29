@@ -3,6 +3,7 @@ package iop
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -391,8 +392,65 @@ func (ds *Datastream) Start() (err error) {
 	return
 }
 
-// ConsumeReader uses the provided reader to stream rows
-func (ds *Datastream) ConsumeReader(reader io.Reader) (err error) {
+// ConsumeJsonReader uses the provided reader to stream JSON
+// This will put each JSON rec as one string value
+// so payload can be processed downstream
+func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
+	reader2, err := Decompress(reader)
+	if err != nil {
+		return g.Error(err, "Could not decompress reader")
+	}
+
+	ds.SetFields([]string{"data"})
+	ds.Columns[0].Type = "json"
+	ds.Inferred = true
+	decoder := json.NewDecoder(reader2)
+	nextFunc := func(it *Iterator) bool {
+
+		var rec interface{}
+		err = decoder.Decode(&rec)
+		if err == io.EOF {
+			return false
+		} else if err != nil {
+			it.Context.CaptureErr(g.Error(err, "could not decode JSON body"))
+			return false
+		}
+		row := []string{g.Marshal(rec)}
+		it.Row = make([]interface{}, len(it.ds.Columns))
+		var val interface{}
+		for i, val0 := range row {
+			if !it.ds.Columns[i].IsString() {
+				val0 = strings.TrimSpace(val0)
+				if val0 == "" {
+					val = nil
+				} else {
+					val = val0
+				}
+			} else {
+				val = val0
+			}
+			it.Row[i] = val
+		}
+
+		return true
+	}
+
+	ds.it = &Iterator{
+		Row:      make([]interface{}, len(ds.Columns)),
+		nextFunc: nextFunc,
+		Context:  g.NewContext(ds.Context.Ctx),
+		ds:       ds,
+	}
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+	return
+}
+
+// ConsumeCsvReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	c := CSV{Reader: reader, NoHeader: !ds.config.header}
 
 	r, err := c.getReader()

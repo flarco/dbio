@@ -320,6 +320,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 		return eDs, nil
 	}
 
+	// CSV files
 	go func() {
 		// manage concurrency
 		defer fs.Context().Wg.Read.Done()
@@ -337,7 +338,6 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 		for {
 			// Try peeking
 			if b := bufio.NewReader(reader).Size(); b > 0 {
-				// g.P(b)
 				break
 			}
 
@@ -348,7 +348,11 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		err = ds.ConsumeReader(reader)
+		if strings.Contains(urlStr, ".json") {
+			err = ds.ConsumeJsonReader(reader)
+		} else {
+			err = ds.ConsumeCsvReader(reader)
+		}
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error consuming reader"))
 			ds.Context.Cancel()

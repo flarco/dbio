@@ -102,7 +102,11 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 		reader := bufio.NewReader(file)
 
-		err = ds.ConsumeReader(reader)
+		if strings.Contains(path, ".json") {
+			err = ds.ConsumeJsonReader(reader)
+		} else {
+			err = ds.ConsumeCsvReader(reader)
+		}
 		if err != nil {
 			fs.Context().CaptureErr(g.Error(err, "Error consuming reader"))
 			fs.Context().Cancel()

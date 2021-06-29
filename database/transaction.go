@@ -40,6 +40,7 @@ func (t *Transaction) Commit() (err error) {
 		err = t.Context.Err()
 		return
 	default:
+		g.Trace("commiting")
 		err = t.Tx.Commit()
 		if err != nil {
 			err = g.Error(err, "could not commit Tx\n%s", strings.Join(t.log, "\n -----------------------\n"))
@@ -53,6 +54,7 @@ func (t *Transaction) Rollback() (err error) {
 	if t == nil || t.Tx == nil {
 		return
 	}
+	g.Trace("rolling back")
 	err = t.Tx.Rollback()
 	if err != nil {
 		err = g.Error(err, "could not rollback Tx")
@@ -64,7 +66,7 @@ func (t *Transaction) Rollback() (err error) {
 func (t *Transaction) Prepare(query string) (stmt *sql.Stmt, err error) {
 	stmt, err = t.Tx.PrepareContext(t.Context.Ctx, query)
 	if err != nil {
-		err = g.Error(err, "could not prepare Tx")
+		err = g.Error(err, "could not prepare Tx: %s", query)
 	}
 	return
 }
@@ -279,7 +281,7 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 		var err error
 		defer context.Wg.Write.Done()
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
-
+		conn.Base().AddLog(insertTemplate)
 		// open statement
 		var stmt *sql.Stmt
 		if tx != nil {
@@ -355,8 +357,8 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 	}
 
 	// remaining batch
-	g.Trace("remaining batch")
 	if len(batchRows) > 0 {
+		g.Trace("remaining batchSize %d", len(batchRows))
 		context.Wg.Write.Add()
 		err = insertBatch(batchRows)
 		if err != nil {

@@ -166,7 +166,7 @@ func TestSreamOptions(t *testing.T) {
 		ds := NewDatastream(nil)
 		ds.SetConfig(configMap)
 		// g.P(ds.Sp.config)
-		err = ds.ConsumeReader(bufio.NewReader(file))
+		err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		assert.NoError(t, err)
 
 		data, err := ds.Collect(0)
