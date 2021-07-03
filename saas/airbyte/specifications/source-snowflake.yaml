@@ -1,0 +1,52 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/snowflake
+changelogUrl: ""
+connectionSpecification:
+    title: Snowflake Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - role
+      - warehouse
+      - database
+      - schema
+      - username
+      - password
+    properties:
+        database:
+            description: The database you created for Airbyte to access data into.
+            type: string
+            examples:
+              - AIRBYTE_DATABASE
+        host:
+            description: Host domain of the snowflake instance (must include the account,
+                region, cloud environment, and end with snowflakecomputing.com).
+            type: string
+            examples:
+              - accountname.us-east-2.aws.snowflakecomputing.com
+        password:
+            description: Password associated with the username.
+            airbyte_secret: true
+            type: string
+        role:
+            description: The role you created for Airbyte to access Snowflake.
+            type: string
+            examples:
+              - AIRBYTE_ROLE
+        schema:
+            description: The source Snowflake schema tables.
+            type: string
+            examples:
+              - AIRBYTE_SCHEMA
+        username:
+            description: The username you created to allow Airbyte to access the database.
+            type: string
+            examples:
+              - AIRBYTE_USER
+        warehouse:
+            description: The warehouse you created for Airbyte to access data into.
+            type: string
+            examples:
+              - AIRBYTE_WAREHOUSE
+supportsIncremental: false
+supported_destination_sync_modes: []

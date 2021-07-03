@@ -1,0 +1,15 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Asana Spec
+    type: object
+    additionalProperties: false
+    required:
+      - access_token
+    properties:
+        access_token:
+            description: Asana Personal Access Token (generate yours <a href="https://app.asana.com/0/developer-console">here</a>).
+            airbyte_secret: true
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

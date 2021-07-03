@@ -1,0 +1,26 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/shopify
+changelogUrl: ""
+connectionSpecification:
+    title: Shopify Source CDK Specifications
+    type: object
+    additionalProperties: false
+    required:
+      - shop
+      - start_date
+      - api_password
+    properties:
+        api_password:
+            description: The API PASSWORD for a private application in Shopify shop.
+            airbyte_secret: true
+            type: string
+        shop:
+            description: The name of the shopify store. For https://EXAMPLE.myshopify.com,
+                the shop name is 'EXAMPLE'.
+            type: string
+        start_date:
+            description: 'The date you would like to replicate data. Format: YYYY-MM-DD.'
+            type: string
+            examples:
+              - "2021-01-01"
+supportsIncremental: false
+supported_destination_sync_modes: []

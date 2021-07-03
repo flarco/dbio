@@ -1,0 +1,21 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/okta
+changelogUrl: ""
+connectionSpecification:
+    title: Okta Spec
+    type: object
+    additionalProperties: false
+    required:
+      - token
+      - base_url
+    properties:
+        base_url:
+            description: The Okta base URL.
+            airbyte_secret: true
+            type: string
+        token:
+            description: A Okta token. See the <a href="https://docs.airbyte.io/integrations/sources/okta">docs</a>
+                for instructions on how to generate it.
+            airbyte_secret: true
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -1,0 +1,51 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Source Quickbooks Singer Spec
+    type: object
+    additionalProperties: false
+    required:
+      - client_id
+      - client_secret
+      - refresh_token
+      - realm_id
+      - user_agent
+      - start_date
+      - sandbox
+    properties:
+        client_id:
+            description: 'Identifies which app is making the request. Obtain this
+                value from the Keys tab on the app profile via My Apps on the developer
+                site. There are two versions of this key: development and production'
+            type: string
+        client_secret:
+            description: ' Obtain this value from the Keys tab on the app profile
+                via My Apps on the developer site. There are two versions of this
+                key: development and production'
+            airbyte_secret: true
+            type: string
+        realm_id:
+            description: Labeled Company ID. The Make API Calls panel is populated
+                with the realm id and the current access token
+            airbyte_secret: true
+            type: string
+        refresh_token:
+            description: A token used when refreshing the access token.
+            airbyte_secret: true
+            type: string
+        sandbox:
+            description: Development or Production.
+            type: boolean
+            default: false
+        start_date:
+            description: The default value to use if no bookmark exists for an endpoint
+                (rfc3339 date string) E.g, 2021-03-20T00:00:00Z
+            type: string
+            examples:
+              - "2021-03-20T00:00:00Z"
+        user_agent:
+            description: 'Process and email for API logging purposes. Example: tap-quickbooks
+                <api_user_email@your_company.com>'
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []
