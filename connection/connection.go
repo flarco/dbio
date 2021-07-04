@@ -456,3 +456,52 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 
 	return
 }
+
+// ReadConnections loads the connections
+func ReadConnections(path string) (conns map[string]Connection, err error) {
+	conns = map[string]Connection{}
+
+	profile := map[string]map[string]interface{}{}
+	file, err := os.Open(path)
+	if err != nil {
+		err = g.Error(err, "error reading from yaml")
+		return
+	}
+
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		err = g.Error(err, "error reading bytes from yaml")
+		return
+	}
+
+	err = yaml.Unmarshal(bytes, profile)
+	if err != nil {
+		err = g.Error(err, "error parsing yaml string")
+		return
+	}
+
+	if connections, ok := profile["connections"]; ok {
+		for name, v := range connections {
+			switch v.(type) {
+			case map[string]interface{}, map[interface{}]interface{}:
+				data := cast.ToStringMap(v)
+				if n := cast.ToString(data["name"]); n != "" {
+					data["name"] = name
+				}
+
+				conn, err := NewConnectionFromMap(g.M("name", name, "data", data, "type", data["type"]))
+				if err != nil {
+					g.Warn("could not load connection %s", name)
+					g.LogError(err)
+					continue
+				}
+
+				conns[name] = conn
+				g.Trace("found connection from YAML: " + name)
+			default:
+				g.Warn("did not handle %s", name)
+			}
+		}
+	}
+	return
+}
