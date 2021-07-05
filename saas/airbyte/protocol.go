@@ -134,8 +134,8 @@ var typeMap = map[string]string{
 	"integer": "integer",
 	"number":  "decimal",
 	"boolean": "bool",
-	"object":  "object",
-	"array":   "json",
+	// "object":  "json",
+	// "array":   "json",
 }
 
 // Columns returns the properties as columns

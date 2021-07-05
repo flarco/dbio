@@ -74,18 +74,30 @@ func NewConnectionFromURL(Name, URL string) (conn Connection, err error) {
 
 // NewConnectionFromMap loads a Connection from a Map
 func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
+	name := cast.ToString(m["name"])
+	Type := cast.ToString(m["type"])
+
 	c, err = NewConnection(
-		cast.ToString(m["name"]),
-		dbio.Type(cast.ToString(m["type"])),
+		name,
+		dbio.Type(Type),
 		g.AsMap(m["data"]),
 	)
-	if cast.ToString(m["type"]) == "" {
-		c2, err1 := NewConnectionFromDbt(cast.ToString(m["name"]))
+
+	if Type == "" {
+		c2, err1 := NewConnectionFromDbt(name)
 		if c2.Type != "" {
 			c = c2
+			return
+		}
+
+		c2, err1 = NewConnectionFromProfiles(name)
+		if c2.Type != "" {
+			c = c2
+			return
 		}
 		err = err1
 	}
+
 	return
 }
 
@@ -98,6 +110,30 @@ func NewConnectionFromDbt(name string) (c Connection, err error) {
 	}
 
 	if conn, ok := conns[name]; ok {
+		return conn, nil
+	}
+	return
+}
+
+// NewConnectionFromProfiles loads a Connection from YAML Profiles
+func NewConnectionFromProfiles(name string) (c Connection, err error) {
+	profileConns := map[string]Connection{}
+	for _, path := range strings.Split(os.Getenv("DBIO_PROFILE_PATHS"), ",") {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		conns, err := ReadConnections(path)
+		if err != nil {
+			err = g.Error(err)
+			return c, err
+		}
+
+		for k, v := range conns {
+			profileConns[k] = v
+		}
+	}
+
+	if conn, ok := profileConns[name]; ok {
 		return conn, nil
 	}
 	return
@@ -382,7 +418,7 @@ func GetTypeNameLong(c Connection) string {
 	for k, spec := range AirbyteSpecs {
 		t := dbio.Type(k)
 		if _, ok := mapping[t]; !ok {
-			mapping[t] = "Airbyte - " + spec.Title
+			mapping[t] = "API - " + spec.Title
 		}
 	}
 	return mapping[c.Info().Type]
@@ -482,6 +518,10 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 // ReadConnections loads the connections
 func ReadConnections(path string) (conns map[string]Connection, err error) {
 	conns = map[string]Connection{}
+
+	if !g.PathExists(path) {
+		return
+	}
 
 	profile := map[string]map[string]interface{}{}
 	file, err := os.Open(path)
