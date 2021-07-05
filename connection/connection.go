@@ -12,6 +12,7 @@ import (
 
 	"github.com/flarco/dbio/database"
 	"github.com/flarco/dbio/filesys"
+	"github.com/flarco/dbio/saas/airbyte"
 	"github.com/flarco/g"
 	"github.com/flarco/g/net"
 	"github.com/spf13/cast"
@@ -51,7 +52,6 @@ type Connection struct {
 // NewConnection creates a new connection
 func NewConnection(Name string, t dbio.Type, Data map[string]interface{}) (conn Connection, err error) {
 	c := g.NewContext(context.Background())
-
 	conn = Connection{
 		Name:    strings.TrimLeft(Name, "$"),
 		Type:    t,
@@ -163,6 +163,10 @@ func (c *Connection) AsFile() (filesys.FileSysClient, error) {
 	return filesys.NewFileSysClientFromURLContext(
 		c.Context().Ctx, c.URL(), g.MapToKVArr(c.DataS())...,
 	)
+}
+
+func (c *Connection) AsAirbyte() (*airbyte.Airbyte, error) {
+	return airbyte.NewAirbyteConnection(c.Type.String(), c.Data)
 }
 
 func (c *Connection) setFromEnv() {
@@ -294,7 +298,9 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeFileLocal:
 		return nil
 	default:
-		g.Trace("no type detected")
+		if c.Type.IsUnknown() {
+			g.Trace("no type detected")
+		}
 		return nil
 	}
 
@@ -369,7 +375,15 @@ func GetTypeNameLong(c Connection) string {
 		dbio.TypeDbSQLServer: "DB - SQLServer",
 		dbio.TypeDbAzure:     "DB - Azure",
 		dbio.TypeAPIGit:      "API - Git",
-		dbio.TypeAPIGithub:   "API - Github",
+		// dbio.TypeAPIGithub:   "API - Github",
+	}
+
+	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
+	for k, spec := range AirbyteSpecs {
+		t := dbio.Type(k)
+		if _, ok := mapping[t]; !ok {
+			mapping[t] = "Airbyte - " + spec.Title
+		}
 	}
 	return mapping[c.Info().Type]
 }
@@ -394,7 +408,15 @@ func GetTypeName(c Connection) string {
 		dbio.TypeDbSQLServer: "SQLServer",
 		dbio.TypeDbAzure:     "Azure",
 		dbio.TypeAPIGit:      "Git",
-		dbio.TypeAPIGithub:   "Github",
+		// dbio.TypeAPIGithub:   "Github",
+	}
+
+	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
+	for k, spec := range AirbyteSpecs {
+		t := dbio.Type(k)
+		if _, ok := mapping[t]; !ok {
+			mapping[t] = spec.Title
+		}
 	}
 	return mapping[c.Info().Type]
 }

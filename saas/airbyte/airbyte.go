@@ -1,4 +1,4 @@
-package saas
+package airbyte
 
 import (
 	"context"
@@ -6,22 +6,21 @@ import (
 	"time"
 
 	"github.com/flarco/dbio/iop"
-	"github.com/flarco/dbio/saas/airbyte"
 	"github.com/flarco/g"
 )
 
 // Airbyte is for connections for Airbyte
 type Airbyte struct {
 	Context    *g.Context
-	Connector  *airbyte.Connector
-	Catalog    airbyte.AirbyteCatalog
+	Connector  *Connector
+	Catalog    AirbyteCatalog
 	properties map[string]string
 	config     map[string]interface{}
 }
 
 // NewAirbyteConnection creates a new airbyte connection object
 func NewAirbyteConnection(name string, config map[string]interface{}) (a *Airbyte, err error) {
-	connectors, err := airbyte.GetSourceConnectors()
+	connectors, err := GetSourceConnectors(false)
 	if err != nil {
 		err = g.Error(err, "could not get connectors")
 		return
@@ -47,8 +46,13 @@ func (a *Airbyte) Init() (err error) {
 	if err != nil {
 		err = g.Error(err, "could not check credentials")
 		return
-	} else if status.Status == airbyte.StatusFailed {
+	} else if status.Status == StatusFailed {
 		err = g.Error("failed credentials check: %s", status.Message)
+	}
+	_, err = a.ListObjects()
+	if err != nil {
+		err = g.Error(err, "could not discover streams")
+		return
 	}
 	return
 }
@@ -110,17 +114,17 @@ func (a *Airbyte) Stream(name string, startDate time.Time) (ds *iop.Datastream, 
 		err = g.Error("no stream returned for " + name)
 		return
 	}
-	syncMode := airbyte.SyncModeIncremental
+	syncMode := SyncModeIncremental
 	if len(stream.SupportedSyncModes) > 0 {
 		syncMode = stream.SupportedSyncModes[0]
 	}
 
-	catalog := airbyte.ConfiguredAirbyteCatalog{
-		Streams: []airbyte.ConfiguredAirbyteStream{
+	catalog := ConfiguredAirbyteCatalog{
+		Streams: []ConfiguredAirbyteStream{
 			{
 				Stream:              stream,
 				SyncMode:            syncMode,
-				DestinationSyncMode: airbyte.DestinationSyncModeOverwrite,
+				DestinationSyncMode: DestinationSyncModeOverwrite,
 			},
 		},
 	}

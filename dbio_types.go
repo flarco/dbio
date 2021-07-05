@@ -1,5 +1,9 @@
 package dbio
 
+import (
+	"github.com/flarco/dbio/saas/airbyte"
+)
+
 // Kind is the connection kind
 type Kind string
 
@@ -10,6 +14,8 @@ const (
 	KindFile Kind = "file"
 	// KindAPI for APIs
 	KindAPI Kind = "api"
+	// KindAPI for Airbyte
+	KindAirbyte Kind = "airbyte"
 	// KindUnknown for unknown
 	KindUnknown Kind = ""
 )
@@ -39,9 +45,16 @@ const (
 	TypeDbAzure     Type = "azuresql"
 	TypeDbAzureDWH  Type = "azuredwh"
 
-	TypeAPIGit    Type = "git"
-	TypeAPIGithub Type = "github"
+	TypeAPIGit Type = "git"
+	// TypeAPIGithub Type = "github"
 )
+
+var AirbyteSpecs map[string]airbyte.ConnectionSpecification
+
+func init() {
+	AirbyteSpecs, _ = airbyte.GetAirbyteSpecs()
+	// g.PP(AirbyteSpecs)
+}
 
 // ValidateType returns true is type is valid
 func ValidateType(tStr string) (Type, bool) {
@@ -61,6 +74,10 @@ func ValidateType(tStr string) (Type, bool) {
 		TypeFileLocal, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp,
 
 		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH:
+		return t, true
+	}
+
+	if _, ok := AirbyteSpecs[t.String()]; ok {
 		return t, true
 	}
 
@@ -93,8 +110,11 @@ func (t Type) Kind() Kind {
 		return KindDatabase
 	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
 		return KindFile
-	case TypeAPIGit, TypeAPIGithub:
+	case TypeAPIGit:
 		return KindAPI
+	}
+	if _, ok := AirbyteSpecs[t.String()]; ok {
+		return KindAirbyte
 	}
 	return KindUnknown
 }
@@ -112,4 +132,14 @@ func (t Type) IsFile() bool {
 // IsAPI returns true if API connection
 func (t Type) IsAPI() bool {
 	return t.Kind() == KindAPI
+}
+
+// IsAirbyte returns true if Airbyte connection
+func (t Type) IsAirbyte() bool {
+	return t.Kind() == KindAirbyte
+}
+
+// IsUnknown returns true if unknown
+func (t Type) IsUnknown() bool {
+	return t.Kind() == KindUnknown
 }

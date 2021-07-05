@@ -27,14 +27,16 @@ func NewAirbyteMessage() (am *AirbyteMessage) {
 }
 
 // GetSourceConnectors polls and retrieves the latest connectors sources
-func GetSourceConnectors() (connectors Connectors, err error) {
+func GetSourceConnectors(fetch bool) (connectors Connectors, err error) {
 
 	sourceDefinitionsBytes, _ := AirbyteFolder.ReadFile("sources.yaml")
-	_, respBytes, err := net.ClientDo("GET", SourceDefinitionsURL, nil, nil, 5)
-	if err != nil {
-		g.Warn("Using local cache since we are unable to Reach URL: " + SourceDefinitionsURL)
-	} else {
-		sourceDefinitionsBytes = respBytes
+	if fetch {
+		_, respBytes, err := net.ClientDo("GET", SourceDefinitionsURL, nil, nil, 5)
+		if err != nil {
+			g.Warn("Using local cache since we are unable to Reach URL: " + SourceDefinitionsURL)
+		} else {
+			sourceDefinitionsBytes = respBytes
+		}
 	}
 
 	cds := []ConnectorDefinition{}

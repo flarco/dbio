@@ -21,7 +21,7 @@ func main() {
 // and write to the specification folder
 func syncDefinitions() {
 	//
-	connectors, err := airbyte.GetSourceConnectors()
+	connectors, err := airbyte.GetSourceConnectors(true)
 	g.LogFatal(err)
 
 	// run spec on all of them to get the cred properties

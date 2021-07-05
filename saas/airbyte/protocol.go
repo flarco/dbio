@@ -132,8 +132,10 @@ type StreamJsonSchema struct {
 var typeMap = map[string]string{
 	"string":  "string",
 	"integer": "integer",
+	"number":  "decimal",
 	"boolean": "bool",
 	"object":  "object",
+	"array":   "json",
 }
 
 // Columns returns the properties as columns
@@ -142,7 +144,7 @@ func (sjs StreamJsonSchema) Columns() (cols iop.Columns) {
 	i := 0
 	for k, val := range sjs.Properties {
 		ct := ""
-		g.P(val)
+		// g.P(val)
 		valM, ok := val.(map[string]interface{})
 		if ok {
 			switch t := valM["type"].(type) {
@@ -217,6 +219,7 @@ type ConnectorSpecification struct {
 }
 
 type ConnectionSpecification struct {
+	Name                 string               `json:"name,omitempty" yaml:"name,omitempty"`
 	Title                string               `json:"title" yaml:"title"`
 	Type                 string               `json:"type" yaml:"type"`
 	AdditionalProperties bool                 `json:"additionalProperties" yaml:"additionalProperties"`
@@ -274,4 +277,24 @@ type ConnectorDefinition struct {
 // Image returns the docker image
 func (cd ConnectorDefinition) Image() string {
 	return cd.DockerRepository + ":" + cd.DockerImageTag
+}
+
+// GetAirbyteSpecs returns the key to specs map
+func GetAirbyteSpecs() (abs map[string]ConnectionSpecification, err error) {
+	abs = map[string]ConnectionSpecification{}
+	connectors, err := GetSourceConnectors(false)
+	if err != nil {
+		err = g.Error(err, "could not get airbyte source connectors")
+		return
+	}
+
+	for _, c := range connectors {
+		key := strings.ReplaceAll(
+			c.Definition.DockerRepository, "airbyte/source-", "",
+		)
+		key = strings.ReplaceAll(key, "-singer", "")
+		c.Specification.ConnectionSpecification.Title = c.Definition.Name
+		abs[key] = c.Specification.ConnectionSpecification
+	}
+	return
 }

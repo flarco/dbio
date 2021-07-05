@@ -4,7 +4,9 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/flarco/dbio/saas/airbyte"
 	"github.com/flarco/g"
 	"github.com/jmespath/go-jmespath"
 	jsoniter "github.com/json-iterator/go"
@@ -287,5 +289,27 @@ func TestSurveyMonkey(t *testing.T) {
 		for i, val := range data.Rows[0] {
 			println(g.F("%d - %s - %s", i+1, fields[i], cast.ToString(val)))
 		}
+	}
+}
+
+func TestAirbyte(t *testing.T) {
+	config := g.M(
+		"access_token", os.Getenv("ACCESS_TOKEN"),
+		"repository", "flarco/dbio",
+	)
+	conn, err := airbyte.NewAirbyteConnection("github", config)
+	g.AssertNoError(t, err)
+
+	err = conn.Init()
+	g.AssertNoError(t, err)
+
+	ds, err := conn.Stream("commits", time.Time{})
+	if g.AssertNoError(t, err) {
+		data, err := ds.Collect(0)
+		g.AssertNoError(t, err)
+		assert.Greater(t, len(data.Columns), 0)
+		assert.Greater(t, len(data.Rows), 0)
+		g.P(data.Columns.Names())
+		g.P(len(data.Rows))
 	}
 }

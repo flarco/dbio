@@ -9,7 +9,7 @@ import (
 )
 
 func TestAirbyte(t *testing.T) {
-	connectors, err := GetSourceConnectors()
+	connectors, err := GetSourceConnectors(false)
 	g.AssertNoError(t, err)
 	assert.Greater(t, len(connectors), 0)
 	// g.P(connectors.Names())
