@@ -208,11 +208,32 @@ var DBs = map[string]*testDB{
 		// 	"AWS_BUCKET=" + os.Getenv("AWS_BUCKET"),
 		// },
 	},
+
+	"clickhouse": {
+		name:        "clickhouse",
+		URL:         os.Getenv("CLICKHOUSE_URL"),
+		schema:      "default",
+		transactDDL: `CREATE TABLE default.transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) ) engine=Memory`,
+		personDDL:   `CREATE TABLE default.person (first_name varchar(255), last_name varchar(255), email varchar(255)) engine=Memory`,
+		placeDDL:    "CREATE TABLE default.place\n(\n    country varchar,\n    city varchar null,\n    telcode bigint\n) engine=Memory",
+		placeIndex: `CREATE INDEX idx_country_city
+		ON place(country, city)`,
+		placeVwDDL:    `create or replace view default.place_vw as select * from place where telcode = 65`,
+		placeVwSelect: "create or replace view PLACE_VW as select * from place where telcode = 65;",
+	},
 }
 
 func TestPostgres(t *testing.T) {
 	t.Parallel()
 	db := DBs["postgres"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+	DBTest(t, db, conn)
+}
+
+func TestClickhouse(t *testing.T) {
+	t.Parallel()
+	db := DBs["clickhouse"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
@@ -318,7 +339,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	conn.MustExec(db.personDDL)
 	conn.MustExec(db.placeDDL)
 	conn.MustExec(db.placeVwDDL)
-	if !strings.Contains("redshift,bigquery,snowflake", db.name) {
+	if !strings.Contains("redshift,bigquery,snowflake,clickhouse", db.name) {
 		conn.MustExec(db.placeIndex)
 	}
 
@@ -416,7 +437,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, columns[0].DbType)
 
 	// GetPrimaryKeys
-	if !strings.Contains("redshift,bigquery,snowflake", db.name) {
+	if !strings.Contains("redshift,bigquery,snowflake,clickhouse", db.name) {
 		data, err = conn.GetPrimaryKeys(db.schema + ".person")
 		g.AssertNoError(t, err)
 		assert.Len(t, data.Rows, 1)
@@ -424,7 +445,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	// GetIndexes
-	if !strings.Contains("redshift,bigquery,azuredwh,snowflake,sqlite3", db.name) {
+	if !strings.Contains("redshift,bigquery,azuredwh,snowflake,sqlite3,clickhouse", db.name) {
 		data, err = conn.GetIndexes(db.schema + ".place")
 		g.AssertNoError(t, err)
 		assert.Len(t, data.Rows, 2)

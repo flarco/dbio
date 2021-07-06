@@ -20,6 +20,7 @@ import (
 	"github.com/flarco/dbio/env"
 	"github.com/flarco/g"
 
+	_ "github.com/ClickHouse/clickhouse-go"
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/flarco/dbio/iop"
 	_ "github.com/go-sql-driver/mysql"
@@ -266,6 +267,8 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		// concurrency = 2
 	} else if strings.HasPrefix(URL, "bigquery:") {
 		conn = &BigQueryConn{URL: URL}
+	} else if strings.HasPrefix(URL, "clickhouse:") {
+		conn = &ClickhouseConn{URL: URL}
 	} else if strings.HasPrefix(URL, "snowflake") {
 		conn = &SnowflakeConn{URL: URL}
 	} else if strings.HasPrefix(URL, "file:") {
@@ -579,6 +582,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		// 15 sec timeout
 		pingCtx, cancel := context.WithTimeout(conn.Context().Ctx, time.Duration(to)*time.Second)
 		_ = cancel // lint complaint
+		_ = pingCtx
 
 		err = conn.db.PingContext(pingCtx)
 		if err != nil {

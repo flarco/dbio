@@ -21,144 +21,97 @@ core:
     where {pk_fields_equal2}
   sample: SELECT {fields} FROM {table} TABLESAMPLE SYSTEM (50) limit {n}
   rename_table: ALTER TABLE {table} RENAME TO {new_table}
-  bulk_insert: |
-    BULK INSERT {table}
-    FROM '/dev/stdin'
-    WITH (
-      BATCHSIZE = 5000,
-      ERRORFILE = '/dev/stderr',
-      MAXERRORS = 0,
-      FORMAT = 'CSV',
-      FIELDTERMINATOR = ','
-    )
-  column_names: '{sql}'
 
 
 metadata:
     
   schemas: |
-    select schema_name
-    from information_schema.schemata
-    order by schema_name
+    select name as schema_name
+    from system.databases
+    order by name
     
   tables: |
-    select table_name
-    from information_schema.tables
-    where table_type = 'BASE TABLE'
-      and table_schema = '{schema}'
-    order by table_name
+    select name as table_name
+    from system.tables
+    where engine not in ('View')
+      and database = '{schema}'
+    order by name
     
   views: |
-    select table_name
-    from information_schema.tables
-    where table_type = 'VIEW'
-      and table_schema = '{schema}'
-    order by table_name
+    select name as table_name
+    from system.tables
+    where engine = 'VIEW'
+      and database = '{schema}'
+    order by name
 
   columns: |
-    select column_name, data_type
-    from information_schema.columns
-    where table_schema = '{schema}'
-      and table_name = '{table}'
-    order by ordinal_position
+    select name as column_name, type as data_type
+    from system.columns
+    where database = '{schema}'
+      and table = '{table}'
+    order by position
 
   primary_keys: |
-    select tco.constraint_name as pk_name,
-           kcu.ordinal_position as position,
-           kcu.column_name as column_name
-    from information_schema.table_constraints tco
-    join information_schema.key_column_usage kcu 
-         on kcu.constraint_name = tco.constraint_name
-         and kcu.constraint_schema = tco.constraint_schema
-         and kcu.constraint_name = tco.constraint_name
-    where kcu.table_schema = '{schema}'
-      and kcu.table_name = '{table}'
-    order by kcu.table_schema,
-             kcu.table_name,
-             position
+    select 1
 
   indexes: |
-    SELECT
-      ind.name as index_name,
-      col.name as column_name
-    FROM sys.indexes ind
-    INNER JOIN sys.index_columns ic ON ind.object_id = ic.object_id
-      and ind.index_id = ic.index_id
-    INNER JOIN sys.columns col ON ic.object_id = col.object_id
-      and ic.column_id = col.column_id
-    INNER JOIN sys.tables t ON ind.object_id = t.object_id
-    WHERE schema_name(t.schema_id) = '{schema}' and t.name = '{table}'
-      AND ind.is_primary_key = 0
-      AND ind.is_unique = 0
-      AND ind.is_unique_constraint = 0
-      AND t.is_ms_shipped = 0
-    ORDER BY
-      ind.name,
-      ind.index_id,
-      ic.index_column_id
+    SELECT 1
   
   columns_full: |
     with tables as (
       select
-        table_catalog,
-        table_schema,
-        table_name,
-        case table_type
-          when 'VIEW' then 'true'
+        database as table_schema,
+        name as table_name,
+        case type
+          when 'View' then 'true'
           else 'false'
         end as is_view
-      from information_schema.tables
-      where table_schema = '{schema}' and table_name = '{table}'
+      from system.tables
+      where database = '{schema}' and name = '{table}'
     )
     select
-      cols.table_schema as schema_name,
-      cols.table_name as table_name,
-      cols.column_name as column_name,
-      cols.data_type as data_type,
-      cols.ordinal_position as position
-    from information_schema.columns cols
+      cols.database as schema_name,
+      cols.table as table_name,
+      cols.name as column_name,
+      cols.type as data_type,
+      cols.position as position
+    from system.columns cols
     join tables
-      on tables.table_catalog = cols.table_catalog
-      and tables.table_schema = cols.table_schema
-      and tables.table_name = cols.table_name
-    order by cols.table_catalog, cols.table_schema, cols.table_name, cols.ordinal_position
+      and tables.database = cols.database
+      and tables.table = cols.table_name
+    order by cols.database, cols.table, cols.position
 
   schemata: |
     with tables as (
       select
-        table_catalog,
-        table_schema,
-        table_name,
-        case table_type
-          when 'VIEW' then 'true'
+        database as table_schema,
+        name as table_name,
+        case type
+          when 'View' then 'true'
           else 'false'
         end as is_view
-      from information_schema.tables
+      from system.tables
       where 1=1
-        {{if .schema -}} and table_schema = '{schema}' {{- end}}
-        {{if .table -}} and table_name = '{table}' {{- end}}
+        {{if .schema -}} and database = '{schema}' {{- end}}
+        {{if .table -}} and name = '{table}' {{- end}}
     )
     select
-      cols.table_schema as schema_name,
-      cols.table_name as table_name,
-      tables.is_view as is_view,
-      cols.column_name as column_name,
-      cols.data_type as data_type,
-      cols.ordinal_position as position
-    from information_schema.columns cols
+      cols.database as schema_name,
+      cols.table as table_name,
+      cols.name as column_name,
+      cols.type as data_type,
+      cols.position as position
+    from system.columns cols
     join tables
-      on tables.table_catalog = cols.table_catalog
-      and tables.table_schema = cols.table_schema
-      and tables.table_name = cols.table_name
-    order by cols.table_catalog, cols.table_schema, cols.table_name, cols.ordinal_position
+      and tables.database = cols.database
+      and tables.table = cols.table_name
+    order by cols.database, cols.table, cols.position
   
   ddl_table:
-    exec sp_describe_first_result_set @tsql= N'Select * from {schema}.{table}'
+    SHOW CREATE {schema}.{table}
   
   ddl_view: |
-    select definition as ddl
-    from sys.sql_modules  
-    where object_id = object_id('{schema}.{table}')
+    SHOW CREATE {schema}.{table}
   
   sessions:
     select *
@@ -305,7 +258,7 @@ function:
 
 
 variable:
-  bind_string: "@p{c}"
+  # bind_string: "@p{c}"
   batch_rows: 200
   batch_values: 2000
   error_filter_table_exists: already

@@ -44,6 +44,7 @@ const (
 	TypeDbSQLServer Type = "sqlserver"
 	TypeDbAzure     Type = "azuresql"
 	TypeDbAzureDWH  Type = "azuredwh"
+	TypeClickhouse  Type = "clickhouse"
 
 	TypeAPIGit Type = "git"
 	// TypeAPIGithub Type = "github"

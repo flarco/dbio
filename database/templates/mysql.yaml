@@ -99,7 +99,9 @@ metadata:
           else false
         end as is_view
       from information_schema.tables
-      where table_schema = '{schema}'
+      where 1=1
+        {{if .schema -}} and table_schema = '{schema}' {{- end}}
+        {{if .table -}} and table_name = '{table}' {{- end}}
     )
     select
       cols.table_schema as schema_name,

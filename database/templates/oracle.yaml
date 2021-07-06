@@ -155,7 +155,9 @@ metadata:
     left join sys.all_views views
       on views.owner = col.owner
       and views.view_name = col.table_name
-    where col.owner = upper('{schema}')
+    where 1=1
+      {{if .schema -}} and col.owner = upper('{schema}') {{- end}}
+      {{if .table -}} and table_name = upper('{table}') {{- end}}
     order by col.owner, col.table_name, col.column_id
   
   sessions:
