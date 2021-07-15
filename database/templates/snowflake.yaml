@@ -20,7 +20,6 @@ core:
       NULL_IF = ''
       SKIP_HEADER=1
     )
-    PURGE = TRUE
     ON_ERROR = ABORT_STATEMENT
   copy_from_s3: |
     COPY INTO {table} 
@@ -38,7 +37,6 @@ core:
       NULL_IF = ''
       SKIP_HEADER=1
     )
-    PURGE = TRUE
     ON_ERROR = ABORT_STATEMENT
   copy_from_azure: |
     COPY INTO {table} 
@@ -55,7 +53,6 @@ core:
       NULL_IF = ''
       SKIP_HEADER=1
     )
-    PURGE = TRUE
     ON_ERROR = ABORT_STATEMENT
   copy_to_stage: |
     COPY INTO '{stage_path}'

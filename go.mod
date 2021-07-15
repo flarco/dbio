@@ -10,7 +10,7 @@ require (
 	github.com/Azure/azure-sdk-for-go v48.0.0+incompatible
 	github.com/Azure/azure-storage-blob-go v0.13.0
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
-	github.com/ClickHouse/clickhouse-go v1.4.5 // indirect
+	github.com/ClickHouse/clickhouse-go v1.4.5
 	github.com/PuerkitoBio/goquery v1.6.0
 	github.com/apache/arrow/go/arrow v0.0.0-20210531090448-9b68458bbf0a // indirect
 	github.com/aws/aws-sdk-go v1.35.22

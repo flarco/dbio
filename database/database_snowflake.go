@@ -88,14 +88,14 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 
 func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
 	if conn.GetProp("internalStage") == "" {
-		defStaging := "_staging"
+		defStaging := "sling_staging"
 		if schema == "" {
 			schema = conn.GetProp("schema")
 		}
-		_, err := conn.Exec("USE SCHEMA " + schema)
-		_, err = conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging)
+		conn.Exec("USE SCHEMA " + schema)
+		_, err := conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging)
 		if err != nil {
-			g.Debug(g.ErrMsg(err))
+			g.Warn("Tried to create Internal Snowflake Stage but failed.\n" + g.ErrMsg(err))
 			return ""
 		}
 		conn.SetProp("schema", schema)
@@ -283,6 +283,7 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 		return conn.CopyViaAWS(tableFName, df)
 	case "AZURE":
 		return conn.CopyViaAzure(tableFName, df)
+	default:
 	}
 
 	schema, _ := SplitTableFullName(tableFName)
@@ -291,11 +292,11 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 		return conn.CopyViaStage(tableFName, df)
 	}
 
-	if conn.BaseConn.credsProvided("AWS") {
-		return conn.CopyViaAWS(tableFName, df)
-	} else if conn.BaseConn.credsProvided("AZURE") {
-		return conn.CopyViaAzure(tableFName, df)
-	}
+	// if conn.BaseConn.credsProvided("AWS") {
+	// 	return conn.CopyViaAWS(tableFName, df)
+	// } else if conn.BaseConn.credsProvided("AZURE") {
+	// 	return conn.CopyViaAzure(tableFName, df)
+	// }
 
 	if err == nil && stage == "" {
 		err = g.Error("Need to permit internal staging, or provide AWS/Azure creds")
