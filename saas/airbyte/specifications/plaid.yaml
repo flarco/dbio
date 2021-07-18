@@ -1,0 +1,26 @@
+documentationUrl: https://plaid.com/docs/api/
+changelogUrl: ""
+connectionSpecification:
+    title: ""
+    type: object
+    additionalProperties: false
+    required:
+      - access_token
+      - api_key
+      - client_id
+    properties:
+        access_token:
+            description: The end-user's Link access token.
+            type: string
+        api_key:
+            description: The Plaid API key to use to hit the API.
+            airbyte_secret: true
+            type: string
+        client_id:
+            description: The Plaid client id
+            type: string
+        plaid_env:
+            description: The Plaid environment
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

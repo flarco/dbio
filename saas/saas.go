@@ -140,8 +140,8 @@ func NewAPIClientFromConnContext(ctx context.Context, c connection.Connection) (
 	switch c.Info().Type {
 	case dbio.TypeAPIGit:
 		return NewAPIClientContext(ctx, Git, g.MapToKVArr(c.DataS())...)
-	case dbio.TypeAPIGithub:
-		return NewAPIClientContext(ctx, Github, g.MapToKVArr(c.DataS())...)
+	// case dbio.TypeAPIGithub:
+	// 	return NewAPIClientContext(ctx, Github, g.MapToKVArr(c.DataS())...)
 	default:
 		err = g.Error("invalid API connection request")
 	}

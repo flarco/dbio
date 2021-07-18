@@ -1,0 +1,41 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/gitlab
+changelogUrl: ""
+connectionSpecification:
+    title: Source Gitlab Singer Spec
+    type: object
+    additionalProperties: false
+    required:
+      - api_url
+      - private_token
+      - start_date
+    properties:
+        api_url:
+            description: Please enter your basic URL from Gitlab instance
+            type: string
+            examples:
+              - gitlab.com
+        groups:
+            description: Space-delimited list of groups. e.g. airbyte.io
+            type: string
+            examples:
+              - airbyte.io
+        private_token:
+            description: Log into your Gitlab account and then generate a personal
+                Access Token.
+            airbyte_secret: true
+            type: string
+        projects:
+            description: Space-delimited list of projects. e.g. airbyte.io/documentation
+                meltano/tap-gitlab
+            type: string
+            examples:
+              - airbyte.io/documentation
+        start_date:
+            description: The date from which you'd like to replicate data for Gitlab
+                API, in the format YYYY-MM-DDT00:00:00Z. All data generated after
+                this date will be replicated.
+            type: string
+            examples:
+              - "2021-03-01T00:00:00Z"
+supportsIncremental: false
+supported_destination_sync_modes: []

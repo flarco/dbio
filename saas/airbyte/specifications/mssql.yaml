@@ -1,0 +1,47 @@
+documentationUrl: https://docs.airbyte.io/integrations/destinations/mssql
+changelogUrl: ""
+connectionSpecification:
+    title: MSSQL Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - username
+    properties:
+        database:
+            description: Name of the database.
+            type: string
+            examples:
+              - master
+        host:
+            description: Hostname of the database.
+            type: string
+        password:
+            description: Password associated with the username.
+            airbyte_secret: true
+            type: string
+        port:
+            description: Port of the database.
+            type: integer
+            minimum: 0
+            maximum: 65536
+            examples:
+              - "1433"
+        replication_method:
+            description: Replication method to use for extracting data from the database.
+                STANDARD replication requires no setup on the DB side but will not
+                be able to represent deletions incrementally. CDC uses {TBC} to detect
+                inserts, updates, and deletes. This needs to be configured on the
+                source database itself.
+            type: string
+            default: STANDARD
+        ssl_method:
+            description: Encryption method to use when communicating with the database
+            type: object
+        username:
+            description: Username to use to access the database.
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -34,17 +34,17 @@ const (
 	TypeFileSftp   Type = "sftp"
 	TypeFileHTTP   Type = "http"
 
-	TypeDbPostgres  Type = "postgres"
-	TypeDbRedshift  Type = "redshift"
-	TypeDbMySQL     Type = "mysql"
-	TypeDbOracle    Type = "oracle"
-	TypeDbBigQuery  Type = "bigquery"
-	TypeDbSnowflake Type = "snowflake"
-	TypeDbSQLite    Type = "sqlite"
-	TypeDbSQLServer Type = "sqlserver"
-	TypeDbAzure     Type = "azuresql"
-	TypeDbAzureDWH  Type = "azuredwh"
-	TypeClickhouse  Type = "clickhouse"
+	TypeDbPostgres   Type = "postgres"
+	TypeDbRedshift   Type = "redshift"
+	TypeDbMySQL      Type = "mysql"
+	TypeDbOracle     Type = "oracle"
+	TypeDbBigQuery   Type = "bigquery"
+	TypeDbSnowflake  Type = "snowflake"
+	TypeDbSQLite     Type = "sqlite"
+	TypeDbSQLServer  Type = "sqlserver"
+	TypeDbAzure      Type = "azuresql"
+	TypeDbAzureDWH   Type = "azuredwh"
+	TypeDbClickhouse Type = "clickhouse"
 
 	TypeAPIGit Type = "git"
 	// TypeAPIGithub Type = "github"
@@ -93,12 +93,13 @@ func (t Type) String() string {
 // DefPort returns the default port
 func (t Type) DefPort() int {
 	connTypesDefPort := map[Type]int{
-		TypeDbPostgres:  5432,
-		TypeDbRedshift:  5439,
-		TypeDbMySQL:     3306,
-		TypeDbOracle:    1521,
-		TypeDbSQLServer: 1433,
-		TypeDbAzure:     1433,
+		TypeDbPostgres:   5432,
+		TypeDbRedshift:   5439,
+		TypeDbMySQL:      3306,
+		TypeDbOracle:     1521,
+		TypeDbSQLServer:  1433,
+		TypeDbAzure:      1433,
+		TypeDbClickhouse: 9000,
 	}
 	return connTypesDefPort[t]
 }
@@ -107,7 +108,7 @@ func (t Type) DefPort() int {
 func (t Type) Kind() Kind {
 	switch t {
 	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery,
-		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure:
+		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse:
 		return KindDatabase
 	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
 		return KindFile

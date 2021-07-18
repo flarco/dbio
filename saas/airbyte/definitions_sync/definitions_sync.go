@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/flarco/dbio/saas/airbyte"
@@ -14,12 +13,12 @@ import (
 )
 
 func main() {
-	syncDefinitions()
+	syncDefinitions(true)
 }
 
 // syncDefinitions will pull specs for all connectors
 // and write to the specification folder
-func syncDefinitions() {
+func syncDefinitions(force bool) {
 	//
 	connectors, err := airbyte.GetSourceConnectors(true)
 	g.LogFatal(err)
@@ -28,7 +27,7 @@ func syncDefinitions() {
 	// then clean up
 	for _, c := range connectors {
 		g.Info("synching " + c.Definition.Name)
-		getSpecification(c, false)
+		getSpecification(c, force)
 	}
 }
 
@@ -37,7 +36,7 @@ func getSpecification(c airbyte.Connector, force bool) (err error) {
 	filePath := g.F(
 		"%s/specifications/%s.yaml",
 		filepath.Dir(wd),
-		strings.ReplaceAll(c.Definition.DockerRepository, "airbyte/", ""),
+		c.Key(),
 	)
 	if !force && g.PathExists(filePath) {
 		return

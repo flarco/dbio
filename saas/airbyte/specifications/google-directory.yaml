@@ -1,0 +1,22 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/google-directory
+changelogUrl: ""
+connectionSpecification:
+    title: Google Directory Spec
+    type: object
+    additionalProperties: false
+    required:
+      - credentials_json
+      - email
+    properties:
+        credentials_json:
+            description: The contents of the JSON service account key. See the <a
+                href="https://developers.google.com/admin-sdk/directory/v1/guides/delegation">docs</a>
+                for more information on how to generate this key.
+            airbyte_secret: true
+            type: string
+        email:
+            description: The email of the user, which has permissions to access the
+                Google Workspace Admin APIs.
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

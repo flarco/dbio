@@ -1,0 +1,28 @@
+documentationUrl: https://hub.docker.com/r/airbyte/source-twilio
+changelogUrl: ""
+connectionSpecification:
+    title: Twilio Spec
+    type: object
+    additionalProperties: false
+    required:
+      - account_sid
+      - auth_token
+      - start_date
+    properties:
+        account_sid:
+            description: Twilio account SID
+            airbyte_secret: true
+            type: string
+        auth_token:
+            description: Twilio Auth Token.
+            airbyte_secret: true
+            type: string
+        start_date:
+            description: UTC date and time in the format 2020-10-01T00:00:00Z. Any
+                data before this date will not be replicated.
+            type: string
+            examples:
+              - "2020-10-01T00:00:00Z"
+supportsIncremental: true
+supported_destination_sync_modes:
+  - append

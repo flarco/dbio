@@ -1,0 +1,32 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/looker
+changelogUrl: ""
+connectionSpecification:
+    title: Looker Spec
+    type: object
+    additionalProperties: false
+    required:
+      - domain
+      - client_id
+      - client_secret
+    properties:
+        client_id:
+            description: The Client ID is first part of an API3 key that is specific
+                to each Looker user. See the <a href="https://docs.airbyte.io/integrations/sources/looker">docs</a>
+                for more information on how to generate this key.
+            type: string
+        client_secret:
+            description: The Client Secret is second part of an API3 key.
+            type: string
+        domain:
+            description: Domain for your Looker account, e.g. airbyte.cloud.looker.com,looker.[clientname].com,IP
+                address
+            type: string
+            examples:
+              - domainname.looker.com
+              - looker.clientname.com
+              - 123.123.124.123:8000
+        run_look_ids:
+            description: The IDs of any Looks to run (optional)
+            type: array
+supportsIncremental: false
+supported_destination_sync_modes: []

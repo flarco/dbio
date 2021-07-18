@@ -21,7 +21,7 @@ type ClickhouseConn struct {
 func (conn *ClickhouseConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
-	conn.BaseConn.Type = dbio.TypeClickhouse
+	conn.BaseConn.Type = dbio.TypeDbClickhouse
 
 	var instance Connection
 	instance = conn

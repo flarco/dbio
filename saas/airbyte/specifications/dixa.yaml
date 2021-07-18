@@ -1,0 +1,28 @@
+documentationUrl: https://docs.airbyte.io/integrations
+changelogUrl: ""
+connectionSpecification:
+    title: Dixa Spec
+    type: object
+    additionalProperties: false
+    required:
+      - api_token
+      - start_date
+    properties:
+        api_token:
+            description: Dixa API token
+            airbyte_secret: true
+            type: string
+        batch_size:
+            description: Number of days to batch into one request. Max 31.
+            type: string
+            default: 31
+            examples:
+              - 1
+              - 31
+        start_date:
+            description: The connector pulls records updated from this date onwards.
+            type: string
+            examples:
+              - YYYY-MM-DD
+supportsIncremental: false
+supported_destination_sync_modes: []

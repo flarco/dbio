@@ -289,12 +289,7 @@ func GetAirbyteSpecs() (abs map[string]ConnectionSpecification, err error) {
 	}
 
 	for _, c := range connectors {
-		key := strings.ReplaceAll(
-			c.Definition.DockerRepository, "airbyte/source-", "",
-		)
-		key = strings.ReplaceAll(key, "-singer", "")
-		c.Specification.ConnectionSpecification.Title = c.Definition.Name
-		abs[key] = c.Specification.ConnectionSpecification
+		abs[c.Key()] = c.Specification.ConnectionSpecification
 	}
 	return
 }

@@ -1,0 +1,54 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/mongodb
+changelogUrl: https://docs.airbyte.io/integrations/sources/mongodb
+connectionSpecification:
+    title: Mongodb Source Spec
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - database
+      - user
+      - password
+      - auth_source
+    properties:
+        auth_source:
+            description: Authentication source where user information is stored
+            type: string
+            default: admin
+            examples:
+              - admin
+        database:
+            description: Database to be replicated.
+            type: string
+        host:
+            description: Host of a Mongo database to be replicated.
+            type: string
+        password:
+            description: Password
+            airbyte_secret: true
+            type: string
+        port:
+            description: Port of a Mongo database to be replicated.
+            type: integer
+            minimum: 0
+            maximum: 65536
+            default: 27017
+            examples:
+              - "27017"
+        replica_set:
+            description: The name of the set to filter servers by, when connecting
+                to a replica set (Under this condition, the 'TLS connection' value
+                automatically becomes 'true')
+            type: string
+            default: ""
+        ssl:
+            description: If this switch is enabled, TLS connections will be used to
+                connect to MongoDB.
+            type: boolean
+            default: false
+        user:
+            description: User
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

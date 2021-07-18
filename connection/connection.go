@@ -323,6 +323,11 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
 		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
+	case dbio.TypeDbClickhouse:
+		setIfMissing("username", "")
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
+		template = "clickhouse://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeFileS3:
 		template = "s3://{aws_bucket}"
 	case dbio.TypeFileGoogle:
@@ -394,23 +399,24 @@ func CopyDirect(conn database.Connection, tableFName string, srcFile Connection)
 // GetTypeNameLong return the type long name
 func GetTypeNameLong(c Connection) string {
 	mapping := map[dbio.Type]string{
-		dbio.TypeFileLocal:   "FileSys - Local",
-		dbio.TypeFileHDFS:    "FileSys - HDFS",
-		dbio.TypeFileS3:      "FileSys - S3",
-		dbio.TypeFileAzure:   "FileSys - Azure",
-		dbio.TypeFileGoogle:  "FileSys - Google",
-		dbio.TypeFileSftp:    "FileSys - Sftp",
-		dbio.TypeFileHTTP:    "FileSys - HTTP",
-		dbio.TypeDbPostgres:  "DB - PostgreSQL",
-		dbio.TypeDbRedshift:  "DB - Redshift",
-		dbio.TypeDbMySQL:     "DB - MySQL",
-		dbio.TypeDbOracle:    "DB - Oracle",
-		dbio.TypeDbBigQuery:  "DB - BigQuery",
-		dbio.TypeDbSnowflake: "DB - Snowflake",
-		dbio.TypeDbSQLite:    "DB - SQLite",
-		dbio.TypeDbSQLServer: "DB - SQLServer",
-		dbio.TypeDbAzure:     "DB - Azure",
-		dbio.TypeAPIGit:      "API - Git",
+		dbio.TypeFileLocal:    "FileSys - Local",
+		dbio.TypeFileHDFS:     "FileSys - HDFS",
+		dbio.TypeFileS3:       "FileSys - S3",
+		dbio.TypeFileAzure:    "FileSys - Azure",
+		dbio.TypeFileGoogle:   "FileSys - Google",
+		dbio.TypeFileSftp:     "FileSys - Sftp",
+		dbio.TypeFileHTTP:     "FileSys - HTTP",
+		dbio.TypeDbPostgres:   "DB - PostgreSQL",
+		dbio.TypeDbRedshift:   "DB - Redshift",
+		dbio.TypeDbMySQL:      "DB - MySQL",
+		dbio.TypeDbOracle:     "DB - Oracle",
+		dbio.TypeDbBigQuery:   "DB - BigQuery",
+		dbio.TypeDbSnowflake:  "DB - Snowflake",
+		dbio.TypeDbSQLite:     "DB - SQLite",
+		dbio.TypeDbSQLServer:  "DB - SQLServer",
+		dbio.TypeDbAzure:      "DB - Azure",
+		dbio.TypeDbClickhouse: "DB - Clickhouse",
+		dbio.TypeAPIGit:       "API - Git",
 		// dbio.TypeAPIGithub:   "API - Github",
 	}
 
@@ -427,23 +433,24 @@ func GetTypeNameLong(c Connection) string {
 // GetTypeName return the type name
 func GetTypeName(c Connection) string {
 	mapping := map[dbio.Type]string{
-		dbio.TypeFileLocal:   "Local",
-		dbio.TypeFileHDFS:    "HDFS",
-		dbio.TypeFileS3:      "S3",
-		dbio.TypeFileAzure:   "Azure",
-		dbio.TypeFileGoogle:  "Google",
-		dbio.TypeFileSftp:    "Sftp",
-		dbio.TypeFileHTTP:    "HTTP",
-		dbio.TypeDbPostgres:  "PostgreSQL",
-		dbio.TypeDbRedshift:  "Redshift",
-		dbio.TypeDbMySQL:     "MySQL",
-		dbio.TypeDbOracle:    "Oracle",
-		dbio.TypeDbBigQuery:  "BigQuery",
-		dbio.TypeDbSnowflake: "Snowflake",
-		dbio.TypeDbSQLite:    "SQLite",
-		dbio.TypeDbSQLServer: "SQLServer",
-		dbio.TypeDbAzure:     "Azure",
-		dbio.TypeAPIGit:      "Git",
+		dbio.TypeFileLocal:    "Local",
+		dbio.TypeFileHDFS:     "HDFS",
+		dbio.TypeFileS3:       "S3",
+		dbio.TypeFileAzure:    "Azure",
+		dbio.TypeFileGoogle:   "Google",
+		dbio.TypeFileSftp:     "Sftp",
+		dbio.TypeFileHTTP:     "HTTP",
+		dbio.TypeDbPostgres:   "PostgreSQL",
+		dbio.TypeDbRedshift:   "Redshift",
+		dbio.TypeDbMySQL:      "MySQL",
+		dbio.TypeDbOracle:     "Oracle",
+		dbio.TypeDbBigQuery:   "BigQuery",
+		dbio.TypeDbSnowflake:  "Snowflake",
+		dbio.TypeDbSQLite:     "SQLite",
+		dbio.TypeDbSQLServer:  "SQLServer",
+		dbio.TypeDbClickhouse: "Clickhouse",
+		dbio.TypeDbAzure:      "Azure",
+		dbio.TypeAPIGit:       "Git",
 		// dbio.TypeAPIGithub:   "Github",
 	}
 

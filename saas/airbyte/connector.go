@@ -5,6 +5,9 @@ import (
 	"embed"
 	"io/ioutil"
 	"os"
+	"path"
+	"runtime"
+	"strings"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -36,6 +39,18 @@ func GetSourceConnectors(fetch bool) (connectors Connectors, err error) {
 			g.Warn("Using local cache since we are unable to Reach URL: " + SourceDefinitionsURL)
 		} else {
 			sourceDefinitionsBytes = respBytes
+
+			// write to file
+			_, filename, _, ok := runtime.Caller(0)
+			if ok {
+				filePath := g.F("%s/sources.yaml", path.Dir(filename))
+				if g.PathExists(filePath) {
+					err = ioutil.WriteFile(filePath, respBytes, 0755)
+					if !g.LogError(err) {
+						g.Debug("wrote latest to %s", filePath)
+					}
+				}
+			}
 		}
 	}
 
@@ -77,6 +92,15 @@ func (c *Connector) InitTempDir() (err error) {
 
 func (c *Connector) file(name string) string {
 	return c.tempFolder + "/" + name
+}
+
+func (c *Connector) Key() string {
+	key := strings.ReplaceAll(
+		c.Definition.DockerRepository, "airbyte/source-", "",
+	)
+	key = strings.ReplaceAll(key, "-singer", "")
+	c.Specification.ConnectionSpecification.Title = c.Definition.Name
+	return key
 }
 
 // DockerRun runs a docker command and waits for the end
