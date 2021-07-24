@@ -132,7 +132,7 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 		}
 		msg := AirbyteMessage{}
 		err = g.Unmarshal(text, &msg)
-		g.LogError(err, "could not unmarshall airbyte message")
+		g.LogError(err, "could not unmarshall airbyte message for %s", c.Key())
 		if err == nil {
 			if msg.Type == TypeLog {
 				// g.Debug("LOG: " + strings.TrimSpace(msg.Log.Message))
