@@ -259,6 +259,7 @@ function:
 
 # extra variables
 variable:
+  column_upper: true
   error_ignore_drop_table: "ORA-00942"
   error_ignore_drop_view: "ORA-00942"
   bind_string: ":{field}{n}"

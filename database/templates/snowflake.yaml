@@ -515,6 +515,7 @@ function:
 variable:
   bind_string: "?"
   tmp_folder: /tmp
+  column_upper: true
 
 error_filter:
   table_not_exist: exist
