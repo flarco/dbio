@@ -1,26 +1,26 @@
 core:
-  drop_table: drop table if exists {table} cascade
+  drop_table: drop table if exists "{table}" cascade
   drop_view: drop view if exists {view}
-  create_table: create table if not exists {table} ({col_types})
-  create_unique_index: create unique index if not exists {index} on {table} ({cols})
-  replace: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
+  create_table: create table if not exists "{table}" ({col_types})
+  create_unique_index: create unique index if not exists {index} on "{table}" ({cols})
+  replace: insert into "{table}" ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
   replace_temp: |
-    insert into {table} ({names})
+    insert into "{table}" ({names})
     select {names} from {temp_table}
     on conflict ({pk_fields}) do nothing;
-    update {table} as t1 set {set_fields2}
+    update "{table}" as t1 set {set_fields2}
     from (select * from {temp_table}) as t2
     where {pk_fields_equal}
-  insert: insert into {table} ({cols}) values ({values})
-  insert_temp: insert into {table} ({cols}) select {cols} from {temp_table}
-  insert_ignore: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do nothing
-  insert_ignore_temp: insert into {table} ({names}) select {names} from {temp_table} on conflict ({pk_fields}) do nothing
+  insert: insert into "{table}" ({cols}) values ({values})
+  insert_temp: insert into "{table}" ({cols}) select {cols} from {temp_table}
+  insert_ignore: insert into "{table}" ({fields}) values ({values}) on conflict ({pk_fields}) do nothing
+  insert_ignore_temp: insert into "{table}" ({names}) select {names} from {temp_table} on conflict ({pk_fields}) do nothing
   update_temp: |
-    update {table} as t1 set {set_fields2}
+    update "{table}" as t1 set {set_fields2}
     from (select * from {temp_table}) as t2
     where {pk_fields_equal2}
-  sample: SELECT {fields} FROM {table} TABLESAMPLE SYSTEM (50) limit {n}
-  rename_table: ALTER TABLE {table} RENAME TO {new_table}
+  sample: SELECT {fields} FROM "{table}" TABLESAMPLE SYSTEM (50) limit {n}
+  rename_table: ALTER TABLE "{table}" RENAME TO {new_table}
   modify_column: alter column {column} type {type}
   use_database: SET search_path TO {database}
 
@@ -187,7 +187,7 @@ metadata:
     from table_ddl
     "
   ddl_view: |
-    SELECT pg_get_viewdef(to_regclass('{schema}.{table}'))::text as ddl
+    SELECT pg_get_viewdef(to_regclass('"{schema}"."{table}"'))::text as ddl
 
   sessions: select *
     from pg_stat_activity
@@ -200,25 +200,25 @@ analysis:
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
-      '{field}' as field, sum(case when {field}::text ~ '\n' then 1 else 0 end) as cnt_nline, 
-      sum(case when {field}::text ~ '\t' then 1 else 0 end) as cnt_tab, 
-      sum(case when {field}::text ~ ',' then 1 else 0 end) as cnt_comma, 
-      sum(case when {field}::text ~ '"' then 1 else 0 end) as cnt_dquote, 
-      min(length({field}::text)) as f_min_len, 
-      max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+      '{field}' as field, sum(case when "{field}"::text ~ '\n' then 1 else 0 end) as cnt_nline, 
+      sum(case when "{field}"::text ~ '\t' then 1 else 0 end) as cnt_tab, 
+      sum(case when "{field}"::text ~ ',' then 1 else 0 end) as cnt_comma, 
+      sum(case when "{field}"::text ~ '"' then 1 else 0 end) as cnt_dquote, 
+      min(length("{field}"::text)) as f_min_len, 
+      max(length("{field}"::text)) as f_max_len
+    from "{schema}"."{table}"
 
   field_stat_len: |
-    -- field_stat_len {table}
+    -- field_stat_len "{table}"
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
       '{field}' as field,
       count(*) as tot_cnt,
-      -- max(length(abs(({field} - round({field},0)))::text)-2) as f_max_dec_len,
-      min(length({field}::text)) as f_min_len,
-      max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+      -- max(length(abs(("{field}" - round("{field}",0)))::text)-2) as f_max_dec_len,
+      min(length("{field}"::text)) as f_min_len,
+      max(length("{field}"::text)) as f_max_len
+    from "{schema}"."{table}"
 
   field_stat_deep: |
     select
@@ -226,38 +226,38 @@ analysis:
       '{table}' as table_nm,
       '{field}' as field,
       count(*) as tot_cnt,
-      count({field}) as f_cnt,
-      count(*) - count({field}) as f_null_cnt,
-      round(100.0 * (count(*) - count({field})) / count(*),1) as f_null_prct,
-      count(distinct {field}) as f_dstct_cnt,
-      round(100.0 * count(distinct {field}) / count(*),1) as f_dstct_prct,
-      count(*) - count(distinct {field}) as f_dup_cnt,
-      min({field})::text as f_min,
-      max({field})::text as f_max,
-      min(length({field}::text)) as f_min_len,
-      max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+      count("{field}") as f_cnt,
+      count(*) - count("{field}") as f_null_cnt,
+      round(100.0 * (count(*) - count("{field}")) / count(*),1) as f_null_prct,
+      count(distinct "{field}") as f_dstct_cnt,
+      round(100.0 * count(distinct "{field}") / count(*),1) as f_dstct_prct,
+      count(*) - count(distinct "{field}") as f_dup_cnt,
+      min("{field}")::text as f_min,
+      max("{field}")::text as f_max,
+      min(length("{field}"::text)) as f_min_len,
+      max(length("{field}"::text)) as f_max_len
+    from "{schema}"."{table}"
 
   distro_field: |
     with t1 as (
       select
         '{field}'::text as field,
-        {field},
+        "{field}",
         count(1) cnt
-      from {schema}.{table}
-      group by {field}
+      from "{schema}"."{table}"
+      group by "{field}"
       order by count(1) desc
     )
     , t2 as (
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
       t1.field,
-      {field} as value,
+      "{field}" as value,
       cnt,
       round(100.0 * cnt / ttl_cnt, 2) as prct
     from t1
@@ -270,23 +270,23 @@ analysis:
       select
         '{field}'::text as field,
         {group_expr} as group_exp,
-        {field},        
+        "{field}",        
         count(1) cnt
-      from {schema}.{table}
-      group by {field}, {group_expr}
+      from "{schema}"."{table}"
+      group by "{field}", {group_expr}
       order by count(1) desc
     )
     , t2 as (
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
       t1.field,
       t1.group_exp,
-      {field} as value,
+      "{field}" as value,
       cnt,
       round(100.0 * cnt / ttl_cnt, 2) as prct
     from t1
@@ -298,16 +298,16 @@ analysis:
     with t1 as (
         select
           '{field}'::text as field,
-          extract(year from {field}) as year,
-          extract(month from {field}) as month,
+          extract(year from "{field}") as year,
+          extract(month from "{field}") as month,
           count(1) cnt
-        from {schema}.{table}
-        group by extract(year from {field}), extract(month from {field})
-        order by extract(year from {field}), extract(month from {field})
+        from "{schema}"."{table}"
+        group by extract(year from "{field}"), extract(month from "{field}")
+        order by extract(year from "{field}"), extract(month from "{field}")
       )
       , t2 as (
         select '{field}'::text as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
       )
       select 
         '{schema}' as schema_nm,
@@ -323,13 +323,13 @@ analysis:
       order by t1.year, t1.month
 
 function:
-  truncate_f: trunc({field})
-  truncate_datef: trunc({field})
-  date_to_int: trunc(extract(epoch from {field})/(60*60*24))::int
-  number_to_int: round({field}, 0)
+  truncate_f: trunc("{field}")
+  truncate_datef: trunc("{field}")
+  date_to_int: trunc(extract(epoch from "{field}")/(60*60*24))::int
+  number_to_int: round("{field}", 0)
   sleep: select pg_sleep({seconds})
-  checksum_datetime: date_part('epoch', {field})
-  checksum_string: length({field}::text)
+  checksum_datetime: date_part('epoch', "{field}")
+  checksum_string: length("{field}"::text)
 
 variable:
   tmp_folder: /tmp

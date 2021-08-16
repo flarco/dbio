@@ -1569,8 +1569,8 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 	}
 
 	for _, rec := range schemaData.Records() {
-		schemaName = strings.ToLower(cast.ToString(rec["schema_name"]))
-		tableName := strings.ToLower(cast.ToString(rec["table_name"]))
+		schemaName = cast.ToString(rec["schema_name"])
+		tableName := cast.ToString(rec["table_name"])
 
 		switch v := rec["is_view"].(type) {
 		case int64, float64:
@@ -1621,7 +1621,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		}
 
 		table.Columns = append(table.Columns, column)
-		table.ColumnsMap[strings.ToLower(column.Name)] = &column
+		table.ColumnsMap[column.Name] = &column
 
 		schema.Tables[tableName] = table
 		schemata.Schemas[schema.Name] = schema
