@@ -83,6 +83,9 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 	if conn.GetProp("schema") != "" {
 		_, err = conn.Exec("USE SCHEMA " + conn.GetProp("schema"))
 	}
+	if conn.GetProp("role") != "" {
+		_, err = conn.Exec("USE ROLE " + conn.GetProp("role"))
+	}
 	return err
 }
 
