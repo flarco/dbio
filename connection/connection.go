@@ -317,6 +317,12 @@ func (c *Connection) setURL() (err error) {
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
 		setIfMissing("host", c.Data["account"])
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?warehouse={warehouse}"
+		if _, ok := c.Data["role"]; ok {
+			template = template + "&role={role}"
+		}
+		if _, ok := c.Data["schema"]; ok {
+			template = template + "&schema={schema}"
+		}
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
