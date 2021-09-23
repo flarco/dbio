@@ -75,7 +75,7 @@ type Connection interface {
 	GetNativeType(col iop.Column) (nativeType string, err error)
 	GetPrimaryKeys(string) (iop.Dataset, error)
 	GetProp(string) string
-	GetSchemata(string, string) (Schemata, error)
+	GetSchemata(schemaName, tableName string) (Schemata, error)
 	GetSchemas() (iop.Dataset, error)
 	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
@@ -142,10 +142,13 @@ type BaseConn struct {
 type Table struct {
 	Name       string `json:"name"`
 	Schema     string `json:"schema"`
-	FullName   string `json:"full_name"`
 	IsView     bool   `json:"is_view"` // whether is a view
 	Columns    iop.Columns
-	ColumnsMap map[string]*iop.Column
+	ColumnsMap map[string]*iop.Column `json:"-"`
+}
+
+func (t *Table) FullName() string {
+	return t.Schema + "." + t.Name
 }
 
 // Schema represents a schemata schema
@@ -1600,7 +1603,6 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		table := Table{
 			Name:       tableName,
 			Schema:     schemaName,
-			FullName:   schemaName + "." + tableName,
 			IsView:     cast.ToBool(rec["is_view"]),
 			Columns:    iop.Columns{},
 			ColumnsMap: map[string]*iop.Column{},
@@ -1626,7 +1628,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 
 		schema.Tables[tableName] = table
 		schemata.Schemas[schema.Name] = schema
-		schemata.Tables[table.FullName] = &table
+		schemata.Tables[table.FullName()] = &table
 
 	}
 

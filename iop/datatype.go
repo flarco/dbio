@@ -25,16 +25,16 @@ var (
 
 // Column represents a schemata column
 type Column struct {
-	Position    int    `json:"position"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	DbType      string `json:"db_type"`
-	DbPrecision int    `json:"db_precision"`
-	DbScale     int    `json:"db_scale"`
-	Sourced     bool   `json:"sourced"` // whether is was sourced from a typed source
-	Stats       ColumnStats
-	ColType     *sql.ColumnType
-	goType      reflect.Type
+	Position    int             `json:"position"`
+	Name        string          `json:"name"`
+	Type        string          `json:"type"`
+	DbType      string          `json:"db_type"`
+	DbPrecision int             `json:"db_precision"`
+	DbScale     int             `json:"db_scale"`
+	Sourced     bool            `json:"sourced"` // whether is was sourced from a typed source
+	Stats       ColumnStats     `json:"-"`
+	ColType     *sql.ColumnType `json:"-"`
+	goType      reflect.Type    `json:"-"`
 }
 
 // Columns represent many columns
