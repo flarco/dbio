@@ -1,30 +1,34 @@
 core:
-  drop_table: drop table if exists "{table}" cascade
+  drop_table: drop table if exists {table} cascade
   drop_view: drop view if exists {view}
-  create_table: create table if not exists "{table}" ({col_types})
-  create_unique_index: create unique index if not exists {index} on "{table}" ({cols})
-  replace: insert into "{table}" ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
+  create_table: create table if not exists {table} ({col_types})
+  create_unique_index: create unique index if not exists {index} on {table} ({cols})
+  replace: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
   replace_temp: |
-    insert into "{table}" ({names})
+    insert into {table} ({names})
     select {names} from {temp_table}
     on conflict ({pk_fields}) do nothing;
-    update "{table}" as t1 set {set_fields2}
+    update {table} as t1 set {set_fields2}
     from (select * from {temp_table}) as t2
     where {pk_fields_equal}
-  insert: insert into "{table}" ({cols}) values ({values})
-  insert_temp: insert into "{table}" ({cols}) select {cols} from {temp_table}
-  insert_ignore: insert into "{table}" ({fields}) values ({values}) on conflict ({pk_fields}) do nothing
-  insert_ignore_temp: insert into "{table}" ({names}) select {names} from {temp_table} on conflict ({pk_fields}) do nothing
+  insert: insert into {table} ({cols}) values ({values})
+  insert_temp: insert into {table} ({cols}) select {cols} from {temp_table}
+  insert_ignore: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do nothing
+  insert_ignore_temp: insert into {table} ({names}) select {names} from {temp_table} on conflict ({pk_fields}) do nothing
   update_temp: |
-    update "{table}" as t1 set {set_fields2}
+    update {table} as t1 set {set_fields2}
     from (select * from {temp_table}) as t2
     where {pk_fields_equal2}
-  sample: SELECT {fields} FROM "{table}" TABLESAMPLE SYSTEM (50) limit {n}
-  rename_table: ALTER TABLE "{table}" RENAME TO {new_table}
+  sample: SELECT {fields} FROM {table} TABLESAMPLE SYSTEM (50) limit {n}
+  rename_table: ALTER TABLE {table} RENAME TO {new_table}
   modify_column: alter column {column} type {type}
   use_database: SET search_path TO {database}
 
 metadata:
+
+  current_database:
+    select current_database()
+    
   databases: |
     SELECT datname as name FROM pg_database
 

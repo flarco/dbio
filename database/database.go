@@ -138,17 +138,62 @@ type BaseConn struct {
 	Log         []string
 }
 
+// Column represents a schemata column
+type Column struct {
+	Position int    `json:"position"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+}
+
 // Table represents a schemata table
 type Table struct {
-	Name       string `json:"name"`
-	Schema     string `json:"schema"`
-	IsView     bool   `json:"is_view"` // whether is a view
-	Columns    iop.Columns
-	ColumnsMap map[string]*iop.Column `json:"-"`
+	Name    string `json:"name"`
+	Schema  string `json:"schema"`
+	IsView  bool   `json:"is_view"` // whether is a view
+	Columns []Column
 }
 
 func (t *Table) FullName() string {
 	return t.Schema + "." + t.Name
+}
+
+func (t *Table) ColumnsMap() map[string]*Column {
+	columns := map[string]*Column{}
+	for _, column := range t.Columns {
+		key := strings.ToLower(column.Name)
+		columns[key] = &column
+	}
+	return columns
+}
+
+// Database represents a schemata database
+type Database struct {
+	Name    string `json:"name"`
+	Schemas map[string]Schema
+}
+
+func (db *Database) Tables() map[string]*Table {
+	tables := map[string]*Table{}
+	for _, schema := range db.Schemas {
+		for _, table := range schema.Tables {
+			key := strings.ToLower(g.F("%s.%s", schema.Name, table.Name))
+			tables[key] = &table
+		}
+	}
+	return tables
+}
+
+func (db *Database) Columns() map[string]*Column {
+	columns := map[string]*Column{}
+	for _, schema := range db.Schemas {
+		for _, table := range schema.Tables {
+			for _, column := range table.Columns {
+				key := strings.ToLower(g.F("%s.%s.%s", schema.Name, table.Name, column.Name))
+				columns[key] = &column
+			}
+		}
+	}
+	return columns
 }
 
 // Schema represents a schemata schema
@@ -157,10 +202,70 @@ type Schema struct {
 	Tables map[string]Table
 }
 
+func (schema *Schema) Columns() map[string]*Column {
+	columns := map[string]*Column{}
+	for _, table := range schema.Tables {
+		for _, column := range table.Columns {
+			key := strings.ToLower(g.F("%s.%s", table.Name, column.Name))
+			columns[key] = &column
+		}
+	}
+	return columns
+}
+
+// ToData converts schema objects to tabular format
+func (schema *Schema) ToData() (data iop.Dataset) {
+	columns := []string{"schema_name", "table_name", "is_view", "column_id", "column_name", "column_type"}
+	data = iop.NewDataset(iop.NewColumnsFromFields(columns...))
+
+	for _, table := range schema.Tables {
+		for _, col := range table.Columns {
+			row := []interface{}{schema.Name, table.Name, table.IsView, col.Position, col.Name, col.Type}
+			data.Rows = append(data.Rows, row)
+		}
+	}
+	return
+}
+
 // Schemata contains the full schema for a connection
 type Schemata struct {
-	Schemas map[string]Schema
-	Tables  map[string]*Table // all tables with full name lower case (schema.table)
+	Databases map[string]Database
+}
+
+// Database returns the first encountered database
+func (s *Schemata) Database() Database {
+	for _, db := range s.Databases {
+		return db
+	}
+	return Database{}
+}
+
+func (s *Schemata) Tables() map[string]*Table {
+	tables := map[string]*Table{}
+	for _, db := range s.Databases {
+		for _, schema := range db.Schemas {
+			for _, table := range schema.Tables {
+				key := strings.ToLower(g.F("%s.%s.%s", db.Name, schema.Name, table.Name))
+				tables[key] = &table
+			}
+		}
+	}
+	return tables
+}
+
+func (s *Schemata) Columns() map[string]*Column {
+	columns := map[string]*Column{}
+	for _, db := range s.Databases {
+		for _, schema := range db.Schemas {
+			for _, table := range schema.Tables {
+				for _, column := range table.Columns {
+					key := strings.ToLower(g.F("%s.%s.%s.%s", db.Name, schema.Name, table.Name, column.Name))
+					columns[key] = &column
+				}
+			}
+		}
+	}
+	return columns
 }
 
 // Template is a database YAML template
@@ -496,8 +601,7 @@ func (conn *BaseConn) Kill() error {
 // Connect connects to the database
 func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 	conn.schemata = Schemata{
-		Schemas: map[string]Schema{},
-		Tables:  map[string]*Table{},
+		Databases: map[string]Database{},
 	}
 
 	to := 15
@@ -1547,12 +1651,11 @@ func (conn *BaseConn) Import(data iop.Dataset, tableName string) error {
 	return nil
 }
 
-// GetSchemata obtain full schemata info for a schema
+// GetSchemata obtain full schemata info for a schema and/or table in current database
 func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error) {
 
 	schemata := Schemata{
-		Schemas: map[string]Schema{},
-		Tables:  map[string]*Table{},
+		Databases: map[string]Database{},
 	}
 
 	values := g.M()
@@ -1563,6 +1666,13 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		values["table"] = tableName
 	}
 
+	currDbData, err := conn.SumbitTemplate("single", conn.template.Metadata, "current_database", g.M())
+	if err != nil {
+		return schemata, g.Error(err, "Could not current database")
+	}
+
+	currDatabase := cast.ToString(currDbData.FirstVal())
+
 	schemaData, err := conn.SumbitTemplate(
 		"single", conn.template.Metadata, "schemata",
 		values,
@@ -1572,6 +1682,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		return schemata, g.Error(err, "Could not GetSchemata for "+schemaName)
 	}
 
+	schemas := map[string]Schema{}
 	for _, rec := range schemaData.Records() {
 		schemaName = cast.ToString(rec["schema_name"])
 		tableName := cast.ToString(rec["table_name"])
@@ -1601,38 +1712,37 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		}
 
 		table := Table{
-			Name:       tableName,
-			Schema:     schemaName,
-			IsView:     cast.ToBool(rec["is_view"]),
-			Columns:    iop.Columns{},
-			ColumnsMap: map[string]*iop.Column{},
+			Name:    tableName,
+			Schema:  schemaName,
+			IsView:  cast.ToBool(rec["is_view"]),
+			Columns: []Column{},
 		}
 
-		if _, ok := schemata.Schemas[schema.Name]; ok {
-			schema = schemata.Schemas[schema.Name]
+		if _, ok := schemas[schema.Name]; ok {
+			schema = schemas[schema.Name]
 		}
 
-		if _, ok := schemata.Schemas[schemaName].Tables[tableName]; ok {
-			table = schemata.Schemas[schemaName].Tables[tableName]
+		if _, ok := schemas[schemaName].Tables[tableName]; ok {
+			table = schemas[schemaName].Tables[tableName]
 		}
 
-		column := iop.Column{
+		column := Column{
 			Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
 			Name:     cast.ToString(rec["column_name"]),
 			Type:     cast.ToString(rec["data_type"]),
-			DbType:   cast.ToString(rec["data_type"]),
 		}
 
 		table.Columns = append(table.Columns, column)
-		table.ColumnsMap[column.Name] = &column
 
-		schema.Tables[tableName] = table
-		schemata.Schemas[schema.Name] = schema
-		schemata.Tables[table.FullName()] = &table
+		schema.Tables[strings.ToLower(tableName)] = table
+		schemas[strings.ToLower(schema.Name)] = schema
 
 	}
 
-	// conn.schemata.Schemas[schemaName] = schema
+	schemata.Databases[currDatabase] = Database{
+		Name:    currDatabase,
+		Schemas: schemas,
+	}
 
 	return schemata, nil
 }
@@ -2570,20 +2680,6 @@ func settingMppBulkImportFlow(conn Connection) {
 	conn.SetProp("COMPRESSION", "GZIP")
 
 	conn.SetProp("DBIO_PARALLEL", "true")
-}
-
-// ToData converts schema objects to tabular format
-func (schema *Schema) ToData() (data iop.Dataset) {
-	columns := []string{"schema_name", "table_name", "is_view", "column_id", "column_name", "column_type"}
-	data = iop.NewDataset(iop.NewColumnsFromFields(columns...))
-
-	for _, table := range schema.Tables {
-		for _, col := range table.Columns {
-			row := []interface{}{schema.Name, table.Name, table.IsView, col.Position, col.Name, col.DbType}
-			data.Rows = append(data.Rows, row)
-		}
-	}
-	return
 }
 
 // TestPermissions tests the needed permissions in a given connection

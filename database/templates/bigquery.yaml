@@ -10,6 +10,12 @@ core:
   # column_names: select * from ({sql}) as t limit 1
 
 metadata:
+
+  current_database:
+    select current_database()
+  
+  databases:
+    show projects
   
   schemas: |
     select schema_name

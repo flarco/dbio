@@ -32,6 +32,10 @@ core:
     alter table {table} {col_ddls}
  
 metadata:
+
+  current_database:
+    select current_database()
+    
   databases: |
     SELECT datname as name FROM pg_database
     

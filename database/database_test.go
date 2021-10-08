@@ -511,13 +511,13 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// Test Schemata
 	schemata, err := conn.GetSchemata(db.schema, "")
 	g.AssertNoError(t, err)
-	sData := schemata.Schemas[db.schema]
+	sData := schemata.Database().Schemas[db.schema]
 	assert.Equal(t, db.schema, sData.Name)
 	assert.Contains(t, sData.Tables, "person")
 	assert.Contains(t, sData.Tables, "place_vw")
-	// assert.Contains(t, conn.Schemata().Tables, db.schema+".person")
-	assert.Len(t, sData.Tables["person"].Columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, sData.Tables["person"].ColumnsMap["email"].Type)
+	personTable := sData.Tables["person"]
+	assert.Len(t, personTable.Columns, 3)
+	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, personTable.ColumnsMap()["email"].Type)
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
 
