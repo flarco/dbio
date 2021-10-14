@@ -19,7 +19,7 @@ require (
 	github.com/digitalocean/godo v1.59.0
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0
-	github.com/flarco/g v0.0.5
+	github.com/flarco/g v0.0.6
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
