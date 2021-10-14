@@ -102,6 +102,10 @@ core:
     HEADER = TRUE
 
 metadata:
+
+  current_database:
+    select current_database()
+
   databases: |
     show databases
 
@@ -146,32 +150,7 @@ metadata:
              kcu.table_name,
              position
 
-  columns_full: |
-    with tables as (
-      select
-        table_catalog,
-        table_schema,
-        table_name,
-        case table_type
-          when 'VIEW' then true
-          else false
-        end as is_view
-      from information_schema.tables
-      where table_schema = upper('{schema}')
-        and table_name = upper('{table}')
-    )
-    select
-      cols.table_schema as schema_name,
-      cols.table_name as table_name,
-      cols.column_name as column_name,
-      cols.data_type as data_type,
-      cols.ordinal_position as position
-    from information_schema.columns cols
-    join tables
-      on tables.table_catalog = cols.table_catalog
-      and tables.table_schema = cols.table_schema
-      and tables.table_name = cols.table_name
-    order by cols.table_catalog, cols.table_schema, cols.table_name, cols.ordinal_position
+  columns_full: show columns in table {schema}.{table}
 
   schemata: |
     with tables as (

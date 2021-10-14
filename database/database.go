@@ -172,24 +172,24 @@ type Database struct {
 	Schemas map[string]Schema
 }
 
-func (db *Database) Tables() map[string]*Table {
-	tables := map[string]*Table{}
+func (db *Database) Tables() map[string]Table {
+	tables := map[string]Table{}
 	for _, schema := range db.Schemas {
 		for _, table := range schema.Tables {
 			key := strings.ToLower(g.F("%s.%s", schema.Name, table.Name))
-			tables[key] = &table
+			tables[key] = table
 		}
 	}
 	return tables
 }
 
-func (db *Database) Columns() map[string]*Column {
-	columns := map[string]*Column{}
+func (db *Database) Columns() map[string]Column {
+	columns := map[string]Column{}
 	for _, schema := range db.Schemas {
 		for _, table := range schema.Tables {
 			for _, column := range table.Columns {
 				key := strings.ToLower(g.F("%s.%s.%s", schema.Name, table.Name, column.Name))
-				columns[key] = &column
+				columns[key] = column
 			}
 		}
 	}
@@ -202,12 +202,12 @@ type Schema struct {
 	Tables map[string]Table
 }
 
-func (schema *Schema) Columns() map[string]*Column {
-	columns := map[string]*Column{}
+func (schema *Schema) Columns() map[string]Column {
+	columns := map[string]Column{}
 	for _, table := range schema.Tables {
 		for _, column := range table.Columns {
 			key := strings.ToLower(g.F("%s.%s", table.Name, column.Name))
-			columns[key] = &column
+			columns[key] = column
 		}
 	}
 	return columns
@@ -240,27 +240,27 @@ func (s *Schemata) Database() Database {
 	return Database{}
 }
 
-func (s *Schemata) Tables() map[string]*Table {
-	tables := map[string]*Table{}
+func (s *Schemata) Tables() map[string]Table {
+	tables := map[string]Table{}
 	for _, db := range s.Databases {
 		for _, schema := range db.Schemas {
 			for _, table := range schema.Tables {
 				key := strings.ToLower(g.F("%s.%s.%s", db.Name, schema.Name, table.Name))
-				tables[key] = &table
+				tables[key] = table
 			}
 		}
 	}
 	return tables
 }
 
-func (s *Schemata) Columns() map[string]*Column {
-	columns := map[string]*Column{}
+func (s *Schemata) Columns() map[string]Column {
+	columns := map[string]Column{}
 	for _, db := range s.Databases {
 		for _, schema := range db.Schemas {
 			for _, table := range schema.Tables {
 				for _, column := range table.Columns {
 					key := strings.ToLower(g.F("%s.%s.%s.%s", db.Name, schema.Name, table.Name, column.Name))
-					columns[key] = &column
+					columns[key] = column
 				}
 			}
 		}
@@ -691,13 +691,13 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		_ = cancel // lint complaint
 		_ = pingCtx
 
-		err = conn.db.PingContext(pingCtx)
-		if err != nil {
-			g.Trace("Could not ping DB -> %s", connURL)
-			return g.Error(err, "Could not ping DB")
-		} else if !usePool {
-			g.Info(`connected to %s`, conn.Type)
-		}
+		// err = conn.db.PingContext(pingCtx)
+		// if err != nil {
+		// 	g.Trace("Could not ping DB -> %s", connURL)
+		// 	return g.Error(err, "Could not ping DB")
+		// } else if !usePool {
+		// 	g.Info(`connected to %s`, conn.Type)
+		// }
 
 		// add to pool after successful connection
 		if usePool && !poolOk {
@@ -1718,12 +1718,12 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 			Columns: []Column{},
 		}
 
-		if _, ok := schemas[schema.Name]; ok {
-			schema = schemas[schema.Name]
+		if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
+			schema = schemas[strings.ToLower(schema.Name)]
 		}
 
-		if _, ok := schemas[schemaName].Tables[tableName]; ok {
-			table = schemas[schemaName].Tables[tableName]
+		if _, ok := schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]; ok {
+			table = schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]
 		}
 
 		column := Column{
@@ -1736,10 +1736,9 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 
 		schema.Tables[strings.ToLower(tableName)] = table
 		schemas[strings.ToLower(schema.Name)] = schema
-
 	}
 
-	schemata.Databases[currDatabase] = Database{
+	schemata.Databases[strings.ToLower(currDatabase)] = Database{
 		Name:    currDatabase,
 		Schemas: schemas,
 	}

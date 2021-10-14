@@ -1238,3 +1238,24 @@ func TestSnowflakeStage(t *testing.T) {
 	_, err = conn.Exec(g.F("REMOVE @~/%s", fileName))
 	g.AssertNoError(t, err)
 }
+
+func TestSnowflakeAuth(t *testing.T) {
+	url := "snowflake://&authenticator=externalbrowser"
+	conn, err := NewConn(url)
+	// conn, err := NewConn(DBs["bigquery"].URL)
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	err = conn.Connect()
+	g.AssertNoError(t, err)
+
+	// data, err := conn.Query(`show columns in database "BIDB"`)
+	// g.AssertNoError(t, err)
+	// g.Debug("got %d columns", len(data.Rows))
+
+	schemata, err := conn.GetSchemata("", "")
+	g.AssertNoError(t, err)
+	g.Debug("found %d tables totalling %d columns", len(schemata.Tables()), len(schemata.Columns()))
+
+}

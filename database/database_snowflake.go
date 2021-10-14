@@ -726,3 +726,29 @@ func (conn *SnowflakeConn) GenerateUpsertSQL(srcTable string, tgtTable string, p
 
 	return
 }
+
+// GetColumnsFull returns columns for given table. `tableName` should
+// include schema and table, example: `schema1.table2`
+// fields should be `schema_name|table_name|table_type|column_name|data_type|column_id`
+func (conn *SnowflakeConn) GetColumnsFull(tableFName string) (data iop.Dataset, err error) {
+	schema, table := SplitTableFullName(tableFName)
+	data1, err := conn.SumbitTemplate(
+		"single", conn.template.Metadata, "columns_full",
+		g.M("schema", schema, "table", table),
+	)
+	if err != nil {
+		return data1, err
+	}
+
+	data.SetFields([]string{"schema_name", "table_name", "column_name", "data_type", "position"})
+	for i, rec := range data1.Records() {
+		dataType := "UNKNOWN"
+		typeJSON := g.M()
+		err := g.Unmarshal(cast.ToString(rec["data_type"]), &typeJSON)
+		if err == nil {
+			dataType = cast.ToString(typeJSON["type"])
+		}
+		data.Append([]interface{}{rec["schema_name"], rec["table_name"], rec["column_name"], dataType, i + 1})
+	}
+	return data, nil
+}
