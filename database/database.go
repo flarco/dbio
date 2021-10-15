@@ -272,7 +272,7 @@ func (s *Schemata) LoadTablesJSON(payload string) error {
 		}
 		schema := database.Schemas[schemaName]
 
-		// store
+		// store data
 		schema.Tables[tableName] = table
 		database.Schemas[schemaName] = schema
 		databases[databaseName] = database
