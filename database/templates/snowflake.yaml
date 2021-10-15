@@ -19,6 +19,7 @@ core:
       EMPTY_FIELD_AS_NULL=TRUE
       NULL_IF = ''
       SKIP_HEADER=1
+      REPLACE_INVALID_CHARACTERS=TRUE
     )
     ON_ERROR = ABORT_STATEMENT
   copy_from_s3: |
@@ -36,6 +37,7 @@ core:
       EMPTY_FIELD_AS_NULL=TRUE
       NULL_IF = ''
       SKIP_HEADER=1
+      REPLACE_INVALID_CHARACTERS=TRUE
     )
     ON_ERROR = ABORT_STATEMENT
   copy_from_azure: |
@@ -52,6 +54,7 @@ core:
       EMPTY_FIELD_AS_NULL=TRUE
       NULL_IF = ''
       SKIP_HEADER=1
+      REPLACE_INVALID_CHARACTERS=TRUE
     )
     ON_ERROR = ABORT_STATEMENT
   copy_to_stage: |
