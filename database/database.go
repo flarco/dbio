@@ -2752,7 +2752,9 @@ func settingMppBulkImportFlow(conn Connection) {
 		conn.SetProp("FILE_BYTES_LIMIT", "16000000")
 	}
 
-	conn.SetProp("COMPRESSION", "GZIP")
+	if conn.GetProp("COMPRESSION") == "" {
+		conn.SetProp("COMPRESSION", "GZIP")
+	}
 
 	conn.SetProp("DBIO_PARALLEL", "true")
 }
@@ -2855,6 +2857,10 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 
 // CleanSQL removes creds from the query
 func CleanSQL(conn Connection, sql string) string {
+	if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
+		return sql
+	}
+
 	for _, v := range conn.Props() {
 		if strings.TrimSpace(v) == "" {
 			continue

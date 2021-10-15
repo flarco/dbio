@@ -670,7 +670,7 @@ func (conn *SnowflakeConn) GetFile(internalStagePath, fPath string) (err error) 
 // PutFile Copies a local file or folder into a staging location
 func (conn *SnowflakeConn) PutFile(fPath string, internalStagePath string) (err error) {
 	query := g.F(
-		"PUT file://%s %s PARALLEL=20",
+		"PUT file://%s %s PARALLEL=20 AUTO_COMPRESS=FALSE",
 		fPath, internalStagePath,
 	)
 
