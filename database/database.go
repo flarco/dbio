@@ -39,6 +39,7 @@ import (
 // Connection is the Base interface for Connections
 type Connection interface {
 	BaseURL() string
+	ConnString() string
 	Begin(options ...*sql.TxOptions) error
 	BeginContext(ctx context.Context, options ...*sql.TxOptions) error
 	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
@@ -76,6 +77,8 @@ type Connection interface {
 	GetPrimaryKeys(string) (iop.Dataset, error)
 	GetProp(string) string
 	GetSchemata(schemaName, tableName string) (Schemata, error)
+	CurrentDatabase() (string, error)
+	GetDatabases() (iop.Dataset, error)
 	GetSchemas() (iop.Dataset, error)
 	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
@@ -147,10 +150,11 @@ type Column struct {
 
 // Table represents a schemata table
 type Table struct {
-	Name    string `json:"name"`
-	Schema  string `json:"schema"`
-	IsView  bool   `json:"is_view"` // whether is a view
-	Columns []Column
+	Name     string `json:"name"`
+	Schema   string `json:"schema"`
+	Database string `json:"database"`
+	IsView   bool   `json:"is_view"` // whether is a view
+	Columns  []Column
 }
 
 func (t *Table) FullName() string {
@@ -230,6 +234,53 @@ func (schema *Schema) ToData() (data iop.Dataset) {
 // Schemata contains the full schema for a connection
 type Schemata struct {
 	Databases map[string]Database
+}
+
+// LoadTablesJSON loads from a json string
+func (s *Schemata) LoadTablesJSON(payload string) error {
+	tables := map[string]Table{}
+	err := g.Unmarshal(payload, &tables)
+	if err != nil {
+		return g.Error(err, "could not unmarshal TablesJSON")
+	}
+
+	// reconstruct data
+	databases := map[string]Database{}
+	for key, table := range tables {
+		keyArr := strings.Split(key, ".")
+		if len(keyArr) != 3 {
+			return g.Error("table key must be formatted as `database.schema.table`, got `%s`", key)
+		}
+
+		databaseName := strings.ToLower(keyArr[0])
+		schemaName := strings.ToLower(keyArr[1])
+		tableName := strings.ToLower(keyArr[2])
+
+		if _, ok := databases[databaseName]; !ok {
+			databases[databaseName] = Database{
+				Name:    table.Database,
+				Schemas: map[string]Schema{},
+			}
+		}
+		database := databases[databaseName]
+
+		if _, ok := database.Schemas[schemaName]; !ok {
+			database.Schemas[schemaName] = Schema{
+				Name:   table.Schema,
+				Tables: map[string]Table{},
+			}
+		}
+		schema := database.Schemas[schemaName]
+
+		// store
+		schema.Tables[tableName] = table
+		database.Schemas[schemaName] = schema
+		databases[databaseName] = database
+	}
+
+	s.Databases = databases
+
+	return nil
 }
 
 // Database returns the first encountered database
@@ -468,6 +519,11 @@ func (conn *BaseConn) BaseURL() string {
 	return conn.URL
 }
 
+// ConnString returns the connection string needed for connection
+func (conn *BaseConn) ConnString() string {
+	return conn.URL
+}
+
 // GetURL returns the processed URL
 func (conn *BaseConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
@@ -616,7 +672,8 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		return g.Error("Invalid URL? conn.Type needs to be specified")
 	}
 
-	connURL := conn.URL
+	connURL := conn.Self().ConnString()
+
 	// start SSH Tunnel with SSH_TUNNEL prop
 	if sshURL := conn.GetProp("SSH_TUNNEL"); sshURL != "" {
 		sshU, err := url.Parse(sshURL)
@@ -1293,6 +1350,24 @@ func (conn *BaseConn) GetObjects(schema string, objectType string) (iop.Dataset,
 	)
 }
 
+// CurrentDatabase returns the name of the current database
+func (conn *BaseConn) CurrentDatabase() (dbName string, err error) {
+	data, err := conn.SumbitTemplate("single", conn.template.Metadata, "current_database", g.M())
+	if err != nil {
+		err = g.Error(err, "could not get current database")
+	} else {
+		dbName = cast.ToString(data.FirstVal())
+	}
+
+	return
+}
+
+// GetDatabases returns databases for given connection
+func (conn *BaseConn) GetDatabases() (iop.Dataset, error) {
+	// fields: [database_name]
+	return conn.SumbitTemplate("single", conn.template.Metadata, "databases", g.M())
+}
+
 // GetTables returns tables for given schema
 func (conn *BaseConn) GetTables(schema string) (iop.Dataset, error) {
 	// fields: [table_name]
@@ -1712,10 +1787,11 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		}
 
 		table := Table{
-			Name:    tableName,
-			Schema:  schemaName,
-			IsView:  cast.ToBool(rec["is_view"]),
-			Columns: []Column{},
+			Name:     tableName,
+			Schema:   schemaName,
+			Database: currDatabase,
+			IsView:   cast.ToBool(rec["is_view"]),
+			Columns:  []Column{},
 		}
 
 		if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
@@ -2921,4 +2997,51 @@ func ParseSQLMultiStatements(sql string) (sqls g.Strings) {
 	}
 
 	return
+}
+
+// GetSchemataAll obtains the schemata for all databases detected
+func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
+	schemata = Schemata{Databases: map[string]Database{}}
+
+	// get current database
+	currDbName, err := conn.CurrentDatabase()
+	if err != nil {
+		err = g.Error(err, "could not obtain current database")
+		return
+	}
+
+	// get all databases
+	data, err := conn.GetDatabases()
+	if err != nil {
+		err = g.Error(err, "could not obtain list of databases")
+		return
+	}
+	dbNames := data.ColValuesStr(0)
+
+	// loop an connect to each
+	for _, dbName := range dbNames {
+		// create new connection for database
+		connURL := conn.GetURL()
+		dbName = strings.ToLower(dbName)
+		connURL = strings.ReplaceAll(connURL, "/"+currDbName, "/"+strings.ToLower(dbName))
+		newConn, err := NewConn(connURL)
+		if err != nil {
+			g.Warn("could not connect using database %s. %s", dbName, err)
+			continue
+		}
+
+		// pull down schemata
+		newSchemata, err := newConn.GetSchemata("", "")
+		if err != nil {
+			g.Warn("could not obtain schemata for database: %s. %s", dbName, err)
+			continue
+		}
+
+		// merge all schematas
+		for name, database := range newSchemata.Databases {
+			schemata.Databases[name] = database
+		}
+	}
+
+	return schemata, nil
 }

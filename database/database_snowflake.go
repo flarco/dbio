@@ -28,29 +28,7 @@ type SnowflakeConn struct {
 // Init initiates the object
 func (conn *SnowflakeConn) Init() error {
 
-	if s := conn.GetProp("schema"); s != "" {
-		conn.URL = strings.ReplaceAll(conn.URL, "schema="+s, "")
-		conn.SetProp("schema", s)
-	} else {
-		// conn.SetProp("schema", "public") // default schema
-	}
-
-	if m := conn.GetProp("CopyMethod"); m != "" {
-		conn.URL = strings.ReplaceAll(conn.URL, "CopyMethod="+m, "")
-		conn.CopyMethod = conn.GetProp("CopyMethod")
-	}
-
-	if strings.HasSuffix(conn.URL, "?") {
-		conn.URL = conn.URL[0 : len(conn.URL)-1]
-	}
-
-	URL := strings.ReplaceAll(
-		conn.URL,
-		"snowflake://",
-		"",
-	)
-
-	conn.BaseConn.URL = URL
+	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbSnowflake
 
 	var instance Connection
@@ -59,6 +37,33 @@ func (conn *SnowflakeConn) Init() error {
 
 	return conn.BaseConn.Init()
 
+}
+
+func (conn *SnowflakeConn) ConnString() string {
+	connString := conn.URL
+	if s := conn.GetProp("schema"); s != "" {
+		connString = strings.ReplaceAll(connString, "schema="+s, "")
+		conn.SetProp("schema", s)
+	} else {
+		// conn.SetProp("schema", "public") // default schema
+	}
+
+	if m := conn.GetProp("CopyMethod"); m != "" {
+		connString = strings.ReplaceAll(connString, "CopyMethod="+m, "")
+		conn.CopyMethod = conn.GetProp("CopyMethod")
+	}
+
+	if strings.HasSuffix(connString, "?") {
+		connString = connString[0 : len(connString)-1]
+	}
+
+	connString = strings.ReplaceAll(
+		connString,
+		"snowflake://",
+		"",
+	)
+
+	return connString
 }
 
 // Connect connects to the database
@@ -749,6 +754,20 @@ func (conn *SnowflakeConn) GetColumnsFull(tableFName string) (data iop.Dataset, 
 			dataType = cast.ToString(typeJSON["type"])
 		}
 		data.Append([]interface{}{rec["schema_name"], rec["table_name"], rec["column_name"], dataType, i + 1})
+	}
+	return data, nil
+}
+
+// GetDatabases returns the list of databases
+func (conn *SnowflakeConn) GetDatabases() (data iop.Dataset, err error) {
+	data1, err := conn.SumbitTemplate("single", conn.template.Metadata, "databases", g.M())
+	if err != nil {
+		return data1, err
+	}
+
+	data.SetFields([]string{"database_name"})
+	for _, rec := range data1.Records() {
+		data.Append([]interface{}{rec["name"]})
 	}
 	return data, nil
 }

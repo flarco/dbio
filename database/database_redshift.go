@@ -24,7 +24,6 @@ type RedshiftConn struct {
 // Init initiates the object
 func (conn *RedshiftConn) Init() error {
 
-	conn.URL = strings.ReplaceAll(conn.URL, "redshift://", "postgres://")
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbRedshift
 	conn.BaseConn.defaultPort = 5439
@@ -34,6 +33,10 @@ func (conn *RedshiftConn) Init() error {
 	conn.BaseConn.instance = &instance
 
 	return conn.BaseConn.Init()
+}
+
+func (conn *RedshiftConn) ConnString() string {
+	return strings.ReplaceAll(conn.URL, "redshift://", "postgres://")
 }
 
 func isRedshift(URL string) (isRs bool) {

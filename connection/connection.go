@@ -74,8 +74,16 @@ func NewConnectionFromURL(Name, URL string) (conn Connection, err error) {
 
 // NewConnectionFromMap loads a Connection from a Map
 func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
+	data := g.AsMap(m["data"])
 	name := cast.ToString(m["name"])
 	Type := cast.ToString(m["type"])
+
+	if name == "" {
+		name = cast.ToString(data["name"])
+	}
+	if Type == "" {
+		Type = cast.ToString(data["type"])
+	}
 
 	c, err = NewConnection(
 		name,
@@ -277,7 +285,10 @@ func (c *Connection) setURL() (err error) {
 				eG.Add(g.Error("Prop value not provided: %s", k))
 			}
 		}
-		return eG.Err()
+		if err = eG.Err(); err != nil {
+			return g.Error(err)
+		}
+		return nil
 	}
 
 	setIfMissing("username", c.Data["user"])
