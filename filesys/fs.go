@@ -496,10 +496,10 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
 	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
-	gzip := strings.ToUpper(fs.GetProp("COMPRESSION")) == "GZIP"
+	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
 	bytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
-	if gzip {
+	if compression == iop.GzipCompressorType {
 		bytesLimit = bytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
 	}
 
@@ -544,19 +544,15 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			if singleFile {
 				subPartURL = partURL
 				if strings.HasSuffix(partURL, ".gz") {
-					gzip = true
+					compression = iop.GzipCompressorType
 					partURL = strings.TrimSuffix(partURL, ".gz")
 				}
 			}
 
-			if gzip {
-				gzReader := iop.Compress(reader)
-				subPartURL = subPartURL + ".gz"
-				g.Trace("writing compressed stream to " + subPartURL)
-				go writePart(gzReader, subPartURL)
-			} else {
-				go writePart(reader, subPartURL)
-			}
+			compressor := iop.NewCompressor(compression)
+			subPartURL = subPartURL + compressor.Suffix()
+			g.Trace("writing stream to " + subPartURL)
+			go writePart(compressor.Compress(reader), subPartURL)
 			localCtx.Wg.Read.Add()
 			localCtx.MemBasedLimit(90) // wait until memory is lower than 90%
 

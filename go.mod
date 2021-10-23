@@ -24,12 +24,13 @@ require (
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.25.1
+	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/json-iterator/go v1.1.10
-	github.com/klauspost/compress v1.12.3 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/lib/pq v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/minio/minio-go v6.0.14+incompatible

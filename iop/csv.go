@@ -185,7 +185,7 @@ func (c *CSV) getReader() (*csv.Reader, error) {
 	}
 
 	// decompress if gzip
-	readerDecompr, err := Decompress(c.Reader)
+	readerDecompr, err := AutoDecompress(c.Reader)
 	if err != nil {
 		return r, g.Error(err, "Decompress(c.Reader)")
 	}

@@ -396,7 +396,7 @@ func (ds *Datastream) Start() (err error) {
 // This will put each JSON rec as one string value
 // so payload can be processed downstream
 func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
-	reader2, err := Decompress(reader)
+	reader2, err := AutoDecompress(reader)
 	if err != nil {
 		return g.Error(err, "Could not decompress reader")
 	}

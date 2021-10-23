@@ -10,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/flarco/g"
-	"github.com/pkg/sftp"
+	"github.com/klauspost/compress/s2"
+	"github.com/klauspost/compress/zstd"
 )
 
 // Compressor implements differnt kind of compression
@@ -18,18 +19,23 @@ type Compressor interface {
 	Self() Compressor
 	Compress(io.Reader) io.Reader
 	Decompress(io.Reader) (io.Reader, error)
+	Suffix() string
 }
 
 // CompressorType is an int type for enum for the Compressor Type
-type CompressorType int
+type CompressorType string
 
 const (
+	// NoneCompressorType is for no compression
+	NoneCompressorType CompressorType = "NONE"
 	// ZipCompressorType is for Zip compression
-	ZipCompressorType CompressorType = iota
+	ZipCompressorType CompressorType = "ZIP"
 	// GzipCompressorType is for Gzip compression
-	GzipCompressorType
+	GzipCompressorType CompressorType = "GZIP"
 	// SnappyCompressorType is for Snappy compression
-	SnappyCompressorType
+	SnappyCompressorType CompressorType = "SNAPPY"
+	// ZStandardCompressorType is for ZStandard
+	ZStandardCompressorType CompressorType = "ZSTD"
 )
 
 // Unzip will decompress a zip archive, moving all files and folders
@@ -91,8 +97,48 @@ func Unzip(src string, dest string) ([]string, error) {
 	return filenames, nil
 }
 
+func NewCompressor(cpType CompressorType) Compressor {
+	var compressor Compressor
+	switch cpType {
+	// case ZipCompressorType:
+	case GzipCompressorType:
+		compressor = &GzipCompressor{cpType: cpType, suffix: ".gzip"}
+	case SnappyCompressorType:
+		compressor = &SnappyCompressor{cpType: cpType, suffix: ".snappy"}
+	case ZStandardCompressorType:
+		compressor = &ZStandardCompressor{cpType: cpType, suffix: ".zst"}
+	default:
+		compressor = &NoneCompressor{cpType: NoneCompressorType, suffix: ""}
+	}
+	return compressor
+}
+
+type NoneCompressor struct {
+	Compressor
+	cpType CompressorType
+	suffix string
+}
+
+func (cp *NoneCompressor) Compress(reader io.Reader) io.Reader {
+	return reader
+}
+
+func (cp *NoneCompressor) Decompress(reader io.Reader) (gReader io.Reader, err error) {
+	return reader, err
+}
+
+func (cp *NoneCompressor) Suffix() string {
+	return cp.suffix
+}
+
+type GzipCompressor struct {
+	Compressor
+	cpType CompressorType
+	suffix string
+}
+
 // Compress uses gzip to compress
-func Compress(reader io.Reader) io.Reader {
+func (cp *GzipCompressor) Compress(reader io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 	gw := gzip.NewWriter(pw)
 	go func() {
@@ -108,7 +154,105 @@ func Compress(reader io.Reader) io.Reader {
 }
 
 // Decompress uses gzip to decompress if it is gzip. Otherwise return same reader
-func Decompress(reader io.Reader) (gReader io.Reader, err error) {
+func (cp *GzipCompressor) Decompress(reader io.Reader) (gReader io.Reader, err error) {
+	gReader, err = gzip.NewReader(reader)
+	if err != nil {
+		return reader, g.Error(err, "Error using gzip decompressor")
+	}
+
+	return gReader, nil
+}
+
+func (cp *GzipCompressor) Suffix() string {
+	return cp.suffix
+}
+
+type SnappyCompressor struct {
+	Compressor
+	cpType CompressorType
+	suffix string
+}
+
+// Compress uses gzip to compress
+func (cp *SnappyCompressor) Compress(reader io.Reader) io.Reader {
+
+	pr, pw := io.Pipe()
+	w := s2.NewWriter(pw)
+	go func() {
+		_, err := io.Copy(w, reader)
+		if err != nil {
+			g.LogError(g.Error(err, "could not compress stream with snappy"))
+		}
+		w.Close()
+		pw.Close()
+	}()
+
+	return pr
+}
+
+// Decompress uses gzip to decompress if it is gzip. Otherwise return same reader
+func (cp *SnappyCompressor) Decompress(reader io.Reader) (sReader io.Reader, err error) {
+
+	bReader := bufio.NewReader(reader)
+	testBytes, err := bReader.Peek(6)
+	if err != nil {
+		return bReader, g.Error(err, "Error Peeking")
+	}
+
+	// https://github.com/google/snappy/blob/master/framing_format.txt
+	// if string(testBytes) == "sNaPpY" {
+	_ = testBytes
+	sReader = s2.NewReader(bReader)
+
+	return sReader, err
+}
+func (cp *SnappyCompressor) Suffix() string {
+	return cp.suffix
+}
+
+type ZStandardCompressor struct {
+	Compressor
+	cpType CompressorType
+	suffix string
+}
+
+// Compress uses gzip to compress
+func (cp *ZStandardCompressor) Compress(reader io.Reader) io.Reader {
+
+	pr, pw := io.Pipe()
+	w, err := zstd.NewWriter(pw)
+	if err != nil {
+		g.Warn("Could not compress using ZStandard")
+		return reader
+	}
+
+	go func() {
+		_, err := io.Copy(w, reader)
+		if err != nil {
+			g.LogError(g.Error(err, "could not compress stream with snappy"))
+		}
+		w.Close()
+		pw.Close()
+	}()
+
+	return pr
+}
+
+// Decompress uses gzip to decompress if it is gzip. Otherwise return same reader
+func (cp *ZStandardCompressor) Decompress(reader io.Reader) (sReader io.Reader, err error) {
+	sReader, err = zstd.NewReader(reader)
+	if err != nil {
+		return nil, g.Error(err, "Error decompressing with Zstandard")
+	}
+
+	return sReader, err
+}
+func (cp *ZStandardCompressor) Suffix() string {
+	return cp.suffix
+}
+
+// AutoDecompress auto detexts compression to decompress. Otherwise return same reader
+func AutoDecompress(reader io.Reader) (gReader io.Reader, err error) {
 
 	bReader := bufio.NewReader(reader)
 	testBytes, err := bReader.Peek(2)
@@ -129,24 +273,4 @@ func Decompress(reader io.Reader) (gReader io.Reader, err error) {
 	}
 
 	return gReader, err
-}
-
-type BaseCompressor struct {
-	Compressor
-	properties map[string]string
-	context    g.Context
-	cpType     CompressorType
-}
-
-// Context provides a pointer to context
-func (cp *BaseCompressor) Context() (context *g.Context) {
-	return &cp.context
-}
-
-// ZipCompressor is for Zip Compression
-type ZipCompressor struct {
-	BaseCompressor
-	context   g.Context
-	client    *sftp.Client
-	sshClient *SSHClient
 }
