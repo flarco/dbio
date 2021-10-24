@@ -102,7 +102,7 @@ func NewCompressor(cpType CompressorType) Compressor {
 	switch cpType {
 	// case ZipCompressorType:
 	case GzipCompressorType:
-		compressor = &GzipCompressor{cpType: cpType, suffix: ".gzip"}
+		compressor = &GzipCompressor{cpType: cpType, suffix: ".gz"}
 	case SnappyCompressorType:
 		compressor = &SnappyCompressor{cpType: cpType, suffix: ".snappy"}
 	case ZStandardCompressorType:
