@@ -50,6 +50,7 @@ core:
 
 
 metadata:
+  current_database: select db_name() 
     
   schemas: |
     select schema_name

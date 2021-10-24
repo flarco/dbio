@@ -8,6 +8,7 @@ core:
 
 
 metadata:
+  current_database: PRAGMA database_list
 
   schemas: |
     select 'main' as schema_name

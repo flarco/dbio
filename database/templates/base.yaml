@@ -31,7 +31,7 @@ analysis:
 
   table_join_match: |
     -- table_join_match "{t1}" vs "{t2}"
-    with T1 as (
+    with t1 as (
       select
         {t1_field},
         count(1) cnt
@@ -39,7 +39,7 @@ analysis:
       where {t1_filter}
       group by {t1_field}
     )
-    , T2 as (
+    , t2 as (
       select
         {t2_field},
         count(1) cnt

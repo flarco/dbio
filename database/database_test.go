@@ -456,7 +456,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	data, err = conn.GetColumnsFull(db.schema + ".place")
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
-	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64"}, data.Records()[2]["data_type"])
+	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64", "FIXED"}, data.Records()[2]["data_type"])
 
 	// GetDDL of table
 	if !strings.Contains("redshift,bigquery,sqlserver,azuresql,azuredwh", db.name) {
@@ -512,7 +512,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	schemata, err := conn.GetSchemata(db.schema, "")
 	g.AssertNoError(t, err)
 	sData := schemata.Database().Schemas[db.schema]
-	assert.Equal(t, db.schema, sData.Name)
+	assert.Equal(t, strings.ToLower(db.schema), strings.ToLower(sData.Name))
 	assert.Contains(t, sData.Tables, "person")
 	assert.Contains(t, sData.Tables, "place_vw")
 	personTable := sData.Tables["person"]
@@ -1208,7 +1208,7 @@ func TestDecimal(t *testing.T) {
 
 }
 
-func TestSnowflakeStage(t *testing.T) {
+func testSnowflakeStage(t *testing.T) {
 	db := DBs["snowflake"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
@@ -1239,7 +1239,7 @@ func TestSnowflakeStage(t *testing.T) {
 	g.AssertNoError(t, err)
 }
 
-func TestSnowflakeAuth(t *testing.T) {
+func testSnowflakeAuth(t *testing.T) {
 	url := "snowflake://&authenticator=externalbrowser"
 	conn, err := NewConn(url)
 	// conn, err := NewConn(DBs["bigquery"].URL)

@@ -31,6 +31,14 @@ func (conn *SnowflakeConn) Init() error {
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbSnowflake
 
+	if s := conn.GetProp("schema"); s != "" {
+		conn.SetProp("schema", s)
+	}
+
+	if m := conn.GetProp("CopyMethod"); m != "" {
+		conn.CopyMethod = conn.GetProp("CopyMethod")
+	}
+
 	var instance Connection
 	instance = conn
 	conn.BaseConn.instance = &instance
@@ -41,16 +49,9 @@ func (conn *SnowflakeConn) Init() error {
 
 func (conn *SnowflakeConn) ConnString() string {
 	connString := conn.URL
-	if s := conn.GetProp("schema"); s != "" {
-		connString = strings.ReplaceAll(connString, "schema="+s, "")
-		conn.SetProp("schema", s)
-	} else {
-		// conn.SetProp("schema", "public") // default schema
-	}
 
 	if m := conn.GetProp("CopyMethod"); m != "" {
 		connString = strings.ReplaceAll(connString, "CopyMethod="+m, "")
-		conn.CopyMethod = conn.GetProp("CopyMethod")
 	}
 
 	if strings.HasSuffix(connString, "?") {

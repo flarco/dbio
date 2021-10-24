@@ -72,6 +72,8 @@ core:
     )
 
 metadata:
+  current_database: select name from V$database
+
   schemas: |
     select username as schema_name
     from sys.all_users

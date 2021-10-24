@@ -8,6 +8,7 @@ core:
   limit: select {fields} from {table} limit {limit}
 
 metadata:
+  current_database: select database() from dual
     
   schemas: |
     select schema_name
