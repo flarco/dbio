@@ -64,7 +64,7 @@ func isRedshift(URL string) (isRs bool) {
 func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 
 	if conn.GetProp("AWS_BUCKET") == "" {
-		return "", g.Error(err, "need to set AWS_BUCKET")
+		return "", g.Error("need to set AWS_BUCKET")
 	}
 
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
@@ -154,7 +154,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 
 	df, err = fs.ReadDataflow(s3Path)
 	if err != nil {
-		err = g.Error(err, "Could not read "+s3Path)
+		err = g.Error(err, "Could not read S3 Path for UNLOAD: "+s3Path)
 		return
 	}
 	df.SetColumns(columns)
