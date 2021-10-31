@@ -240,6 +240,17 @@ func (c *Connection) Close() error {
 	return nil
 }
 
+// ConnSetDatabase returns a new connection with the specified
+// database name
+func (c *Connection) ConnSetDatabase(dbName string) *Connection {
+	data := g.AsMap(c.Data)
+	if dbName != "" {
+		data["database"] = dbName
+	}
+	c2, _ := NewConnection(c.Name, c.Type, data)
+	return &c2
+}
+
 func (c *Connection) setURL() (err error) {
 	c.setFromEnv()
 
