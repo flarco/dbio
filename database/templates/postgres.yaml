@@ -304,10 +304,11 @@ analysis:
           '{field}'::text as field,
           extract(year from "{field}") as year,
           extract(month from "{field}") as month,
+          extract(day from "{field}") as day,
           count(1) cnt
         from "{schema}"."{table}"
-        group by extract(year from "{field}"), extract(month from "{field}")
-        order by extract(year from "{field}"), extract(month from "{field}")
+        group by 2, 3, 4
+        order by 2, 3, 4
       )
       , t2 as (
         select '{field}'::text as field, count(1) ttl_cnt
@@ -319,12 +320,13 @@ analysis:
         t1.field,
         t1.year,
         t1.month,
+        t1.day,
         cnt,
         round(100.0 * cnt / ttl_cnt, 2) as prct
       from t1
       join t2
         on t1.field = t2.field
-      order by t1.year, t1.month
+      order by t1.year, t1.month, t1.day
 
 function:
   truncate_f: trunc("{field}")

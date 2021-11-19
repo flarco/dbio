@@ -405,7 +405,7 @@ analysis:
     with t1 as (
         select
           '{field}' as field,
-          date_trunc(month, {field}) as {field},
+          date_trunc(day, {field}) as date,
           count(1) cnt
         from {schema}.{table}
         group by 2
@@ -419,18 +419,18 @@ analysis:
         '{schema}' as schema_nm,
         '{table}' as table_nm,
         t1.field,
-        t1.{field},
+        t1.date,
         cnt,
         round(100.0 * cnt / ttl_cnt, 2) as prct
       from t1
       join t2
         on t1.field = t2.field
-      order by t1.{field}
+      order by t1.date
 
   distro_field_date_wide: |
     -- distro_field_date {table}
     select
-      date_trunc(month, {date_field}) as {date_field}_month,
+      date_trunc(day, {date_field}) as {date_field}_day,
       {columns_sql}
     from {schema}.{table}
     {where_clause}
