@@ -177,7 +177,7 @@ metadata:
 analysis:
   
   field_stat_deep: |
-    -- field_stat_deep {table}
+    -- field_stat_deep {field}
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
@@ -226,16 +226,17 @@ analysis:
       order by t1.year, t1.month
 
   distro_field_date_wide: |
-    -- distro_field_date {table}
+    -- distro_field_date {field}
     select
       '{date_field}' as date_field,
           extract(year from {field}) as year,
           extract(month from {field}) as month,
+          extract(day from {field}) as day,
       {columns_sql}
     from {schema}.{table}
     {where_clause}
-    group by extract(year from {field}), extract(month from {field})
-    order by extract(year from {field}), extract(month from {field})
+    group by extract(year from {field}), extract(month from {field}), extract(day from {field})
+    order by extract(year from {field}), extract(month from {field}), extract(day from {field})
 
 routine:
   date_trunc_min_max: |

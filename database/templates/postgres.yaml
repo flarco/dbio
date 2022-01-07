@@ -213,7 +213,7 @@ analysis:
     from "{schema}"."{table}"
 
   field_stat_len: |
-    -- field_stat_len "{table}"
+    -- field_stat_len "{field}"
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,

@@ -153,7 +153,7 @@ analysis:
     from {schema}.{table}
 
   field_stat: |
-    -- field_stat {table}
+    -- field_stat {field}
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
@@ -168,7 +168,7 @@ analysis:
     from {schema}.{table}
 
   field_stat_group: |
-    -- field_stat_group {table}
+    -- field_stat_group {field}
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
@@ -185,7 +185,7 @@ analysis:
     group by {group_expr}
 
   field_stat_deep: |
-    -- field_stat_deep {table}
+    -- field_stat_deep {field}
     select
       '{schema}' as schema_nm,
       '{table}' as table_nm,
@@ -205,7 +205,7 @@ analysis:
     from {schema}.{table}
 
   fill_cnt_group_field: |
-    -- fill_cnt_group_field {table}
+    -- fill_cnt_group_field {field}
     select
       {field},
       {columns_sql}
@@ -214,7 +214,7 @@ analysis:
     order by {field}
 
   fill_rate_group_field: |
-    -- fill_rate_group_field {table}
+    -- fill_rate_group_field {field}
     select
       {field},
       {fill_rate_fields_sql}
