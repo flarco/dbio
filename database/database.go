@@ -762,14 +762,6 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		_ = cancel // lint complaint
 		_ = pingCtx
 
-		// err = conn.db.PingContext(pingCtx)
-		// if err != nil {
-		// 	g.Trace("Could not ping DB -> %s", connURL)
-		// 	return g.Error(err, "Could not ping DB")
-		// } else if !usePool {
-		// 	g.Info(`connected to %s`, conn.Type)
-		// }
-
 		// add to pool after successful connection
 		if usePool && !poolOk {
 			connPool.Mux.Lock()
