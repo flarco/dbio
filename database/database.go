@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/flarco/g/net"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -121,6 +122,19 @@ type Connection interface {
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
 	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
 	Base() *BaseConn
+	Info() ConnInfo
+}
+
+type ConnInfo struct {
+	Host      string
+	Port      int
+	Database  string
+	User      string
+	Password  string
+	Schema    string
+	Warehouse string
+	Role      string
+	URL       *net.URL
 }
 
 // BaseConn is a database connection
@@ -2728,6 +2742,27 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 	return eg.Err()
 }
 
+// Info returns connection information
+func (conn *BaseConn) Info() (ci ConnInfo) {
+	U, err := net.NewURL(conn.GetURL())
+	if err != nil {
+		return
+	}
+
+	ci = ConnInfo{
+		Host:      U.Hostname(),
+		Port:      U.Port(),
+		Database:  strings.ReplaceAll(U.Path(), "/", ""),
+		User:      U.Username(),
+		Password:  U.Password(),
+		Schema:    U.GetParam("schema"),
+		Warehouse: U.GetParam("warehouse"),
+		Role:      U.GetParam("role"),
+		URL:       U,
+	}
+	return
+}
+
 func (conn *BaseConn) credsProvided(provider string) bool {
 	if provider == "AWS" {
 		if conn.GetProp("AWS_SECRET_ACCESS_KEY") != "" || conn.GetProp("AWS_ACCESS_KEY_ID") != "" {
@@ -3009,12 +3044,7 @@ func ParseSQLMultiStatements(sql string) (sqls g.Strings) {
 func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
 	schemata = Schemata{Databases: map[string]Database{}}
 
-	// get current database
-	currDbName, err := conn.CurrentDatabase()
-	if err != nil {
-		err = g.Error(err, "could not obtain current database")
-		return
-	}
+	connInfo := conn.Info()
 
 	// get all databases
 	data, err := conn.GetDatabases()
@@ -3024,30 +3054,54 @@ func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
 	}
 	dbNames := data.ColValuesStr(0)
 
-	// loop an connect to each
-	for _, dbName := range dbNames {
+	getSchemata := func(dbName string) {
+		defer conn.Context().Wg.Read.Done()
+
 		// create new connection for database
-		connURL := conn.GetURL()
-		dbName = strings.ToLower(dbName)
-		connURL = strings.ReplaceAll(connURL, "/"+currDbName, "/"+strings.ToLower(dbName))
+		g.Debug("getting schemata for database: %s", dbName)
+
+		// remove schema if specified
+		connInfo.URL.PopParam("schema")
+
+		// replace database with new one
+		connURL := strings.ReplaceAll(
+			connInfo.URL.String(),
+			"/"+connInfo.Database,
+			"/"+dbName,
+		)
+
 		newConn, err := NewConn(connURL)
 		if err != nil {
 			g.Warn("could not connect using database %s. %s", dbName, err)
-			continue
+			return
 		}
 
 		// pull down schemata
 		newSchemata, err := newConn.GetSchemata("", "")
 		if err != nil {
 			g.Warn("could not obtain schemata for database: %s. %s", dbName, err)
-			continue
+			return
 		}
 
 		// merge all schematas
 		for name, database := range newSchemata.Databases {
+			g.Debug(
+				"   collected %d columns, in %d tables/views from database %s",
+				len(database.Columns()),
+				len(database.Tables()),
+				database.Name,
+			)
 			schemata.Databases[name] = database
 		}
 	}
+
+	// loop an connect to each
+	for _, dbName := range dbNames {
+		conn.Context().Wg.Read.Add()
+		go getSchemata(dbName)
+	}
+
+	conn.Context().Wg.Read.Wait()
 
 	return schemata, nil
 }

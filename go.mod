@@ -30,7 +30,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/json-iterator/go v1.1.10
-	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/klauspost/compress v1.13.6
 	github.com/lib/pq v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/minio/minio-go v6.0.14+incompatible

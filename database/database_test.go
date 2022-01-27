@@ -1259,3 +1259,20 @@ func testSnowflakeAuth(t *testing.T) {
 	g.Debug("found %d tables totalling %d columns", len(schemata.Tables()), len(schemata.Columns()))
 
 }
+
+func TestSchemataAll(t *testing.T) {
+	db := DBs["snowflake"]
+	conn, err := connect(db)
+
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	err = conn.Connect()
+	g.AssertNoError(t, err)
+
+	schemata, err := GetSchemataAll(conn)
+	g.AssertNoError(t, err)
+	_ = schemata
+
+}
