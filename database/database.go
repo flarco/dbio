@@ -157,7 +157,7 @@ type BaseConn struct {
 
 // Column represents a schemata column
 type Column struct {
-	Position int    `json:"position"`
+	Position int    `json:"-"`
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 }
@@ -285,6 +285,11 @@ func (s *Schemata) LoadTablesJSON(payload string) error {
 			}
 		}
 		schema := database.Schemas[schemaName]
+
+		// fill in positions
+		for i := range table.Columns {
+			table.Columns[i].Position = i + 1
+		}
 
 		// store data
 		schema.Tables[tableName] = table
@@ -1767,6 +1772,14 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 	for _, rec := range schemaData.Records() {
 		schemaName = cast.ToString(rec["schema_name"])
 		tableName := cast.ToString(rec["table_name"])
+		columnName := cast.ToString(rec["column_name"])
+
+		// if any of the names contains a period, skip. This messes with the keys
+		if strings.Contains(tableName, ".") ||
+			strings.Contains(schemaName, ".") ||
+			strings.Contains(columnName, ".") {
+			continue
+		}
 
 		switch v := rec["is_view"].(type) {
 		case int64, float64:
@@ -1809,8 +1822,8 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		}
 
 		column := Column{
+			Name:     columnName,
 			Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
-			Name:     cast.ToString(rec["column_name"]),
 			Type:     cast.ToString(rec["data_type"]),
 		}
 
