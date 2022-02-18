@@ -184,7 +184,7 @@ var DBs = map[string]*testDB{
 		placeVwDDL:    "create or replace view public.place_vw as select * from `proven-cider-633.public.place` where telcode = 65",
 		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 		propStrs: []string{
-			"PROJECT_ID=proven-cider-633",
+			"PROJECT=proven-cider-633",
 			"schema=public",
 			"GC_CRED_FILE=/__/devbox/slingelt-prod-10fbedc838ea.json",
 		},

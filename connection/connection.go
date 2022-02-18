@@ -281,7 +281,7 @@ func (c *Connection) setURL() (err error) {
 			if c.Type == dbio.TypeDbSnowflake {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
 			} else if c.Type == dbio.TypeDbBigQuery {
-				setIfMissing("schema", c.Data["dataset_id"])
+				setIfMissing("schema", c.Data["dataset"])
 			}
 		}
 	}
@@ -333,7 +333,7 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("port", c.Type.DefPort())
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeDbBigQuery:
-		template = "bigquery://{project_id}/{location}/{dataset_id}"
+		template = "bigquery://{project}/{location}/{dataset}"
 	case dbio.TypeDbSnowflake:
 		// setIfMissing("schema", "public")
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"

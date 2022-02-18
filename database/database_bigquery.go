@@ -46,8 +46,8 @@ func (conn *BigQueryConn) Init() error {
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbBigQuery
 
-	conn.ProjectID = conn.GetProp("PROJECT_ID")
-	conn.DatasetID = conn.GetProp("DatasetID")
+	conn.ProjectID = conn.GetProp("project")
+	conn.DatasetID = conn.GetProp("dataset")
 	if conn.DatasetID == "" {
 		conn.DatasetID = conn.GetProp("schema")
 	}
@@ -94,6 +94,8 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 	} else if val := conn.GetProp("GC_CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GC_CRED_FILE"); val != "" {
+		authOption = option.WithCredentialsFile(val)
+	} else if val := conn.GetProp("keyfile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
 	}
 	if authOption == nil {

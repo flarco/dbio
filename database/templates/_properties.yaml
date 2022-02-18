@@ -148,18 +148,18 @@ postgres:
 bigquery:
   title: 'Big Query'
   kind: database
-  required: ["dataset_id", "project_id", "credentials_json"]
-  url_template: 'bigquery://{project_id}/{location}/{dataset_id}'
+  required: ["dataset", "project", "credentials_json"]
+  url_template: 'bigquery://{project}/{location}/{dataset}'
   properties:
     name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: BQ_DWH'
-    dataset_id:
+    dataset:
       type: text
       title: Dataset ID
       description: 'The BigQuery dataset id'
-    project_id:
+    project:
       type: text
       title: Project ID
       description: 'The GCP project ID for the project containing the dataset.'
