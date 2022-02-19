@@ -3,7 +3,6 @@ module github.com/flarco/dbio
 go 1.16
 
 require (
-	cloud.google.com/go v0.66.0
 	cloud.google.com/go/bigquery v1.8.0
 	cloud.google.com/go/storage v1.12.0
 	github.com/360EntSecGroup-Skylar/excelize v1.4.1
@@ -19,12 +18,12 @@ require (
 	github.com/digitalocean/godo v1.59.0
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0
+	github.com/flarco/bigquery v0.0.6
 	github.com/flarco/g v0.0.7
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.25.1
-	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0
@@ -41,17 +40,15 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/snowflakedb/gosnowflake v1.5.1
-	github.com/solcates/go-sql-bigquery v0.2.4
-	github.com/spf13/cast v1.3.1
+	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.0
 	github.com/xitongsys/parquet-go v1.5.4
 	github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e
 	github.com/xo/dburl v0.3.0
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
-	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	golang.org/x/sys v0.0.0-20210531080801-fdfd190a6549 // indirect
-	google.golang.org/api v0.34.0
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	google.golang.org/api v0.63.0
 	gopkg.in/VividCortex/ewma.v1 v1.1.1 // indirect
 	gopkg.in/cheggaaa/pb.v2 v2.0.7
 	gopkg.in/fatih/color.v1 v1.7.0 // indirect
@@ -66,5 +63,3 @@ require (
 	gorm.io/gorm v1.20.7
 	syreclabs.com/go/faker v1.2.2
 )
-
-// replace github.com/flarco/g => ../g

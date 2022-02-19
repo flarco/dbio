@@ -2,11 +2,7 @@ package database
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
-	"encoding/base64"
 	"fmt"
-	"math/big"
 	"net/url"
 	"os"
 	"strings"
@@ -14,9 +10,9 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
+	"github.com/flarco/g/net"
 
 	"cloud.google.com/go/bigquery"
-	"cloud.google.com/go/civil"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
@@ -35,18 +31,21 @@ type BigQueryConn struct {
 	Datasets  []string
 }
 
-// bqTuple represents a row item.
-type bqTuple struct {
-	Fields []string
-	Row    []interface{}
-}
-
 // Init initiates the object
 func (conn *BigQueryConn) Init() error {
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbBigQuery
 
+	u, err := net.NewURL(conn.BaseConn.URL)
+	if err != nil {
+		return g.Error(err, "could not parse bigquery url")
+	}
+
 	conn.ProjectID = conn.GetProp("project")
+	if conn.ProjectID == "" {
+		conn.ProjectID = u.U.Host
+	}
+
 	conn.DatasetID = conn.GetProp("dataset")
 	if conn.DatasetID == "" {
 		conn.DatasetID = conn.GetProp("schema")
@@ -56,7 +55,7 @@ func (conn *BigQueryConn) Init() error {
 	instance = conn
 	conn.BaseConn.instance = &instance
 
-	err := conn.BaseConn.Init()
+	err = conn.BaseConn.Init()
 	if err != nil {
 		err = g.Error(err, "could not initialize connection")
 		return err
@@ -97,6 +96,8 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithCredentialsFile(val)
 	} else if val := conn.GetProp("keyfile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
+	} else if val := conn.GetProp("credentialsFile"); val != "" {
+		authOption = option.WithCredentialsFile(val)
 	}
 	if authOption == nil {
 		err = g.Error("no Google crendentials provided")
@@ -134,278 +135,13 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 	return conn.BaseConn.Connect()
 }
 
-type bqResult struct {
-	TotalRows uint64
-	res       driver.Result
-}
-
-func (r bqResult) LastInsertId() (int64, error) {
-	return 0, nil
-}
-
-func (r bqResult) RowsAffected() (int64, error) {
-	return cast.ToInt64(r.TotalRows), nil
-}
-
-// ExecContext runs a sql query with context, returns `error`
-func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
-
-	if len(args) > 0 {
-		for _, arg := range args {
-			switch arg.(type) {
-			case int, int64, int8, int32, int16:
-				sql = strings.Replace(sql, "?", fmt.Sprintf("%d", arg), 1)
-			case float32, float64:
-				sql = strings.Replace(sql, "?", fmt.Sprintf("%f", arg), 1)
-			case time.Time:
-				t := arg.(time.Time)
-				sql = strings.Replace(sql, "?", fmt.Sprintf("'%s'", t.Format("2006-01-02 15:04:05")), 1)
-			case nil:
-				sql = strings.Replace(sql, "?", "NULL", 1)
-			case []byte:
-				data, ok := arg.([]byte)
-				if ok {
-					if len(data) == 0 {
-						sql = strings.Replace(sql, "?", "NULL", 1)
-
-					} else {
-						newdata := base64.StdEncoding.EncodeToString(data)
-						sql = strings.Replace(sql, "?", fmt.Sprintf("FROM_BASE64('%s')", newdata), 1)
-					}
-				}
-			default:
-				val := strings.ReplaceAll(cast.ToString(arg), "\n", "\\n")
-				val = strings.ReplaceAll(val, "'", "\\'")
-				sql = strings.Replace(sql, "?", fmt.Sprintf("'%s'", val), 1)
-			}
-		}
-	}
-
-	res := bqResult{}
-	exec := func(sql string) error {
-		noTrace := strings.Contains(sql, noTraceKey)
-		if !noTrace {
-			g.Debug(sql)
-		}
-
-		q := conn.Client.Query(sql)
-		q.QueryConfig = bigquery.QueryConfig{
-			Q:                sql,
-			DefaultDatasetID: conn.GetProp("schema"),
-		}
-		it, err := q.Read(ctx)
-		if err != nil {
-			return g.Error(err, "SQL Error for:\n"+sql)
-		}
-
-		if err != nil {
-			err = g.Error(err, "Error executing "+CleanSQL(conn, sql))
-		} else {
-			res.TotalRows = it.TotalRows + res.TotalRows
-		}
-		return nil
-	}
-
-	for _, sql := range ParseSQLMultiStatements(sql) {
-		err = exec(sql)
-		if err != nil {
-			err = g.Error(err, "Error executing query")
-		}
-	}
-	result = res
-
-	return
-}
-
-type bQTypeCols struct {
-	numericCols  []int
-	datetimeCols []int
-	dateCols     []int
-	timeCols     []int
-}
-
-func processBQTypeCols(row []interface{}, bqTC *bQTypeCols, ds *iop.Datastream) []interface{} {
-	for _, j := range bqTC.numericCols {
-		var vBR *big.Rat
-		vBR = row[j].(*big.Rat)
-		row[j], _ = vBR.Float64()
-	}
-	for _, j := range bqTC.datetimeCols {
-		var vDT civil.DateTime
-		if row[j] != nil {
-			vDT = row[j].(civil.DateTime)
-			row[j], _ = ds.Sp.ParseTime(vDT.Date.String() + " " + vDT.Time.String())
-		}
-	}
-	for _, j := range bqTC.dateCols {
-		var vDT civil.Date
-		if row[j] != nil {
-			vDT = row[j].(civil.Date)
-			row[j], _ = ds.Sp.ParseTime(vDT.String())
-		}
-	}
-	for _, j := range bqTC.timeCols {
-		var vDT civil.Time
-		if row[j] != nil {
-			vDT = row[j].(civil.Time)
-			row[j], _ = ds.Sp.ParseTime(vDT.String())
-		}
-	}
-	return row
-}
-
-// StreamRowsContext streams the rows of a sql query with context, returns `result`, `error`
-func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error) {
-	Limit := 0 // infinite
-	if len(limit) > 0 && limit[0] != 0 {
-		Limit = limit[0]
-	}
-
-	start := time.Now()
-	if strings.TrimSpace(sql) == "" {
-		g.Warn("Empty Query")
-		return ds, nil
-	}
-
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
-		g.Debug(sql)
-	}
-	queryContext := g.NewContext(ctx)
-	q := conn.Client.Query(sql)
-	q.QueryConfig = bigquery.QueryConfig{
-		Q:                sql,
-		DefaultDatasetID: conn.GetProp("schema"),
-	}
-
-	it, err := q.Read(queryContext.Ctx)
-	if err != nil {
-		err = g.Error(err, "SQL Error for:\n"+sql)
-		return
-	}
-
-	conn.Data.SQL = sql
-	conn.Data.Duration = time.Since(start).Seconds()
-	conn.Data.Rows = [][]interface{}{}
-
-	ds = iop.NewDatastreamContext(queryContext.Ctx, nil)
-
-	// collect sample up to 1000 rows and infer types
-	counter := 0
-	var row []interface{}
-	bQTC := bQTypeCols{}
-	for {
-		var values []bigquery.Value
-		err = it.Next(&values)
-		if err == iterator.Done {
-			err = nil
-			break
-		}
-		if err != nil {
-			err = g.Error(err, "Failed to scan")
-			ds.Context.CaptureErr(err)
-			ds.Context.Cancel()
-			return
-		}
-
-		if ds.Columns == nil {
-			ds.Columns = make([]iop.Column, len(it.Schema))
-			for i, col := range it.Schema {
-				ds.Columns[i] = iop.Column{
-					Name:     col.Name,
-					Position: i + 1,
-					Type:     cast.ToString(col.Type),
-				}
-				g.Trace("%s - %s", col.Name, col.Type)
-				if col.Type == "NUMERIC" {
-					bQTC.numericCols = append(bQTC.numericCols, i)
-				} else if col.Type == "DATETIME" {
-					bQTC.datetimeCols = append(bQTC.datetimeCols, i)
-				} else if col.Type == "DATE" {
-					bQTC.dateCols = append(bQTC.dateCols, i)
-				} else if col.Type == "TIME" {
-					bQTC.timeCols = append(bQTC.timeCols, i)
-				}
-			}
-		}
-
-		row = make([]interface{}, len(ds.Columns))
-		for i := range values {
-			row[i] = values[i]
-		}
-		row = processBQTypeCols(row, &bQTC, ds)
-
-		row = ds.Sp.ProcessRow(row)
-		ds.Buffer = append(ds.Buffer, row)
-		counter++
-		if counter == SampleSize {
-			break
-		} else if Limit > 0 && counter == Limit {
-			break
-		}
-	}
-
-	sampleData := iop.NewDataset(ds.Columns)
-	sampleData.Rows = ds.Buffer
-	sampleData.InferColumnTypes()
-	ds.Columns = sampleData.Columns
-
-	go func() {
-		// Ensure that at the end of the loop we close the channel!
-		defer ds.Close()
-		ds.Ready = true
-
-		for _, row := range ds.Buffer {
-			for i, val := range row {
-				row[i] = ds.Sp.CastVal(i, val, ds.Columns[i].Type)
-			}
-			ds.Push(row)
-		}
-
-		for {
-			if Limit > 0 && counter == Limit {
-				break
-			}
-
-			var values []bigquery.Value
-			err := it.Next(&values)
-			if err == iterator.Done {
-				err = nil
-				break
-			}
-			if err != nil {
-				ds.Context.CaptureErr(g.Error(err, "Failed to scan"))
-				ds.Context.Cancel()
-				break
-			}
-
-			row = make([]interface{}, len(ds.Columns))
-			for i := range values {
-				row[i] = values[i]
-			}
-
-			row = processBQTypeCols(row, &bQTC, ds)
-
-			counter++
-			select {
-			case <-ds.Context.Ctx.Done():
-				return
-			default:
-				ds.Push(row)
-			}
-		}
-	}()
-
-	return
-}
-
 // Close closes the connection
 func (conn *BigQueryConn) Close() error {
 	err := conn.Client.Close()
 	if err != nil {
 		return err
 	}
-	return nil
+	return conn.BaseConn.Close()
 }
 
 // InsertBatchStream inserts a stream into a table in batch
@@ -416,66 +152,6 @@ func (conn *BigQueryConn) InsertBatchStream(tableFName string, ds *iop.Datastrea
 // InsertStream demonstrates loading data into a BigQuery table using a file on the local filesystem.
 func (conn *BigQueryConn) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	return conn.BulkImportStream(tableFName, ds)
-}
-
-// Save implements the ValueSaver interface.
-func (t *bqTuple) Save() (map[string]bigquery.Value, string, error) {
-	rec := map[string]bigquery.Value{}
-
-	for i, col := range t.Fields {
-		rec[col] = t.Row[i]
-	}
-
-	return rec, "", nil
-}
-
-// insertRows demonstrates inserting data into a table using the streaming insert mechanism.
-func (conn *BigQueryConn) insertRows(context *g.Context, tableFName string, rows []*bqTuple) (count uint64, err error) {
-	defer context.Wg.Write.Done()
-	tableID := tableFName
-
-	inserter := conn.Client.Dataset(conn.DatasetID).Table(tableID).Inserter()
-	if err := inserter.Put(context.Ctx, rows); err != nil {
-		return 0, g.Error(err, "Error in inserter.Put")
-	}
-
-	return uint64(len(rows)), nil
-}
-
-// importWithInserter import the stream rows in bulk
-// does the inserts in parallel
-func (conn *BigQueryConn) importWithInserter(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-
-	const batchSize = 100000
-	batchRows := make([]*bqTuple, batchSize)
-	counter := 0
-loop:
-	for row := range ds.Rows {
-		select {
-		case <-ds.Context.Ctx.Done():
-			counter = 0
-			break loop
-		default:
-			counter++
-			batchRows[counter-1] = &bqTuple{Fields: ds.GetFields(), Row: row}
-			if counter == batchSize {
-				ds.Context.Wg.Write.Add()
-				go conn.insertRows(&ds.Context, tableFName, batchRows)
-				counter = 0
-				batchRows = make([]*bqTuple, batchSize)
-			}
-		}
-	}
-
-	// insert last batch
-	if counter > 0 {
-		ds.Context.Wg.Write.Add()
-		conn.insertRows(&ds.Context, tableFName, batchRows)
-	}
-
-	ds.Context.Wg.Write.Wait()
-
-	return ds.Count, ds.Context.Ctx.Err()
 }
 
 func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
@@ -834,4 +510,139 @@ func (conn *BigQueryConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 	)
 
 	return
+}
+
+// GetDatabases returns databases
+func (conn *BigQueryConn) GetDatabases() (iop.Dataset, error) {
+	// fields: [name]
+	data := iop.NewDataset(iop.NewColumnsFromFields("name"))
+	data.Append([]interface{}{conn.ProjectID})
+	return data, nil
+}
+
+// GetSchemas returns schemas
+func (conn *BigQueryConn) GetSchemas() (iop.Dataset, error) {
+	// fields: [schema_name]
+	data := iop.NewDataset(iop.NewColumnsFromFields("schema_name"))
+	for _, dataset := range conn.Datasets {
+		data.Append([]interface{}{dataset})
+	}
+	return data, nil
+}
+
+// GetSchemata obtain full schemata info for a schema and/or table in current database
+func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, error) {
+
+	schemata := Schemata{
+		Databases: map[string]Database{},
+	}
+
+	datasets := conn.Datasets
+	if schemaName != "" {
+		datasets = []string{schemaName}
+	}
+
+	currDatabase := conn.ProjectID
+	schemas := map[string]Schema{}
+
+	ctx := g.NewContext(conn.context.Ctx, 5)
+
+	getOneSchemata := func(values map[string]interface{}) error {
+		defer ctx.Wg.Read.Done()
+		schemaData, err := conn.SumbitTemplate(
+			"single", conn.template.Metadata, "schemata",
+			values,
+		)
+		if err != nil {
+			return g.Error(err, "Could not GetSchemata for "+schemaName)
+		}
+
+		defer ctx.Unlock()
+		ctx.Lock()
+
+		for _, rec := range schemaData.Records() {
+			schemaName = cast.ToString(rec["schema_name"])
+			tableName := cast.ToString(rec["table_name"])
+			columnName := cast.ToString(rec["column_name"])
+
+			// if any of the names contains a period, skip. This messes with the keys
+			if strings.Contains(tableName, ".") ||
+				strings.Contains(schemaName, ".") ||
+				strings.Contains(columnName, ".") {
+				continue
+			}
+
+			switch v := rec["is_view"].(type) {
+			case int64, float64:
+				if cast.ToInt64(rec["is_view"]) == 0 {
+					rec["is_view"] = false
+				} else {
+					rec["is_view"] = true
+				}
+			case string:
+				if cast.ToBool(rec["is_view"]) {
+					rec["is_view"] = true
+				} else {
+					rec["is_view"] = false
+				}
+
+			default:
+				_ = fmt.Sprint(v)
+				_ = rec["is_view"]
+			}
+
+			schema := Schema{
+				Name:   schemaName,
+				Tables: map[string]Table{},
+			}
+
+			table := Table{
+				Name:     tableName,
+				Schema:   schemaName,
+				Database: currDatabase,
+				IsView:   cast.ToBool(rec["is_view"]),
+				Columns:  []Column{},
+			}
+
+			if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
+				schema = schemas[strings.ToLower(schema.Name)]
+			}
+
+			if _, ok := schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]; ok {
+				table = schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]
+			}
+
+			column := Column{
+				Name:     columnName,
+				Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
+				Type:     cast.ToString(rec["data_type"]),
+			}
+
+			table.Columns = append(table.Columns, column)
+
+			schema.Tables[strings.ToLower(tableName)] = table
+			schemas[strings.ToLower(schema.Name)] = schema
+		}
+
+		schemata.Databases[strings.ToLower(currDatabase)] = Database{
+			Name:    currDatabase,
+			Schemas: schemas,
+		}
+		return nil
+	}
+
+	for _, dataset := range datasets {
+		g.Debug("getting schemata for %s", dataset)
+		values := g.M("schema", dataset)
+		if tableName != "" {
+			values["table"] = tableName
+		}
+
+		ctx.Wg.Read.Add()
+		go getOneSchemata(values)
+	}
+
+	ctx.Wg.Read.Wait()
+
+	return schemata, nil
 }

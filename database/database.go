@@ -29,7 +29,9 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/snowflakedb/gosnowflake"
-	_ "github.com/solcates/go-sql-bigquery"
+
+	_ "github.com/flarco/bigquery"
+	// _ "github.com/solcates/go-sql-bigquery"
 	"github.com/spf13/cast"
 	"gopkg.in/yaml.v2"
 	"gorm.io/driver/postgres"
@@ -745,7 +747,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		g.Trace("new connection URL: " + conn.Self().GetURL(connURL))
 	}
 
-	if conn.Type != dbio.TypeDbBigQuery && conn.tx == nil {
+	if conn.tx == nil {
 		connURL = conn.Self().GetURL(connURL)
 		connPool.Mux.Lock()
 		db, poolOk := connPool.Dbs[connURL]
@@ -1049,7 +1051,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 		// if any error occurs during iteration
 		if result.Err() != nil {
-			it.Context.CaptureErr(g.Error(result.Err(), "error during iteration"))
+			it.Context.CaptureErr(g.Error(result.Err(), "error during iteration in nextFunc"))
 		}
 		return false
 	}
