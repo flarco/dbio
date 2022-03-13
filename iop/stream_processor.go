@@ -527,6 +527,11 @@ func (sp *StreamProcessor) ParseString(s string, jj ...int) interface{} {
 	// int
 	i, err := sp.parseFuncs["int"](s)
 	if err == nil {
+		// if s = 0100, casting to int64 will return 64
+		// need to mitigate by when s starts with 0
+		if len(s) > 1 && s[0] == '0' {
+			return s
+		}
 		sp.stringTypeCache[j] = "int"
 		return i
 	}
