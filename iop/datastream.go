@@ -23,7 +23,7 @@ type Datastream struct {
 	Count         uint64
 	Context       g.Context
 	Ready         bool
-	Bytes         int64
+	Bytes         uint64
 	Sp            *StreamProcessor
 	SafeInference bool
 	NoTrace       bool
@@ -536,7 +536,7 @@ func (ds *Datastream) ResetStats() {
 
 // AddBytes add bytes as processed
 func (ds *Datastream) AddBytes(b int64) {
-	ds.Bytes = ds.Bytes + b
+	ds.Bytes = ds.Bytes + cast.ToUint64(b)
 }
 
 // Records return rows of maps

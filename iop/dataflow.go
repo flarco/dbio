@@ -97,7 +97,6 @@ type Dataflow struct {
 	Context    g.Context
 	Limit      uint64
 	deferFuncs []func()
-	Bytes      int64
 	Ready      bool
 	Inferred   bool
 	FsURL      string
@@ -274,9 +273,16 @@ func (df *Dataflow) Count() (cnt uint64) {
 	return
 }
 
-// AddBytes add bytes as processed
-func (df *Dataflow) AddBytes(b int64) {
-	df.Bytes = df.Bytes + b
+// Bytes returns the aggregate bytes
+func (df *Dataflow) Bytes() (bytes uint64) {
+	if df != nil && df.Ready {
+		for _, ds := range df.Streams {
+			if ds.Ready {
+				bytes += ds.Bytes
+			}
+		}
+	}
+	return
 }
 
 // Size is the number of streams
@@ -338,7 +344,6 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 
 					select {
 					case df.StreamCh <- ds:
-						df.AddBytes(ds.Bytes)
 						pushed[i] = true
 						pushCnt++
 						g.Trace("pushed dss %d", i)

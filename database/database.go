@@ -1377,7 +1377,7 @@ func (conn *BaseConn) CurrentDatabase() (dbName string, err error) {
 
 // GetDatabases returns databases for given connection
 func (conn *BaseConn) GetDatabases() (iop.Dataset, error) {
-	// fields: [database_name]
+	// fields: [name]
 	return conn.SumbitTemplate("single", conn.template.Metadata, "databases", g.M())
 }
 
@@ -2440,13 +2440,12 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		}
 
 		go func() {
-			bw, err := fs.Self().WriteDataflowReady(sqlDf, pathPart, fileReadyChn)
+			_, err := fs.Self().WriteDataflowReady(sqlDf, pathPart, fileReadyChn)
 			if err != nil {
 				conn.Context().CaptureErr(g.Error(err, "Unable to write to file: "+pathPart))
 				ds.Context.Cancel()
 				return
 			}
-			sqlDf.AddBytes(bw)
 		}()
 
 		for filePath := range fileReadyChn {
