@@ -312,7 +312,7 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 		return 0, err
 	}
 
-	g.Debug("snowsql not found in path & AWS/Azure creds not provided. Using cursor")
+	g.Debug("AWS/Azure creds not provided. Using cursor")
 	ds := iop.MergeDataflow(df)
 	return conn.BaseConn.InsertBatchStream(tableFName, ds)
 }
@@ -766,7 +766,7 @@ func (conn *SnowflakeConn) GetDatabases() (data iop.Dataset, err error) {
 		return data1, err
 	}
 
-	data.SetFields([]string{"database_name"})
+	data.SetFields([]string{"name"})
 	for _, rec := range data1.Records() {
 		data.Append([]interface{}{rec["name"]})
 	}
