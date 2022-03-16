@@ -73,7 +73,6 @@ func ValidateType(tStr string) (Type, bool) {
 	switch t {
 	case
 		TypeFileLocal, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp,
-
 		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH:
 		return t, true
 	}
