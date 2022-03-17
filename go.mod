@@ -30,22 +30,23 @@ require (
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.13.6
-	github.com/kortschak/utter v1.0.1 // indirect
 	github.com/lib/pq v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/pierrec/lz4/v4 v4.1.7 // indirect
 	github.com/pkg/browser v0.0.0-20210115035449-ce105d075bb4 // indirect
 	github.com/pkg/sftp v1.12.0
-	github.com/shirou/gopsutil v2.20.8+incompatible
+	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/snowflakedb/gosnowflake v1.5.1
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.0
+	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/xitongsys/parquet-go v1.5.4
 	github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e
 	github.com/xo/dburl v0.3.0
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
