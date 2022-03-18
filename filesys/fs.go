@@ -495,7 +495,7 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
-	nonBufferedStream := cast.ToBool(fs.GetProp("NONBUFFERED_STREAM"))
+	useBufferedStream := cast.ToBool(fs.GetProp("USE_BUFFERED_STREAM"))
 	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
 	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
@@ -560,17 +560,17 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			return df.Err()
 		}
 
-		if nonBufferedStream {
-			// slower! but safer, waits for compression but does not hold data in memory
-			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+		if useBufferedStream {
+			// faster, but dangerous. Holds data in memory
+			for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
 				err := processReader(reader)
 				if err != nil {
 					break
 				}
 			}
 		} else {
-			// faster, but dangerous. Holds data in memory
-			for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
+			// slower! but safer, waits for compression but does not hold data in memory
+			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
 				err := processReader(reader)
 				if err != nil {
 					break
@@ -608,7 +608,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		if fsClient.FsType() == dbio.TypeFileAzure {
 			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
 		}
-		g.Trace("starting process to write %s with file row fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d nonBufferedStream=%v", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, nonBufferedStream)
+		g.Trace("starting process to write %s with file row fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d nonBufferedStream=%v", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream)
 
 		df.Context.Wg.Read.Add()
 		ds.SetConfig(fs.properties) // pass options
