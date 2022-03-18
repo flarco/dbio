@@ -614,6 +614,7 @@ func (ds *Datastream) Split(numStreams int) (dss []*Datastream) {
 			default:
 				nDs.Push(row)
 			}
+			i++
 		}
 
 		for _, nDs := range dss {

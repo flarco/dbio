@@ -85,10 +85,12 @@ func NewPBar(d time.Duration) *pb.ProgressBar {
 	pb.RegisterElement("counters", elementCounters, true)
 	// pb.RegisterElement("bytes", elementBytes, true)
 	tmpl := `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} { status . }}`
+	tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} { status . }}`
 	if g.IsDebugLow() {
 		pb.RegisterElement("mem", elementMem, true)
 		pb.RegisterElement("cpu", elementCPU, true)
 		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} {{ mem . }} {{ cpu . }} {{ status . }}`
+		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ mem . }} {{ cpu . }} {{ status . }}`
 	}
 	barTmpl := pb.ProgressBarTemplate(tmpl)
 	pbar = barTmpl.New(0)
