@@ -70,16 +70,25 @@ var elementCounters pb.ElementFunc = func(state *pb.State, args ...string) strin
 	)
 }
 
+var elementBytes pb.ElementFunc = func(state *pb.State, args ...string) string {
+	bytes := cast.ToUint64(state.Get("bytes"))
+	if bytes == 0 {
+		return ""
+	}
+	return g.F("| %s", humanize.Bytes(bytes))
+}
+
 // NewPBar creates a new progress bar
 func NewPBar(d time.Duration) *pb.ProgressBar {
 	pbar := new(pb.ProgressBar)
 	pb.RegisterElement("status", elementStatus, true)
 	pb.RegisterElement("counters", elementCounters, true)
-	tmpl := `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{ status . }}`
+	pb.RegisterElement("bytes", elementBytes, true)
+	tmpl := `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} { status . }}`
 	if g.IsDebugLow() {
 		pb.RegisterElement("mem", elementMem, true)
 		pb.RegisterElement("cpu", elementCPU, true)
-		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{ mem . }} {{ cpu . }} {{ status . }}`
+		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} {{ mem . }} {{ cpu . }} {{ status . }}`
 	}
 	barTmpl := pb.ProgressBarTemplate(tmpl)
 	pbar = barTmpl.New(0)
@@ -130,9 +139,10 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 				select {
 				case <-ticker.C:
 					cnt := df.Count()
-					if cnt > 10000 {
+					if cnt > 1000 {
 						df.pbar.Start()
 						df.pbar.SetCurrent(cast.ToInt64(cnt))
+						df.pbar.Set("bytes", df.Bytes())
 					}
 				default:
 					time.Sleep(100 * time.Millisecond)
