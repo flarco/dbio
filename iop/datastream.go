@@ -596,9 +596,8 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 
 // Split splits the datastream into parallel datastreams
 func (ds *Datastream) Split(numStreams int) (dss []*Datastream) {
-	dss = make([]*Datastream, numStreams)
 	for i := 0; i < numStreams; i++ {
-		dss[0] = NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+		dss = append(dss, NewDatastreamContext(ds.Context.Ctx, ds.Columns))
 	}
 
 	go func() {
