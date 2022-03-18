@@ -560,7 +560,7 @@ func (ds *Datastream) Records() <-chan map[string]interface{} {
 	return chnl
 }
 
-// Chunk splits the datastream into chunk datastreams
+// Chunk splits the datastream into chunk datastreams (in sequence)
 func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 	chDs = make(chan *Datastream)
 	if limit == 0 {
@@ -576,14 +576,11 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 
 	loop:
 		for row := range ds.Rows {
-			nDs.Ready = true
-
 			select {
 			case <-nDs.Context.Ctx.Done():
 				break loop
 			default:
-				nDs.Rows <- row
-				nDs.Count++
+				nDs.Push(row)
 
 				if nDs.Count == limit {
 					nDs.Close()
@@ -591,6 +588,37 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 					chDs <- nDs
 				}
 			}
+		}
+		ds.SetEmpty()
+	}()
+	return
+}
+
+// Split splits the datastream into parallel datastreams
+func (ds *Datastream) Split(numStreams int) (dss []*Datastream) {
+	dss = make([]*Datastream, numStreams)
+	for i := 0; i < numStreams; i++ {
+		dss[0] = NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+	}
+
+	go func() {
+		i := 0
+		for row := range ds.Rows {
+			if i == len(dss) {
+				i = 0 // cycle through datastreams
+			}
+
+			nDs := dss[i]
+			select {
+			case <-nDs.Context.Ctx.Done():
+				break
+			default:
+				nDs.Push(row)
+			}
+		}
+
+		for _, nDs := range dss {
+			nDs.Close()
 		}
 		ds.SetEmpty()
 	}()
