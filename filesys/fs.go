@@ -495,28 +495,29 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
+	nonBufferedStream := cast.ToBool(fs.GetProp("NONBUFFERED_STREAM"))
 	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
 	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
-	bytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
+	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
 	if compression == iop.GzipCompressorType {
-		bytesLimit = bytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
+		fileBytesLimit = fileBytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
+	}
+	if concurrency == 0 {
+		concurrency = runtime.NumCPU()
+	}
+	if concurrency > 7 {
+		concurrency = 7
 	}
 
 	if strings.HasSuffix(url, "/") {
 		url = url[:len(url)-1]
 	}
 
-	singleFile := fileRowLimit == 0 && len(df.Streams) == 1
+	singleFile := fileRowLimit == 0 && fileBytesLimit == 0 && len(df.Streams) == 1
 
 	processStream := func(ds *iop.Datastream, partURL string) {
 		defer df.Context.Wg.Read.Done()
-		if concurrency == 0 {
-			concurrency = runtime.NumCPU()
-			if concurrency > 7 {
-				concurrency = 7
-			}
-		}
 		localCtx := g.NewContext(ds.Context.Ctx, concurrency)
 
 		writePart := func(reader io.Reader, partURL string) {
@@ -537,8 +538,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		// pre-add to WG to not hold next reader in memory while waiting
 		localCtx.Wg.Read.Add()
 		fileCount := 0
-		for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, bytesLimit) { // faster? but dangerous. Holds data in memory
-			// for reader := range ds.NewCsvReaderChnl(fileRowLimit, bytesLimit) { // slower! but safer, waits for compression but does not hold data in memory
+
+		processReader := func(reader io.Reader) error {
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
 			if singleFile {
@@ -556,8 +557,24 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			localCtx.Wg.Read.Add()
 			localCtx.MemBasedLimit(90) // wait until memory is lower than 90%
 
-			if df.Err() != nil {
-				break
+			return df.Err()
+		}
+
+		if nonBufferedStream {
+			// slower! but safer, waits for compression but does not hold data in memory
+			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+				err := processReader(reader)
+				if err != nil {
+					break
+				}
+			}
+		} else {
+			// faster, but dangerous. Holds data in memory
+			for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
+				err := processReader(reader)
+				if err != nil {
+					break
+				}
 			}
 		}
 		if ds.Err() != nil {
@@ -591,7 +608,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		if fsClient.FsType() == dbio.TypeFileAzure {
 			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
 		}
-		g.Trace("starting process to write %s with file row limit %d", partURL, fileRowLimit)
+		g.Trace("starting process to write %s with file row fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d nonBufferedStream=%v", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, nonBufferedStream)
 
 		df.Context.Wg.Read.Add()
 		ds.SetConfig(fs.properties) // pass options

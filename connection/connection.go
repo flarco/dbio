@@ -557,47 +557,65 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 }
 
 // ReadConnections loads the connections
-func ReadConnectionsEnv(env map[string]string) (conns map[string]Connection, err error) {
-	conns = map[string]Connection{}
+func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection, err error) {
 
+	conns = map[string]Connection{}
 	// look for _TYPE suffix
 	for k, val := range env {
-		connName := ""
-		if strings.HasSuffix(k, "_TYPE") {
-			if connType, ok := dbio.ValidateType(val); ok {
-				connName = strings.TrimSuffix(k, "_TYPE")
+		switch v := val.(type) {
 
-				//look through to collect the map
-				data := g.M()
-				for k2, val2 := range env {
-					if !strings.HasPrefix(k2, connName+"_") {
-						continue
+		case map[string]interface{}:
+			if ct, ok := v["type"]; ok {
+				if connType, ok := dbio.ValidateType(cast.ToString(ct)); ok {
+					connName := k
+					data := v
+					conn, err := NewConnectionFromMap(
+						g.M("name", connName, "data", data, "type", connType.String()),
+					)
+					if err != nil {
+						err = g.Error(err, "error loading connection %s", connName)
+						return conns, err
 					}
-					data[strings.TrimPrefix(k2, connName+"_")] = val2
+					conns[connName] = conn
 				}
-				conn, err := NewConnectionFromMap(
-					g.M(
-						"name", connName,
-						"data", data,
-						"type", connType.String(),
-					),
-				)
+			} else if u, ok := v["url"]; ok {
+				U, err := net.NewURL(cast.ToString(u))
 				if err != nil {
-					err = g.Error(err, "error loading connection %s", connName)
-					return conns, err
+					g.Warn("could not parse url value of %s", k)
+					continue
 				}
-				conns[connName] = conn
+
+				if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+					connName := k
+					data := v
+					conn, err := NewConnectionFromMap(
+						g.M("name", connName, "data", data, "type", connType.String()),
+					)
+					if err != nil {
+						err = g.Error(err, "error loading connection %s", connName)
+						return conns, err
+					}
+					conns[connName] = conn
+				}
 			}
-		} else if strings.HasSuffix(k, "_URL") {
-			U, err := net.NewURL(val)
+
+		case string:
+			if !strings.Contains(v, ":/") || strings.Contains(v, "{") {
+				continue // not a url
+			}
+
+			U, err := net.NewURL(v)
 			if err != nil {
 				g.Warn("could not parse url value of %s", k)
 				continue
 			}
 
-			if _, ok := dbio.ValidateType(U.U.Scheme); ok {
-				connName = strings.TrimSuffix(k, "_URL")
-				conn, err := NewConnectionFromURL(connName, val)
+			if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+				connName := k
+				data := v
+				conn, err := NewConnectionFromMap(
+					g.M("name", connName, "data", data, "type", connType.String()),
+				)
 				if err != nil {
 					err = g.Error(err, "error loading connection %s", connName)
 					return conns, err
