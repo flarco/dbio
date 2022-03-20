@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -595,8 +598,16 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 }
 
 // Split splits the datastream into parallel datastreams
-func (ds *Datastream) Split(numStreams int) (dss []*Datastream) {
-	for i := 0; i < numStreams; i++ {
+func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
+	conncurrency := lo.Ternary(
+		os.Getenv("CONCURRENCY") != "",
+		cast.ToInt(os.Getenv("CONCURRENCY")),
+		runtime.NumCPU(),
+	)
+	if len(numStreams) > 0 {
+		conncurrency = numStreams[0]
+	}
+	for i := 0; i < conncurrency; i++ {
 		dss = append(dss, NewDatastreamContext(ds.Context.Ctx, ds.Columns))
 	}
 

@@ -9,14 +9,12 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
-	"github.com/samber/lo"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -2386,14 +2384,8 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 				df.Context.CaptureErr(g.Error(err, "Error running query"))
 				return
 			}
-			conncurrency := lo.Ternary(
-				os.Getenv("CONCURRENCY") != "",
-				cast.ToInt(os.Getenv("CONCURRENCY")),
-				runtime.NumCPU(),
-			)
-
 			// split the ds into multiple streams (output will not be in order)
-			dss = append(dss, ds.Split(conncurrency)...)
+			dss = append(dss, ds.Split()...)
 		}
 
 		df.PushStreams(dss...)

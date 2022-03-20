@@ -140,7 +140,7 @@ type GzipCompressor struct {
 // Compress uses gzip to compress
 func (cp *GzipCompressor) Compress(reader io.Reader) io.Reader {
 	pr, pw := io.Pipe()
-	gw := gzip.NewWriter(pw)
+	gw, _ := gzip.NewWriterLevel(pw, gzip.BestSpeed)
 	go func() {
 		_, err := io.Copy(gw, reader)
 		if err != nil {
@@ -229,7 +229,7 @@ func (cp *ZStandardCompressor) Compress(reader io.Reader) io.Reader {
 	go func() {
 		_, err := io.Copy(w, reader)
 		if err != nil {
-			g.LogError(g.Error(err, "could not compress stream with snappy"))
+			g.LogError(g.Error(err, "could not compress stream with zstandard"))
 		}
 		w.Close()
 		pw.Close()

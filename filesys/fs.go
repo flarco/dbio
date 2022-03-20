@@ -652,6 +652,11 @@ func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow,
 			dss = append(dss, ds)
 		}
 
+		// split if 1 stream
+		if len(dss) == 1 {
+			dss = dss[0].Split()
+		}
+
 		df.PushStreams(dss...)
 
 	}()
