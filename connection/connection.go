@@ -22,6 +22,7 @@ import (
 type Info struct {
 	Name     string
 	Type     dbio.Type
+	LongType string
 	Database string
 	Data     map[string]interface{}
 }
@@ -152,6 +153,7 @@ func (c *Connection) Info() Info {
 	return Info{
 		Name:     c.Name,
 		Type:     c.Type,
+		LongType: c.Type.NameLong(),
 		Database: c.DataS(true)["database"],
 		Data:     c.Data,
 	}
@@ -428,74 +430,6 @@ func CopyDirect(conn database.Connection, tableFName string, srcFile Connection)
 		// ok = false // try through dbio?
 	}
 	return
-}
-
-// GetTypeNameLong return the type long name
-func GetTypeNameLong(c Connection) string {
-	mapping := map[dbio.Type]string{
-		dbio.TypeFileLocal:    "FileSys - Local",
-		dbio.TypeFileHDFS:     "FileSys - HDFS",
-		dbio.TypeFileS3:       "FileSys - S3",
-		dbio.TypeFileAzure:    "FileSys - Azure",
-		dbio.TypeFileGoogle:   "FileSys - Google",
-		dbio.TypeFileSftp:     "FileSys - Sftp",
-		dbio.TypeFileHTTP:     "FileSys - HTTP",
-		dbio.TypeDbPostgres:   "DB - PostgreSQL",
-		dbio.TypeDbRedshift:   "DB - Redshift",
-		dbio.TypeDbMySQL:      "DB - MySQL",
-		dbio.TypeDbOracle:     "DB - Oracle",
-		dbio.TypeDbBigQuery:   "DB - BigQuery",
-		dbio.TypeDbSnowflake:  "DB - Snowflake",
-		dbio.TypeDbSQLite:     "DB - SQLite",
-		dbio.TypeDbSQLServer:  "DB - SQLServer",
-		dbio.TypeDbAzure:      "DB - Azure",
-		dbio.TypeDbClickhouse: "DB - Clickhouse",
-		dbio.TypeAPIGit:       "API - Git",
-		// dbio.TypeAPIGithub:   "API - Github",
-	}
-
-	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
-	for k, spec := range AirbyteSpecs {
-		t := dbio.Type(k)
-		if _, ok := mapping[t]; !ok {
-			mapping[t] = "API - " + spec.Title
-		}
-	}
-	return mapping[c.Info().Type]
-}
-
-// GetTypeName return the type name
-func GetTypeName(c Connection) string {
-	mapping := map[dbio.Type]string{
-		dbio.TypeFileLocal:    "Local",
-		dbio.TypeFileHDFS:     "HDFS",
-		dbio.TypeFileS3:       "S3",
-		dbio.TypeFileAzure:    "Azure",
-		dbio.TypeFileGoogle:   "Google",
-		dbio.TypeFileSftp:     "Sftp",
-		dbio.TypeFileHTTP:     "HTTP",
-		dbio.TypeDbPostgres:   "PostgreSQL",
-		dbio.TypeDbRedshift:   "Redshift",
-		dbio.TypeDbMySQL:      "MySQL",
-		dbio.TypeDbOracle:     "Oracle",
-		dbio.TypeDbBigQuery:   "BigQuery",
-		dbio.TypeDbSnowflake:  "Snowflake",
-		dbio.TypeDbSQLite:     "SQLite",
-		dbio.TypeDbSQLServer:  "SQLServer",
-		dbio.TypeDbClickhouse: "Clickhouse",
-		dbio.TypeDbAzure:      "Azure",
-		dbio.TypeAPIGit:       "Git",
-		// dbio.TypeAPIGithub:   "Github",
-	}
-
-	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
-	for k, spec := range AirbyteSpecs {
-		t := dbio.Type(k)
-		if _, ok := mapping[t]; !ok {
-			mapping[t] = spec.Title
-		}
-	}
-	return mapping[c.Info().Type]
 }
 
 func ReadDbtConnections() (conns map[string]Connection, err error) {

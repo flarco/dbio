@@ -144,3 +144,71 @@ func (t Type) IsAirbyte() bool {
 func (t Type) IsUnknown() bool {
 	return t.Kind() == KindUnknown
 }
+
+// NameLong return the type long name
+func (t Type) NameLong() string {
+	mapping := map[Type]string{
+		TypeFileLocal:    "FileSys - Local",
+		TypeFileHDFS:     "FileSys - HDFS",
+		TypeFileS3:       "FileSys - S3",
+		TypeFileAzure:    "FileSys - Azure",
+		TypeFileGoogle:   "FileSys - Google",
+		TypeFileSftp:     "FileSys - Sftp",
+		TypeFileHTTP:     "FileSys - HTTP",
+		TypeDbPostgres:   "DB - PostgreSQL",
+		TypeDbRedshift:   "DB - Redshift",
+		TypeDbMySQL:      "DB - MySQL",
+		TypeDbOracle:     "DB - Oracle",
+		TypeDbBigQuery:   "DB - BigQuery",
+		TypeDbSnowflake:  "DB - Snowflake",
+		TypeDbSQLite:     "DB - SQLite",
+		TypeDbSQLServer:  "DB - SQLServer",
+		TypeDbAzure:      "DB - Azure",
+		TypeDbClickhouse: "DB - Clickhouse",
+		TypeAPIGit:       "API - Git",
+		// TypeAPIGithub:   "API - Github",
+	}
+
+	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
+	for k, spec := range AirbyteSpecs {
+		t := Type(k)
+		if _, ok := mapping[t]; !ok {
+			mapping[t] = "API - " + spec.Title
+		}
+	}
+	return mapping[t]
+}
+
+// Name return the type name
+func (t Type) Name() string {
+	mapping := map[Type]string{
+		TypeFileLocal:    "Local",
+		TypeFileHDFS:     "HDFS",
+		TypeFileS3:       "S3",
+		TypeFileAzure:    "Azure",
+		TypeFileGoogle:   "Google",
+		TypeFileSftp:     "Sftp",
+		TypeFileHTTP:     "HTTP",
+		TypeDbPostgres:   "PostgreSQL",
+		TypeDbRedshift:   "Redshift",
+		TypeDbMySQL:      "MySQL",
+		TypeDbOracle:     "Oracle",
+		TypeDbBigQuery:   "BigQuery",
+		TypeDbSnowflake:  "Snowflake",
+		TypeDbSQLite:     "SQLite",
+		TypeDbSQLServer:  "SQLServer",
+		TypeDbClickhouse: "Clickhouse",
+		TypeDbAzure:      "Azure",
+		TypeAPIGit:       "Git",
+		// TypeAPIGithub:   "Github",
+	}
+
+	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
+	for k, spec := range AirbyteSpecs {
+		t := Type(k)
+		if _, ok := mapping[t]; !ok {
+			mapping[t] = spec.Title
+		}
+	}
+	return mapping[t]
+}
