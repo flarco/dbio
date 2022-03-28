@@ -150,3 +150,5 @@ require (
 )
 
 replace github.com/flarco/bigquery => ../bigquery
+
+replace github.com/flarco/g => ../g

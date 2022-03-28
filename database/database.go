@@ -2795,7 +2795,7 @@ func settingMppBulkImportFlow(conn Connection) {
 	}
 
 	if conn.GetProp("COMPRESSION") == "" {
-		conn.SetProp("COMPRESSION", "GZIP")
+		conn.SetProp("COMPRESSION", "ZSTD")
 	}
 
 	conn.SetProp("DBIO_PARALLEL", "true")

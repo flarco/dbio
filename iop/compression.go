@@ -220,7 +220,7 @@ type ZStandardCompressor struct {
 func (cp *ZStandardCompressor) Compress(reader io.Reader) io.Reader {
 
 	pr, pw := io.Pipe()
-	w, err := zstd.NewWriter(pw)
+	w, err := zstd.NewWriter(pw, zstd.WithEncoderLevel(zstd.SpeedFastest))
 	if err != nil {
 		g.Warn("Could not compress using ZStandard")
 		return reader
