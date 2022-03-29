@@ -500,8 +500,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
 	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
-	if compression == iop.GzipCompressorType {
-		fileBytesLimit = fileBytesLimit * 9 // since gzip is about 9-10 times compressed, multiply
+	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
+		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
 	}
 	if concurrency == 0 {
 		concurrency = runtime.NumCPU()

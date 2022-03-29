@@ -196,7 +196,7 @@ func (data *Dataset) InferColumnTypes() {
 	var columns Columns
 
 	if len(data.Rows) == 0 {
-		g.Debug("skipping InferColumnTypes")
+		g.Debug("skipping InferColumnTypes [no rows]")
 		return
 	}
 
