@@ -115,6 +115,18 @@ func (sp *StreamProcessor) toFloat64E(i interface{}) (float64, error) {
 		return s, nil
 	case float32:
 		return float64(s), nil
+	case string:
+		v, err := strconv.ParseFloat(s, 64)
+		if err == nil {
+			return v, nil
+		}
+		return 0, g.Error("unable to cast %#v of type %T to float64", i, i)
+	case []uint8:
+		v, err := strconv.ParseFloat(string(s), 64)
+		if err == nil {
+			return v, nil
+		}
+		return 0, g.Error("unable to cast %#v of type %T to float64", i, i)
 	case int:
 		return float64(s), nil
 	case int64:
@@ -135,14 +147,6 @@ func (sp *StreamProcessor) toFloat64E(i interface{}) (float64, error) {
 		return float64(s), nil
 	case uint8:
 		return float64(s), nil
-	case []uint8:
-		return cast.ToFloat64(cast.ToString(s)), nil
-	case string:
-		v, err := strconv.ParseFloat(s, 64)
-		if err == nil {
-			return v, nil
-		}
-		return 0, g.Error("unable to cast %#v of type %T to float64", i, i)
 	case bool:
 		if s {
 			return 1, nil
@@ -222,14 +226,14 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 	case godror.Number:
 		val = sp.ParseString(cast.ToString(val), i)
 	case []uint8:
-		val = cast.ToString(val)
+		val = string(v)
 	case nil:
 		cs.TotalCnt++
 		cs.NullCnt++
 		sp.rowBlankValCnt++
 		return nil
 	case string:
-		sVal = val.(string)
+		sVal = v
 		if sp.config.trimSpace {
 			sVal = strings.TrimSpace(sVal)
 			val = sVal
@@ -246,13 +250,10 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 			cs.NullCnt++
 			return nil
 		}
-	default:
-		_ = v
 	}
 
 	switch typ {
 	case "string", "text", "json", "time", "bytes", "":
-		sVal = cast.ToString(val)
 		if len(sVal) > cs.MaxLen {
 			cs.MaxLen = len(sVal)
 		}
@@ -276,7 +277,14 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 			nVal = sVal
 		}
 	case "smallint":
-		iVal := cast.ToInt(val)
+		iVal, err := cast.ToIntE(val)
+		if err != nil {
+			// is string
+			cs.StringCnt++
+			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			return cast.ToString(val)
+		}
+
 		if int64(iVal) > cs.Max {
 			cs.Max = int64(iVal)
 		}
@@ -291,7 +299,14 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 		}
 		nVal = iVal
 	case "integer", "bigint":
-		iVal := cast.ToInt64(val)
+		iVal, err := cast.ToInt64E(val)
+		if err != nil {
+			// is string
+			cs.StringCnt++
+			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			return cast.ToString(val)
+		}
+
 		if iVal > cs.Max {
 			cs.Max = iVal
 		}
@@ -306,7 +321,14 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 		}
 		nVal = iVal
 	case "decimal", "float":
-		fVal, _ := sp.toFloat64E(val)
+		fVal, err := sp.toFloat64E(val)
+		if err != nil {
+			// is string
+			cs.StringCnt++
+			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			return cast.ToString(val)
+		}
+
 		if int64(fVal) > cs.Max {
 			cs.Max = int64(fVal)
 		}
@@ -315,9 +337,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 		}
 		cs.DecCnt++
 		if fVal < 0 {
-			cs.Checksum = cs.Checksum + cast.ToUint64(-fVal)
+			cs.Checksum = cs.Checksum + uint64(-fVal)
 		} else {
-			cs.Checksum = cs.Checksum + cast.ToUint64(fVal)
+			cs.Checksum = cs.Checksum + uint64(fVal)
 		}
 		// max 9 decimals for bigquery compatibility
 		if sp.config.maxDecimals > -1 {
@@ -326,11 +348,17 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 			nVal = val // use string to keep accuracy
 		}
 	case "bool":
-		cs.BoolCnt++
-		nVal = cast.ToBool(val)
-		if nVal.(bool) {
-			cs.Checksum++
+		var err error
+		nVal, err = cast.ToBoolE(val)
+		if err != nil {
+			// is string
+			cs.StringCnt++
+			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			return cast.ToString(val)
 		}
+
+		cs.BoolCnt++
+		cs.Checksum++
 	case "datetime", "date", "timestamp":
 		dVal, err := sp.CastToTime(val)
 		if err != nil {

@@ -60,7 +60,7 @@ func initProcessRow(name string) (columns []Column, row []interface{}) {
 		row = []interface{}{5535.21414}
 	} else if name == "decimal" {
 		row = []interface{}{[]byte{0x31, 0x30, 0x33, 0x32, 0x2e, 0x34, 0x34, 0x32, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30}}
-		// row = []interface{}{"5535.214140000"}
+		row = []interface{}{"5535.214140000"}
 	} else if name == "int" {
 		row = []interface{}{int(48714719874194)}
 	} else if name == "int64" {
@@ -155,7 +155,7 @@ func BenchmarkProcessValInt(b *testing.B) {
 }
 func BenchmarkProcessValInt64(b *testing.B) {
 	sp := NewStreamProcessor()
-	columns, row := initProcessRow("float")
+	columns, row := initProcessRow("int64")
 	sp.ds = NewDatastream(columns)
 	for n := 0; n < b.N; n++ {
 		row = sp.CastRow(row, columns)
