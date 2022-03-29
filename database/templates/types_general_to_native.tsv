@@ -11,5 +11,7 @@ smallint	number(5)	smallint	smallint	smallint	smallint	smallint	smallint	smallin
 string	varchar()	varchar()	varchar()	varchar()	varchar()	varchar()	varchar(65535)	varchar	text	string	string
 text	clob	text	mediumtext	text	text	varchar(max)	varchar(65535)	text	text	string	string
 timestamp	timestamp	timestamp	timestamp	datetime2	datetime2	datetime2	timestamp	timestamp	text	timestamp	DateTime64(6)
+timestampz	timestamp	timestamptz	timestamp	datetime2	datetime2	datetime2	timestamptz	timestamp_tz	text	timestamp	DateTime64(6)
 float	float	double precision	double	float	float	float	double precision	float	real	float64	float64
 time	timestamp	time	time	time	time	time	timestamp	time	text	time	string
+timez	timestamp	timetz	time	time	time	time	timetz	time	text	time	string

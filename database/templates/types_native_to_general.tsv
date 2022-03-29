@@ -25,15 +25,12 @@ azuresql	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE
 azuresql	varbinary	binary	col_varbinary varbinary(100)	TRUE	TRUE	
 azuresql	varchar	string	col_varchar varchar	TRUE	TRUE	
 bigquery	array	string		FALSE	FALSE	
-bigquery	boolean	bool	col_boolean boolean	FALSE	FALSE	
 bigquery	bool	bool	col_bool bool	FALSE	FALSE	
 bigquery	bytes	binary	col_bytes bytes	TRUE	FALSE	
 bigquery	date	date	col_date date	FALSE	FALSE	
 bigquery	datetime	datetime	col_datetime datetime	TRUE	TRUE	
-bigquery	float	float	col_float float	TRUE	TRUE	
 bigquery	float64	float	col_float64 float64	TRUE	TRUE	
 bigquery	geography	string	col_geography geography	FALSE	FALSE	
-bigquery	integer	bigint	col_integer integer	TRUE	TRUE	
 bigquery	int64	bigint	col_int64 int64	TRUE	TRUE	
 bigquery	numeric	decimal	col_numeric numeric	TRUE	TRUE	
 bigquery	string	string	col_string string	TRUE	TRUE	
@@ -141,13 +138,13 @@ postgres	smallint	smallint	col_smallint smallint	TRUE	TRUE	signed two-byte integ
 postgres	smallserial	smallint	col_smallserial smallserial	TRUE	TRUE	autoincrementing two-byte integer
 postgres	text	text	col_text text	TRUE	TRUE	variable-length character string
 postgres	time	time	col_time time	TRUE	TRUE	time of day (no time zone)
-postgres	time with time zone	time	col_time_with_time_zone time with time zone	TRUE	TRUE	time of day, including time zone
+postgres	time with time zone	timez	col_time_with_time_zone time with time zone	TRUE	TRUE	time of day, including time zone
 postgres	time without time zone	time	col_time_without_time_zone time without time zone	TRUE	TRUE	time of day (no time zone)
 postgres	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	date and time (no time zone)
 postgres	timestamp without time zone	timestamp	col_timestamp_without_time_zone timestamp without time zone	TRUE	TRUE	date and time (no time zone)
-postgres	timestamp with time zone	timestamp	col_timestamp_with_time_zone timestamp with time zone	TRUE	TRUE	date and time, including time zone
-postgres	timestamptz	timestamp	col_timestamptz timestamptz	TRUE	TRUE	date and time, including time zone
-postgres	timetz	time	col_timetz timetz	TRUE	TRUE	time of day, including time zone
+postgres	timestamp with time zone	timestampz	col_timestamp_with_time_zone timestamp with time zone	TRUE	TRUE	date and time, including time zone
+postgres	timestamptz	timestampz	col_timestamptz timestamptz	TRUE	TRUE	date and time, including time zone
+postgres	timetz	timez	col_timetz timetz	TRUE	TRUE	time of day, including time zone
 postgres	tsquery	string	col_tsquery tsquery	FALSE	FALSE	text search query
 postgres	tsvector	string	col_tsvector tsvector	FALSE	FALSE	text search document
 postgres	txid_snapshot	string	col_txid_snapshot txid_snapshot	FALSE	FALSE	user-level transaction ID snapshot
@@ -171,8 +168,8 @@ redshift	real	float	col_real real	TRUE	TRUE	single precision floating-point numb
 redshift	smallint	smallint	col_smallint smallint	TRUE	TRUE	signed two-byte integer
 redshift	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	date and time (without time zone)
 redshift	timestamp without time zone	timestamp	col_timestamp_without_time_zone timestamp without time zone	TRUE	TRUE	date and time (without time zone)
-redshift	timestamptz	timestamp	col_timestamptz timestamptz	TRUE	TRUE	date and time (with time zone)
-redshift	timestamp with time zone	timestamp	col_timestamp_with_time_zone timestamp with time zone	TRUE	TRUE	date and time (with time zone)
+redshift	timestamptz	timestampz	col_timestamptz timestamptz	TRUE	TRUE	date and time (with time zone)
+redshift	timestamp with time zone	timestampz	col_timestamp_with_time_zone timestamp with time zone	TRUE	TRUE	date and time (with time zone)
 redshift	int2	smallint	col_int2 int2	TRUE	TRUE	signed four-byte integer
 redshift	int4	integer	col_int4 int4	TRUE	TRUE	signed four-byte integer
 redshift	int8	bigint	col_int8 int8	TRUE	TRUE	signed eight-byte integer
@@ -208,9 +205,9 @@ snowflake	string	string	col_string string	TRUE	TRUE	Synonymous with VARCHAR.
 snowflake	text	text	col_text text	TRUE	TRUE	Synonymous with VARCHAR.
 snowflake	time	time	col_time time	TRUE	TRUE	
 snowflake	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	Alias for one of the TIMESTAMP variations (TIMESTAMP_NTZ by default).
-snowflake	timestamp_ltz	timestamp	col_timestamp_ltz timestamp_ltz	TRUE	TRUE	TIMESTAMP with local time zone; time zone, if provided, is not stored.
+snowflake	timestamp_ltz	timestampz	col_timestamp_ltz timestamp_ltz	TRUE	TRUE	TIMESTAMP with local time zone; time zone, if provided, is not stored.
 snowflake	timestamp_ntz	timestamp	col_timestamp_ntz timestamp_ntz	TRUE	TRUE	TIMESTAMP with no time zone; time zone, if provided, is not stored.
-snowflake	timestamp_tz	timestamp	col_timestamp_tz timestamp_tz	TRUE	TRUE	TIMESTAMP with time zone.
+snowflake	timestamp_tz	timestampz	col_timestamp_tz timestamp_tz	TRUE	TRUE	TIMESTAMP with time zone.
 snowflake	varbinary	binary	col_varbinary varbinary(100)	FALSE	FALSE	Synonymous with BINARY.
 snowflake	varchar	string	col_varchar varchar(100)	TRUE	TRUE	Default (and maximum) is 16,777,216 bytes.
 snowflake	variant	text	col_variant variant	FALSE	FALSE	
