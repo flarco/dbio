@@ -83,14 +83,12 @@ func NewPBar(d time.Duration) *pb.ProgressBar {
 	pbar := new(pb.ProgressBar)
 	pb.RegisterElement("status", elementStatus, true)
 	pb.RegisterElement("counters", elementCounters, true)
-	// pb.RegisterElement("bytes", elementBytes, true)
-	tmpl := `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} {{ status . }}`
-	tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{ status . }}`
+	pb.RegisterElement("bytes", elementBytes, true)
+	tmpl := `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{ bytes . }} {{ status . }}`
 	if g.IsDebugLow() {
 		pb.RegisterElement("mem", elementMem, true)
 		pb.RegisterElement("cpu", elementCPU, true)
-		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ bytes . }} {{ mem . }} {{ cpu . }} {{ status . }}`
-		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{{ mem . }} {{ cpu . }} {{ status . }}`
+		tmpl = `{{etime . "%s" | yellow }} {{counters . }} {{speed . "%s r/s" | green }} {{ bytes . }} {{ mem . }} {{ cpu . }} {{ status . }}`
 	}
 	barTmpl := pb.ProgressBarTemplate(tmpl)
 	pbar = barTmpl.New(0)
