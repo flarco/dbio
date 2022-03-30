@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/flarco/g/csv"
 )
 
 // CSV is a csv object
@@ -294,7 +294,6 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 
 		row, err := r.Read()
 		if err == io.EOF {
-			it.ds.AddBytes(c.bytes)
 			c.File.Close()
 			return false
 		} else if err != nil {
@@ -356,7 +355,8 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 	for _, field := range ds.GetFields() {
 		fields = append(fields, strings.ToLower(field))
 	}
-	err = w.Write(fields)
+	b, err := w.Write(fields)
+	ds.AddBytes(int64(b))
 	if err != nil {
 		return cnt, g.Error(err, "error write row to csv file")
 	}
@@ -367,7 +367,8 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 		for i, val := range row0 {
 			row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 		}
-		err := w.Write(row)
+		b, err := w.Write(row)
+		ds.AddBytes(int64(b))
 		if err != nil {
 			return cnt, g.Error(err, "error write row to csv file")
 		}
@@ -387,7 +388,7 @@ func (c *CSV) NewReader() (*io.PipeReader, error) {
 	go func() {
 		w := csv.NewWriter(pipeW)
 
-		err := w.Write(ds.GetFields())
+		_, err := w.Write(ds.GetFields())
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error writing ds.Fields"))
 			ds.Context.Cancel()
@@ -400,7 +401,7 @@ func (c *CSV) NewReader() (*io.PipeReader, error) {
 			for i, val := range row0 {
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
-			err := w.Write(row)
+			_, err := w.Write(row)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "Error w.Write(row)"))
 				ds.Context.Cancel()

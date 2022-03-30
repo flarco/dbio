@@ -532,6 +532,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			} else {
 				g.Trace("wrote %s to %s", humanize.Bytes(cast.ToUint64(bw0)), partURL)
 				bw += bw0
+				ds.AddBytes(bw0)
 			}
 		}
 

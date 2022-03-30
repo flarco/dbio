@@ -173,7 +173,9 @@ loop:
 
 // Defer runs a given function as close of Datastream
 func (ds *Datastream) Defer(f func()) {
-	ds.deferFuncs = append(ds.deferFuncs, f)
+	if !cast.ToBool(os.Getenv("KEEP_TEMP_FILES")) {
+		ds.deferFuncs = append(ds.deferFuncs, f)
+	}
 	if ds.closed { // mutex?
 		for _, f := range ds.deferFuncs {
 			f()
@@ -480,7 +482,6 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 
 		row, err := r.Read()
 		if err == io.EOF {
-			it.ds.AddBytes(c.bytes)
 			c.File.Close()
 			return false
 		} else if err != nil {
@@ -834,7 +835,6 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 	go func() {
 		defer close(readerChn)
-		defer func() { ds.AddBytes(tbw) }()
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
@@ -870,8 +870,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 				pipeW.Close() // close the prior reader?
-				ds.AddBytes(tbw)
-				tbw = 0 // reset
+				tbw = 0       // reset
 
 				// new reader
 				c = 0
@@ -902,7 +901,6 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 	tbw := int64(0)
 	go func() {
 		defer pipeW.Close()
-		defer func() { ds.AddBytes(tbw) }()
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)

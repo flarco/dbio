@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/flarco/g/sizedwaitgroup"
 
 	"github.com/flarco/dbio/filesys"
+	"github.com/snowflakedb/gosnowflake"
 
 	"github.com/dustin/go-humanize"
 	"github.com/flarco/dbio/iop"
@@ -27,6 +29,8 @@ type SnowflakeConn struct {
 
 // Init initiates the object
 func (conn *SnowflakeConn) Init() error {
+	var sfLog = gosnowflake.GetLogger()
+	sfLog.SetOutput(ioutil.Discard)
 
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbSnowflake
@@ -354,7 +358,7 @@ func (conn *SnowflakeConn) CopyViaAWS(tableFName string, df *iop.Dataflow) (coun
 		return count, g.Error(err, "Could not Delete: "+s3Path)
 	}
 
-	defer func() { s3Fs.Delete(s3Path) }() // cleanup
+	df.Defer(func() { s3Fs.Delete(s3Path) }) // cleanup
 
 	g.Info("writing to s3 for snowflake import")
 	bw, err := s3Fs.WriteDataflow(df, s3Path)
@@ -422,7 +426,7 @@ func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (co
 		return count, g.Error(err, "Could not Delete: "+azPath)
 	}
 
-	defer func() { azFs.Delete(azPath) }() // cleanup
+	df.Defer(func() { azFs.Delete(azPath) }) // cleanup
 
 	g.Info("writing to azure for snowflake import")
 	bw, err := azFs.WriteDataflow(df, azPath)
@@ -586,7 +590,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	)
 
 	// delete folder when done
-	defer os.RemoveAll(folderPath)
+	df.Defer(func() { os.RemoveAll(folderPath) })
 
 	fileReadyChn := make(chan string, 10000)
 	go func() {
@@ -613,10 +617,12 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 		err = g.Error(err, "REMOVE: "+stageFolderPath)
 		return
 	}
-	defer conn.Exec("REMOVE " + stageFolderPath)
+	df.Defer(func() { conn.Exec("REMOVE " + stageFolderPath) })
 
 	doPut := func(filePath string) {
-		defer os.Remove(filePath)
+		if !cast.ToBool(os.Getenv("KEEP_TEMP_FILES")) {
+			defer os.Remove(filePath)
+		}
 		defer conn.Context().Wg.Write.Done()
 		os.Chmod(filePath, 0777) // make file readeable everywhere
 		err = conn.PutFile(filePath, stageFolderPath)

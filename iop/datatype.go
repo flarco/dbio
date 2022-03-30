@@ -15,9 +15,6 @@ import (
 )
 
 var (
-	// ShowProgress use the progress bar to show progress
-	ShowProgress = false
-
 	// RemoveTrailingDecZeros removes the trailing zeros in CastToString
 	RemoveTrailingDecZeros = false
 	SampleSize             = 900

@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
+	"github.com/flarco/g/csv"
 	"github.com/spf13/cast"
 	"github.com/xo/dburl"
 )
@@ -217,7 +217,8 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 		c := uint64(0) // local counter
 		w := csv.NewWriter(pipeW)
 
-		err := w.Write(ds.GetFields())
+		b, err := w.Write(ds.GetFields())
+		ds.AddBytes(int64(b))
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error writing ds.Fields"))
 			ds.Context.Cancel()
@@ -254,7 +255,8 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 				row[i] = valS
 			}
 
-			err := w.Write(row)
+			b, err := w.Write(row)
+			ds.AddBytes(int64(b))
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "Error w.Write(row)"))
 				ds.Context.Cancel()

@@ -215,7 +215,7 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		return count, g.Error(err, "Could not Delete: "+gcsPath)
 	}
 
-	defer func() { fs.Delete(gcsPath) }() // cleanup
+	df.Defer(func() { fs.Delete(gcsPath) })
 
 	g.Info("importing into bigquery via google storage")
 

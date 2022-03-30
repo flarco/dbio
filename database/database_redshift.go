@@ -190,7 +190,7 @@ func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		return count, g.Error(err, "Could not Delete: "+s3Path)
 	}
 
-	defer func() { s3Fs.Delete(s3Path) }() // cleanup
+	df.Defer(func() { s3Fs.Delete(s3Path) }) // cleanup
 
 	g.Info("writing to s3 for redshift import")
 	bw, err := s3Fs.WriteDataflow(df, s3Path)
