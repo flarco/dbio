@@ -18,6 +18,8 @@ type Dataflow struct {
 	Streams    []*Datastream
 	Context    g.Context
 	Limit      uint64
+	InBytes    uint64
+	OutBytes   uint64
 	deferFuncs []func()
 	Ready      bool
 	Inferred   bool
@@ -171,8 +173,31 @@ func (df *Dataflow) Count() (cnt uint64) {
 	return
 }
 
-// Bytes returns the aggregate bytes
-func (df *Dataflow) Bytes() (bytes uint64) {
+// AddInBytes add ingress bytes
+func (df *Dataflow) AddInBytes(bytes uint64) {
+	df.InBytes = df.InBytes + bytes
+}
+
+// AddOutBytes add egress bytes
+func (df *Dataflow) AddOutBytes(bytes uint64) {
+	df.OutBytes = df.OutBytes + bytes
+}
+
+func (df *Dataflow) Bytes() (inBytes, outBytes uint64) {
+	outBytes = df.OutBytes
+	inBytes = df.InBytes
+
+	dsBytes := df.DsTotalBytes()
+	if inBytes == 0 {
+		inBytes = dsBytes
+	}
+	if outBytes == 0 {
+		outBytes = dsBytes
+	}
+	return
+}
+
+func (df *Dataflow) DsTotalBytes() (bytes uint64) {
 	if df != nil && df.Ready {
 		for _, ds := range df.Streams {
 			if ds.Ready {

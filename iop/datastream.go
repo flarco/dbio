@@ -842,6 +842,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		if ds.config.header {
 			bw, err := w.Write(ds.GetFields(true))
+			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -859,6 +860,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
 			bw, err := w.Write(row)
+			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
@@ -878,6 +880,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				w = csv.NewWriter(pipeW)
 
 				bw, err = w.Write(ds.GetFields())
+				ds.AddBytes(int64(bw))
 				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -914,6 +917,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		if ds.config.header {
 			bw, err := w.Write(fields)
+			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -930,6 +934,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
 			bw, err := w.Write(row)
+			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
