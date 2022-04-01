@@ -661,6 +661,7 @@ func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow,
 		}
 
 		df.PushStreams(dss...)
+		g.Trace("pushed all streams")
 
 	}()
 
