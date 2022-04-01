@@ -194,7 +194,7 @@ func (conn *OracleConn) getColumnsString(ds *iop.Datastream) string {
 				`"TO_DATE(:%s, 'YYYY-MM-DD HH24:MI:SS')"`,
 				strings.ToUpper(col.Name),
 			)
-		} else if col.Type == "timestamp" {
+		} else if col.Type == "timestamp" || col.Type == "timestampz" {
 			expr = fmt.Sprintf(
 				`"TO_TIMESTAMP(:%s, 'YYYY-MM-DD HH24:MI:SS.FF3')"`,
 				strings.ToUpper(col.Name),

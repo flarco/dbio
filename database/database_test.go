@@ -834,7 +834,6 @@ func TestLargeDataset(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		iop.ShowProgress = false
 
 		tableName := db.schema + ".test1"
 		err = conn.DropTable(tableName)
@@ -979,21 +978,22 @@ func TestDatatypes(t *testing.T) {
 	now := time.Now()
 	now = time.Date(now.Year(), now.Month(), now.Day(), 10, 11, 13, 0, now.Location())
 	testValsMap := map[string]interface{}{
-		"bigint":    741868284,
-		"binary":    []byte(`{"key":{"subkey":[1,2]}, "another":"value"}`),
-		"bit":       1,
-		"bool":      true,
-		"date":      time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()),
-		"datetime":  now,
-		"decimal":   14876.411,
-		"integer":   716274,
-		"json":      `{"key":{"subkey":[1,2]}, "another":"value"}`,
-		"smallint":  112,
-		"string":    "this is my string",
-		"text":      "this is my string",
-		"timestamp": now,
-		"float":     4414.11,
-		"time":      time.Date(0, 1, 1, 10, 11, 13, 0, now.Location()),
+		"bigint":     741868284,
+		"binary":     []byte(`{"key":{"subkey":[1,2]}, "another":"value"}`),
+		"bit":        1,
+		"bool":       true,
+		"date":       time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()),
+		"datetime":   now,
+		"decimal":    14876.411,
+		"integer":    716274,
+		"json":       `{"key":{"subkey":[1,2]}, "another":"value"}`,
+		"smallint":   112,
+		"string":     "this is my string",
+		"text":       "this is my string",
+		"timestamp":  now,
+		"timestampz": now,
+		"float":      4414.11,
+		"time":       time.Date(0, 1, 1, 10, 11, 13, 0, now.Location()),
 	}
 
 	dbs := []*testDB{

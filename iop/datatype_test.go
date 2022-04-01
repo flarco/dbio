@@ -67,7 +67,7 @@ func initProcessRow(name string) (columns []Column, row []interface{}) {
 		row = []interface{}{int64(48714719874194)}
 	} else if name == "string" {
 		row = []interface{}{g.RandString(g.AplhanumericRunes, 1000)}
-	} else if name == "timestamp" {
+	} else if name == "timestamp" || name == "timestampz" {
 		row = []interface{}{time.Now()}
 		// row = []interface{}{"17-OCT-20 07.01.59.000000 PM"}
 	} else if name == "bool" {

@@ -434,5 +434,5 @@ func (col *Column) IsBool() bool {
 
 // IsDatetime returns whether the column is a datetime object
 func (col *Column) IsDatetime() bool {
-	return col.Type == "datetime" || col.Type == "date" || col.Type == "timestamp"
+	return col.Type == "datetime" || col.Type == "date" || col.Type == "timestamp" || col.Type == "timestampz"
 }

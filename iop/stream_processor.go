@@ -175,7 +175,7 @@ func (sp *StreamProcessor) CastType(val interface{}, typ string) interface{} {
 	case "bool":
 		// nVal = cast.ToBool(val)
 		nVal = val
-	case "datetime", "date", "timestamp":
+	case "datetime", "date", "timestamp", "timestampz":
 		nVal = cast.ToTime(val)
 	default:
 		nVal = cast.ToString(val)
@@ -359,7 +359,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 
 		cs.BoolCnt++
 		cs.Checksum++
-	case "datetime", "date", "timestamp":
+	case "datetime", "date", "timestamp", "timestampz":
 		dVal, err := sp.CastToTime(val)
 		if err != nil {
 			// sp.unrecognizedDate = g.F(
@@ -421,7 +421,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 			val = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
 		}
 		return cast.ToString(val)
-	case "datetime", "date", "timestamp":
+	case "datetime", "date", "timestamp", "timestampz":
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
 			return ""
@@ -466,7 +466,7 @@ func (sp *StreamProcessor) CastValWithoutStats(i int, val interface{}, typ strin
 		nVal = val // use string to keep accuracy
 	case "bool":
 		nVal = cast.ToBool(val)
-	case "datetime", "date", "timestamp":
+	case "datetime", "date", "timestamp", "timestampz":
 		dVal, err := sp.CastToTime(val)
 		if err != nil {
 			nVal = val // keep string
