@@ -34,6 +34,7 @@ func (conn *SnowflakeConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbSnowflake
+	conn.CopyMethod = "STAGE"
 
 	if s := conn.GetProp("schema"); s != "" {
 		conn.SetProp("schema", s)
