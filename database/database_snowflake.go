@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/flarco/dbio"
-	"github.com/flarco/g/sizedwaitgroup"
 
 	"github.com/flarco/dbio/filesys"
 	"github.com/snowflakedb/gosnowflake"
@@ -130,6 +130,8 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 	}
 
 	filePath := ""
+	df.Defer(func() { os.RemoveAll(filePath) })
+
 	switch conn.CopyMethod {
 	case "AZURE":
 		filePath, err = conn.CopyToAzure(sqls...)
@@ -144,10 +146,12 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 			return
 		}
 	case "STAGE":
-		if conn.getOrCreateStage("") != "" {
-			return conn.UnloadViaStage(sqls...)
-		}
-		err = g.Error("could not get or create stage")
+		// TODO: This is not working, buggy driver. Use SQL Rows stream
+		// if conn.getOrCreateStage("") != "" {
+		// 	filePath, err = conn.UnloadViaStage(sqls...)
+		// }
+		// err = g.Error("could not get or create stage")
+		return conn.BaseConn.BulkExportFlow(sqls...)
 	default:
 		return conn.BaseConn.BulkExportFlow(sqls...)
 	}
@@ -465,7 +469,21 @@ func (conn *SnowflakeConn) CopyFromAzure(tableFName, azPath string) (err error) 
 	return nil
 }
 
-func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (filePath string, err error) {
+
+	stageFolderPath := fmt.Sprintf(
+		"@%s/%s/%s",
+		conn.GetProp("internalStage"),
+		filePathStorageSlug,
+		cast.ToString(g.Now()),
+	)
+
+	// Write the each stage file to temp file, read to ds
+	folderPath := fmt.Sprintf(
+		"/tmp/snowflake.get.%d.%s.csv",
+		time.Now().Unix(),
+		g.RandString(g.AlphaRunes, 3),
+	)
 
 	unload := func(sql string, stagePartPath string) {
 
@@ -482,15 +500,7 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (df *iop.Dataflow, err
 			err = g.Error(err, "SQL Error for %s", stagePartPath)
 			conn.Context().CaptureErr(err)
 		}
-
 	}
-
-	stageFolderPath := fmt.Sprintf(
-		"@%s/%s/%s",
-		conn.GetProp("internalStage"),
-		filePathStorageSlug,
-		cast.ToString(g.Now()),
-	)
 
 	conn.Exec("REMOVE " + stageFolderPath)
 	defer conn.Exec("REMOVE " + stageFolderPath)
@@ -507,8 +517,6 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (df *iop.Dataflow, err
 		return
 	}
 
-	g.Debug("Unloaded to %s", stageFolderPath)
-
 	// get stream
 	data, err := conn.Query("LIST " + stageFolderPath)
 	if err != nil {
@@ -517,54 +525,26 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (df *iop.Dataflow, err
 		return
 	}
 
-	fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
-	if err != nil {
-		err = g.Error(err, "Could not get fs client for Local")
-		return
-	}
-
-	// Write the each stage file to temp file, read to ds
-	folderPath := fmt.Sprintf(
-		"/tmp/snowflake.get.%d.%s.csv",
-		time.Now().Unix(),
-		g.RandString(g.AlphaRunes, 3),
-	)
-
-	// GET and copy to local, read CSV stream and add to df
-	df = iop.NewDataflow()
-
-	// defer folder deletion
-	df.Defer(func() { os.RemoveAll(folderPath) })
-
-	wg := sizedwaitgroup.New(2) // 2 concurent file streams at most?
 	process := func(index int, stagePath string) {
-		defer wg.Done()
-		filePath := g.F("%s/%d", folderPath, index)
+		defer conn.Context().Wg.Write.Done()
+		filePath := path.Join(folderPath, cast.ToString(index))
 		err := conn.GetFile(stagePath, filePath)
 		if conn.Context().CaptureErr(err) {
 			return
 		}
-		// file is ready to be read
-		fDf, err := fs.ReadDataflow(filePath)
-		if conn.Context().CaptureErr(err) {
-			return
-		}
-
-		// push to dataflow
-		df.PushStreams(iop.MergeDataflow(fDf))
 	}
 
 	// this continues to read with 2 concurrent streams at most
-	go func() {
-		for i, rec := range data.Records() {
-			name := cast.ToString(rec["name"])
-			wg.Add()
-			go process(i, "@"+name)
-		}
-		wg.Wait()
-	}()
+	for i, rec := range data.Records() {
+		name := cast.ToString(rec["name"])
+		conn.Context().Wg.Write.Add()
+		go process(i, "@"+name)
+	}
+	conn.Context().Wg.Write.Wait()
 
-	return
+	g.Debug("Unloaded to %s", stageFolderPath)
+
+	return folderPath, err
 }
 
 // CopyViaStage uses the Snowflake COPY INTO Table command
