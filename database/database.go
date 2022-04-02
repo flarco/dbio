@@ -119,6 +119,7 @@ type Connection interface {
 	SwapTable(srcTable string, tgtTable string) (err error)
 	TableExists(tableFName string) (exists bool, err error)
 	Template() Template
+	SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error)
 	Tx() *Transaction
 	Unquote(string) string
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
@@ -1526,6 +1527,8 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 	)
 	if err != nil {
 		return columns, g.Error(err, "could not get list of columns for table: "+tableFName)
+	} else if len(colData.Rows) == 0 {
+		return columns, g.Error("did not find any columns for table: " + tableFName)
 	}
 
 	// if fields provided, check if exists in table

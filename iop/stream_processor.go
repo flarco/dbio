@@ -226,7 +226,8 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 	case godror.Number:
 		val = sp.ParseString(cast.ToString(val), i)
 	case []uint8:
-		val = string(v)
+		sVal = string(v)
+		val = sVal
 	case nil:
 		cs.TotalCnt++
 		cs.NullCnt++
