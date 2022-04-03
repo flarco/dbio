@@ -322,6 +322,10 @@ func connect(db *testDB) (conn Connection, err error) {
 }
 
 func DBTest(t *testing.T, db *testDB, conn Connection) {
+	if t.Failed() {
+		return
+	}
+
 	g.Info("Testing " + conn.GetType().String())
 
 	err := conn.DropTable(db.schema+".person", db.schema+".place", db.schema+".transact")
