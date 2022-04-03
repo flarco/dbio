@@ -1017,7 +1017,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	colTypes, err := result.ColumnTypes()
 	if err != nil {
 		queryContext.Cancel()
-		return ds, g.Error(err, "result.ColumnTypes()")
+		return ds, g.Error(err, "could not get column types")
 	}
 
 	conn.Data.Result = result
@@ -1421,10 +1421,12 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 		dbType = strings.Split(dbType, "(")[0]
 
 		Type := dbType
-		if _, ok := NativeTypeMap[dbType]; ok {
-			Type = NativeTypeMap[dbType]
-		} else if Type != "" {
-			g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name(), colType)
+		if matchedType, ok := NativeTypeMap[dbType]; ok {
+			Type = matchedType
+		} else {
+			if dbType != "" {
+				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name(), colType)
+			}
 			Type = "string" // default as string
 		}
 
@@ -2131,7 +2133,7 @@ func (conn *BaseConn) GenerateInsertStatement(tableName string, fields []string,
 		"fields", strings.Join(qFields, ", "),
 		"values", strings.TrimSuffix(valuesStr, ","),
 	)
-	g.Trace("insert statement: " + strings.Split(statement, ") VALUES ")[0] + ")")
+	g.Trace("insert statement: "+strings.Split(statement, ") VALUES ")[0]+")"+" x %d", numRows)
 	return statement
 }
 

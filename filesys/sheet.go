@@ -76,7 +76,7 @@ func (s *spreadsheet) makeDatasetAuto(rows [][]string) (data iop.Dataset) {
 
 		row := make([]interface{}, len(row0))
 		for i, val := range row0 {
-			row[i] = data.Sp.CastVal(i, val, data.Columns[i].Type)
+			row[i] = data.Sp.CastVal(i, val, &data.Columns[i])
 		}
 		data.Rows = append(data.Rows, row)
 
@@ -108,7 +108,7 @@ func (s *spreadsheet) makeDatasetStr(rangeRows [][]string) (data iop.Dataset) {
 
 		row := make([]interface{}, len(row0))
 		for i, val := range row0 {
-			row[i] = data.Sp.CastVal(i, val, data.Columns[i].Type)
+			row[i] = data.Sp.CastVal(i, val, &data.Columns[i])
 		}
 		data.Append(row)
 

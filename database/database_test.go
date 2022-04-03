@@ -1177,6 +1177,30 @@ func TestSchema(t *testing.T) {
 	g.P(data)
 }
 
+func TestQuery(t *testing.T) {
+	db := DBs["sqlite3"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+
+	// data, err := conn.Query(`select * from main.test1`)
+	// g.AssertNoError(t, err)
+	// assert.Len(t, data.Rows, 1000)
+
+	// data, err := conn.Query(`select count(*) from main.test1`)
+	// g.AssertNoError(t, err)
+	// g.P(data.Rows)
+
+	// rows := conn.Db().QueryRowx(`select count(*) from main.test1`)
+	// g.AssertNoError(t, rows.Err())
+	// values, err := rows.SliceScan()
+	// g.AssertNoError(t, err)
+	// g.P(values)
+
+	count, err := conn.GetCount("main.test1")
+	g.AssertNoError(t, err)
+	assert.Equal(t, 1000, cast.ToInt(count))
+}
+
 func TestDecimal(t *testing.T) {
 	db := DBs["postgres"]
 	conn, err := connect(db)

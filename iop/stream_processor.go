@@ -212,7 +212,7 @@ func (sp *StreamProcessor) GetType(val interface{}) (typ string) {
 // CastVal casts values with stats collection
 // which degrades performance by ~10%
 // go test -benchmem -run='^$ github.com/flarco/dbio/iop' -bench '^BenchmarkProcessVal'
-func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface{} {
+func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interface{} {
 	cs, ok := sp.colStats[i]
 	if !ok {
 		sp.colStats[i] = &ColumnStats{}
@@ -253,21 +253,23 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, typ string) interface
 		}
 	}
 
-	switch typ {
+	switch col.Type {
 	case "string", "text", "json", "time", "bytes", "":
 		if len(sVal) > cs.MaxLen {
 			cs.MaxLen = len(sVal)
 		}
 
-		if cs.TotalCnt > 0 && cs.NullCnt == cs.TotalCnt && sp.ds != nil {
+		cond1 := cs.TotalCnt > 0 && cs.NullCnt == cs.TotalCnt
+		cond2 := sVal == "" && col.DbType == ""
+		if (cond1 || cond2) && sp.ds != nil {
 			// this is an attempt to cast correctly "uncasted" columns
 			// (defaulting at string). This will not work in most db insert cases,
 			// as the ds.Shape() function will change it back to the "string" type,
 			// to match the target table column type. This takes priority.
-			nVal = sp.ParseString(sVal)
+			nVal = sp.ParseString(cast.ToString(val))
 			sp.ds.Columns[i].Type = sp.GetType(nVal)
 			if !sp.ds.Columns[i].IsString() { // so we don't loop
-				return sp.CastVal(i, nVal, sp.ds.Columns[i].Type)
+				return sp.CastVal(i, nVal, &sp.ds.Columns[i])
 			}
 			cs.StringCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
@@ -648,7 +650,7 @@ func (sp *StreamProcessor) CastRow(row []interface{}, columns []Column) []interf
 	sp.rowBlankValCnt = 0
 	for i, val := range row {
 		// fmt.Printf("| (%s) %#v", columns[i].Type, val)
-		row[i] = sp.CastVal(i, val, columns[i].Type)
+		row[i] = sp.CastVal(i, val, &columns[i])
 	}
 
 	// debug a row, prev

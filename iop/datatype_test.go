@@ -106,7 +106,7 @@ func BenchmarkProcessRow2(b *testing.B) {
 	columns, row := initProcessRow("")
 	for n := 0; n < b.N; n++ {
 		for i, val := range row {
-			row[i] = sp.CastVal(i, val, columns[i].Type)
+			row[i] = sp.CastVal(i, val, &columns[i])
 		}
 	}
 }

@@ -10,7 +10,8 @@ cd -
 
 cd database
 # go test -run 'TestPostgres|TestMySQL|TestOracle|TestSnowflake|TestSqlServer|TestBigQuery|TestSQLite'
-go test -run 'TestPostgres|TestMySQL|TestOracle|TestSnowflake|TestSqlServer|TestSQLite'
+# go test -run 'TestPostgres|TestMySQL|TestOracle|TestSnowflake|TestSqlServer|TestSQLite'
+go test -run 'TestPostgres|TestMySQL|TestOracle|TestSqlServer|TestSQLite'
 go test -run TestLargeDataset
 cd -
 
