@@ -600,6 +600,9 @@ func (ds *Datastream) Chunk(limit uint64) (chDs chan *Datastream) {
 
 // Split splits the datastream into parallel datastreams
 func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
+	// TODO: Split freezes the flow in some situation, such as S3 -> PG.
+	return []*Datastream{ds}
+
 	conncurrency := lo.Ternary(
 		os.Getenv("CONCURRENCY") != "",
 		cast.ToInt(os.Getenv("CONCURRENCY")),
@@ -609,17 +612,21 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 		conncurrency = numStreams[0]
 	}
 	for i := 0; i < conncurrency; i++ {
-		dss = append(dss, NewDatastreamContext(ds.Context.Ctx, ds.Columns))
+		nDs := NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+		nDs.Ready = true
+		dss = append(dss, nDs)
 	}
 
+	var nDs *Datastream
 	go func() {
+		defer ds.Close()
 		i := 0
 		for row := range ds.Rows {
 			if i == len(dss) {
 				i = 0 // cycle through datastreams
 			}
 
-			nDs := dss[i]
+			nDs = dss[i]
 			select {
 			case <-nDs.Context.Ctx.Done():
 				break
@@ -630,7 +637,7 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 		}
 
 		for _, nDs := range dss {
-			nDs.Close()
+			go nDs.Close()
 		}
 		ds.SetEmpty()
 	}()
