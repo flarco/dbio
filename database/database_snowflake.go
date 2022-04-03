@@ -130,7 +130,6 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 	}
 
 	filePath := ""
-	df.Defer(func() { os.RemoveAll(filePath) })
 
 	switch conn.CopyMethod {
 	case "AZURE":
@@ -145,13 +144,14 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 			err = g.Error(err, "Could not copy to S3.")
 			return
 		}
-	case "STAGE":
-		// TODO: This is not working, buggy driver. Use SQL Rows stream
-		// if conn.getOrCreateStage("") != "" {
-		// 	filePath, err = conn.UnloadViaStage(sqls...)
-		// }
-		// err = g.Error("could not get or create stage")
-		return conn.BaseConn.BulkExportFlow(sqls...)
+	// case "STAGE":
+	// 	// TODO: This is not working, buggy driver. Use SQL Rows stream
+	// 	if conn.getOrCreateStage("") != "" {
+	// 		filePath, err = conn.UnloadViaStage(sqls...)
+	// 	} else {
+	// 		g.Warn("could not get or create stage. Using cursor stream.")
+	// 		return conn.BaseConn.BulkExportFlow(sqls...)
+	// 	}
 	default:
 		return conn.BaseConn.BulkExportFlow(sqls...)
 	}
@@ -642,8 +642,8 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 // GetFile Copies from a staging location to a local file or folder
 func (conn *SnowflakeConn) GetFile(internalStagePath, fPath string) (err error) {
 	query := g.F(
-		"GET %s file://%s PARALLEL=20",
-		internalStagePath, fPath,
+		"GET file://%s %s auto_compress=false overwrite=true",
+		fPath, internalStagePath,
 	)
 
 	_, err = conn.Exec(query)
