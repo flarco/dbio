@@ -2328,6 +2328,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 
 // BulkImportFlow imports the streams rows in bulk concurrently using channels
 func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	defer df.CleanUp()
 
 	// g.Trace("BulkImportFlow not implemented for %s", conn.GetType())
 	df.Context.SetConcurencyLimit(conn.Context().Wg.Limit)

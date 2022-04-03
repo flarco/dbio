@@ -57,6 +57,17 @@ func (df *Dataflow) IsClosed() bool {
 	return df.closed
 }
 
+// CleanUp refers the defer functions
+func (df *Dataflow) CleanUp() {
+	g.Trace("executing defer functions")
+	df.mux.Lock()
+	defer df.mux.Unlock()
+	for i, f := range df.deferFuncs {
+		f()
+		df.deferFuncs[i] = func() {} // in case it gets called again
+	}
+}
+
 // Defer runs a given function as close of Dataflow
 func (df *Dataflow) Defer(f func()) {
 	df.mux.Lock()

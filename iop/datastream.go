@@ -87,15 +87,6 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 // SetEmpty sets the ds.Rows channel as empty
 func (ds *Datastream) SetEmpty() {
 	ds.empty = true
-	if ds.df != nil && ds.df.IsEmpty() {
-		g.Trace("executing defer functions")
-		ds.df.mux.Lock()
-		defer ds.df.mux.Unlock()
-		for i, f := range ds.df.deferFuncs {
-			f()
-			ds.df.deferFuncs[i] = func() { return } // in case it gets called again
-		}
-	}
 }
 
 // SetConfig sets the ds.config values

@@ -294,6 +294,8 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 
 // BulkImportFlow bulk import flow
 func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	defer df.CleanUp()
+
 	settingMppBulkImportFlow(conn)
 
 	switch conn.CopyMethod {

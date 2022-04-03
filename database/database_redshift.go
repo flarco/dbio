@@ -167,6 +167,8 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 // BulkImportFlow inserts a flow of streams into a table.
 // For redshift we need to create CSVs in S3 and then use the COPY command.
 func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	defer df.CleanUp()
+
 	settingMppBulkImportFlow(conn)
 	if conn.GetProp("AWS_BUCKET") == "" {
 		return count, g.Error("Need to set 'AWS_BUCKET' to copy to redshift")

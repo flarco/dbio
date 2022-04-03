@@ -99,6 +99,8 @@ func getVersion(URL string) (version string) {
 
 // BulkImportFlow bulk import flow
 func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	defer df.CleanUp()
+
 	if conn.isAzureDWH {
 		return conn.CopyViaAzure(tableFName, df)
 	}

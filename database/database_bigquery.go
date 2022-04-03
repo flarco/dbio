@@ -191,6 +191,8 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 // BulkImportFlow inserts a flow of streams into a table.
 // For redshift we need to create CSVs in S3 and then use the COPY command.
 func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	defer df.CleanUp()
+
 	settingMppBulkImportFlow(conn)
 
 	gcBucket := conn.GetProp("GC_BUCKET")
