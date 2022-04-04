@@ -201,7 +201,7 @@ var DBs = map[string]*testDB{
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
-		placeVwSelect: "create or replace view PLACE_VW as select * from place where telcode = 65;",
+		placeVwSelect: "create or replace view PLACE_VW(\n\tCOUNTRY,\n\tCITY,\n\tTELCODE\n) as select * from place where telcode = 65;",
 		// propStrs: []string{
 		// 	"schema=public",
 		// 	"warehouse=COMPUTE_WH",
@@ -604,8 +604,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		<-cancelDone // wait for cancel to be done
 	}
 
-	err = conn.Close()
-	g.AssertNoError(t, err)
+	conn.Close()
 }
 
 func ELTest(t *testing.T, db *testDB, srcTable string) {
