@@ -33,6 +33,7 @@ jobs:
         export _DEBUG=''
 
         go mod edit -dropreplace='github.com/flarco/g' go.mod
+        go mod tidy
 
         bash scripts/test.sh
 
