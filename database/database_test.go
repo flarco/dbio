@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -176,7 +177,7 @@ var DBs = map[string]*testDB{
 		name:        "bigquery",
 		URL:         os.Getenv("BIGQUERY_URL"),
 		schema:      "public",
-		transactDDL: `CREATE TABLE public.transact (date_time datetime, description string, original_description string, amount numeric, transaction_type string, category string, account_name string, labels string, notes string )`,
+		transactDDL: `CREATE TABLE public.transact (date_time datetime, description string, original_description string, amount float64, transaction_type string, category string, account_name string, labels string, notes string )`,
 		personDDL:   `CREATE TABLE public.person (first_name string, last_name string, email string )`,
 		placeDDL:    "CREATE TABLE public.place\n(\n    country string,\n    city string,\n    telcode int64\n)",
 		placeIndex: `CREATE INDEX idx_country_city
@@ -357,7 +358,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	insFields, err := conn.ValidateColumnNames(personColumns.Names(), []string{"first_name", "last_name", "email"}, true)
 	g.AssertNoError(t, err)
 	personInsertStatement := conn.GenerateInsertStatement(
-		"person",
+		db.schema+".person",
 		insFields,
 		1,
 	)
@@ -365,7 +366,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	insFields, err = conn.ValidateColumnNames(placeColumns.Names(), []string{"country", "city", "telcode"}, true)
 	g.AssertNoError(t, err)
 	placeInsertStatement := conn.GenerateInsertStatement(
-		"place",
+		db.schema+".place",
 		insFields,
 		1,
 	)
@@ -373,7 +374,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	insFields, err = conn.ValidateColumnNames(transactColumns.Names(), []string{"date_time", "description", "amount"}, true)
 	g.AssertNoError(t, err)
 	transactInsertStatement := conn.GenerateInsertStatement(
-		"transact",
+		db.schema+".transact",
 		insFields,
 		1,
 	)
@@ -396,7 +397,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// }
 	// assert.Len(t, recs, 2)
 
-	stream, err := conn.StreamRows(`select * from person`)
+	stream, err := conn.StreamRows(g.F(`select * from %s.person`, db.schema))
 	g.AssertNoError(t, err)
 
 	rows := [][]interface{}{}
@@ -405,15 +406,15 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 	assert.Len(t, rows, 2)
 
-	data, err := conn.Query(`select * from person`)
+	data, err := conn.Query(g.F(`select * from %s.person`, db.schema))
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 
-	data, err = conn.Query(`select * from place`)
+	data, err = conn.Query(g.F(`select * from %s.place`, db.schema))
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
 
-	data, err = conn.Query(`select * from transact`)
+	data, err = conn.Query(g.F(`select * from %s.transact`, db.schema))
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 2)
 	assert.Contains(t, []interface{}{65.657, 5.567, 5.657}, cast.ToFloat64(data.Records()[0]["amount"]))
@@ -522,6 +523,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	personTable := sData.Tables["person"]
 	assert.Len(t, personTable.Columns, 3)
 	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, personTable.ColumnsMap()["email"].Type)
+	g.P(sData.Tables["place_vw"])
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
 
@@ -826,7 +828,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "public",
 	}
 
-	dbs = []*testDB{DBs["snowflake"]}
+	// dbs = []*testDB{DBs["bigquery"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
@@ -872,10 +874,10 @@ func TestLargeDataset(t *testing.T) {
 		defer ctx.Wg.Write.Done()
 		ctx.Wg.Write.Add()
 		doTest(DBs["snowflake"])
-		// ctx.Wg.Write.Add()
-		// doTest(DBs["snowflake_aws"])
-		// ctx.Wg.Write.Add()
-		// doTest(DBs["snowflake_azure"])
+		ctx.Wg.Write.Add()
+		doTest(DBs["snowflake_aws"])
+		ctx.Wg.Write.Add()
+		doTest(DBs["snowflake_azure"])
 	}
 
 	for _, db := range dbs {
@@ -1178,7 +1180,7 @@ func TestSchema(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	db := DBs["sqlite3"]
+	db := DBs["bigquery"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
 
@@ -1196,7 +1198,7 @@ func TestQuery(t *testing.T) {
 	// g.AssertNoError(t, err)
 	// g.P(values)
 
-	count, err := conn.GetCount("main.test1")
+	count, err := conn.GetCount("public.test1")
 	g.AssertNoError(t, err)
 	assert.Equal(t, 1000, cast.ToInt(count))
 }
@@ -1236,13 +1238,14 @@ func TestDecimal(t *testing.T) {
 
 }
 
-func testSnowflakeStage(t *testing.T) {
+func TestSnowflakeStage(t *testing.T) {
 	db := DBs["snowflake"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
 
 	fileName := "test1.1.csv.gz"
-	_, err = conn.Exec(g.F("PUT file://test/test1.1.csv.gz @~"))
+	filePath, _ := filepath.Abs("test/test1.1.csv.gz")
+	_, err = conn.Exec(g.F("PUT file://%s @~", filePath))
 	g.AssertNoError(t, err)
 
 	data, err := conn.Query("LIST @~")
@@ -1289,7 +1292,7 @@ func testSnowflakeAuth(t *testing.T) {
 }
 
 func TestSchemataAll(t *testing.T) {
-	db := DBs["snowflake"]
+	db := DBs["bigquery"]
 	conn, err := connect(db)
 
 	if !g.AssertNoError(t, err) {
@@ -1299,8 +1302,10 @@ func TestSchemataAll(t *testing.T) {
 	err = conn.Connect()
 	g.AssertNoError(t, err)
 
-	schemata, err := GetSchemataAll(conn)
+	schemata, err := conn.GetSchemata("public", "place_vw")
+	// schemata, err := GetSchemataAll(conn)
 	g.AssertNoError(t, err)
+	g.P(schemata)
 	_ = schemata
 
 }

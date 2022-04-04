@@ -2,7 +2,11 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
+	"encoding/base64"
 	"fmt"
+	"math/big"
 	"net/url"
 	"os"
 	"strings"
@@ -13,6 +17,7 @@ import (
 	"github.com/flarco/g/net"
 
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/civil"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
@@ -135,6 +140,261 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 	return conn.BaseConn.Connect()
 }
 
+type bqResult struct {
+	TotalRows uint64
+	res       driver.Result
+}
+
+func (r bqResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (r bqResult) RowsAffected() (int64, error) {
+	return cast.ToInt64(r.TotalRows), nil
+}
+
+// ExecContext runs a sql query with context, returns `error`
+func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
+
+	if len(args) > 0 {
+		for _, arg := range args {
+			switch val := arg.(type) {
+			case int, int64, int8, int32, int16:
+				sql = strings.Replace(sql, "?", fmt.Sprintf("%d", val), 1)
+			case float32, float64:
+				sql = strings.Replace(sql, "?", fmt.Sprintf("%f", val), 1)
+			case time.Time:
+				sql = strings.Replace(sql, "?", fmt.Sprintf("'%s'", val.Format("2006-01-02 15:04:05")), 1)
+			case nil:
+				sql = strings.Replace(sql, "?", "NULL", 1)
+			case []byte:
+				if len(val) == 0 {
+					sql = strings.Replace(sql, "?", "NULL", 1)
+
+				} else {
+					newdata := base64.StdEncoding.EncodeToString(val)
+					sql = strings.Replace(sql, "?", fmt.Sprintf("FROM_BASE64('%s')", newdata), 1)
+				}
+			default:
+				v := strings.ReplaceAll(cast.ToString(val), "\n", "\\n")
+				v = strings.ReplaceAll(v, "'", "\\'")
+				sql = strings.Replace(sql, "?", fmt.Sprintf("'%s'", v), 1)
+			}
+		}
+	}
+
+	res := bqResult{}
+	exec := func(sql string) error {
+		noTrace := strings.Contains(sql, noTraceKey)
+		if !noTrace {
+			g.Debug(sql)
+		}
+
+		q := conn.Client.Query(sql)
+		q.QueryConfig = bigquery.QueryConfig{
+			Q:                sql,
+			DefaultDatasetID: conn.GetProp("schema"),
+		}
+		it, err := q.Read(ctx)
+		if err != nil {
+			return g.Error(err, "SQL Error for:\n"+sql)
+		}
+
+		if err != nil {
+			err = g.Error(err, "Error executing "+CleanSQL(conn, sql))
+		} else {
+			res.TotalRows = it.TotalRows + res.TotalRows
+		}
+		return nil
+	}
+
+	for _, sql := range ParseSQLMultiStatements(sql) {
+		err = exec(sql)
+		if err != nil {
+			err = g.Error(err, "Error executing query")
+		}
+	}
+	result = res
+
+	return
+}
+
+type bQTypeCols struct {
+	numericCols  []int
+	datetimeCols []int
+	dateCols     []int
+	boolCols     []int
+	timeCols     []int
+}
+
+func processBQTypeCols(row []interface{}, bqTC *bQTypeCols, ds *iop.Datastream) []interface{} {
+	for _, j := range bqTC.numericCols {
+		var vBR *big.Rat
+		vBR, ok := row[j].(*big.Rat)
+		if ok {
+			row[j], _ = vBR.Float64()
+		}
+	}
+	for _, j := range bqTC.datetimeCols {
+		if row[j] != nil {
+			vDT, ok := row[j].(civil.DateTime)
+			if ok {
+				row[j], _ = ds.Sp.ParseTime(vDT.Date.String() + " " + vDT.Time.String())
+			}
+		}
+	}
+	for _, j := range bqTC.dateCols {
+		if row[j] != nil {
+			vDT, ok := row[j].(civil.Date)
+			if ok {
+				row[j], _ = ds.Sp.ParseTime(vDT.String())
+			}
+		}
+	}
+	for _, j := range bqTC.timeCols {
+		if row[j] != nil {
+			vDT, ok := row[j].(civil.Time)
+			if ok {
+				row[j], _ = ds.Sp.ParseTime(vDT.String())
+			}
+		}
+	}
+	for _, j := range bqTC.boolCols {
+		if row[j] != nil {
+			vB, ok := row[j].(bool)
+			if ok {
+				row[j] = vB
+			}
+		}
+	}
+	return row
+}
+
+// StreamRowsContext streams the rows of a sql query with context, returns `result`, `error`
+func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Columns, bQTC bQTypeCols) {
+	cols = make(iop.Columns, len(itSchema))
+	NativeTypeMap := conn.template.NativeTypeMap
+	for i, field := range itSchema {
+		dbType := strings.ToLower(string(field.Type))
+		Type := dbType
+		if matchedType, ok := NativeTypeMap[dbType]; ok {
+			Type = matchedType
+		} else {
+			if dbType != "" {
+				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, field.Name, field.Type)
+			}
+			Type = "string" // default as string
+		}
+
+		cols[i] = iop.Column{
+			Name:     field.Name,
+			Position: i + 1,
+			Type:     Type,
+			DbType:   dbType,
+		}
+		if g.In(field.Type, bigquery.NumericFieldType, bigquery.FloatFieldType) {
+			bQTC.numericCols = append(bQTC.numericCols, i)
+		} else if field.Type == "DATETIME" || field.Type == bigquery.TimestampFieldType {
+			bQTC.datetimeCols = append(bQTC.datetimeCols, i)
+		} else if field.Type == "DATE" {
+			bQTC.dateCols = append(bQTC.dateCols, i)
+		} else if field.Type == bigquery.TimeFieldType {
+			bQTC.timeCols = append(bQTC.timeCols, i)
+		}
+	}
+	return
+}
+
+func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error) {
+	bQTC := bQTypeCols{}
+	Limit := uint64(0) // infinite
+	if len(limit) > 0 && limit[0] != 0 {
+		Limit = cast.ToUint64(limit[0])
+	}
+
+	start := time.Now()
+	if strings.TrimSpace(sql) == "" {
+		g.Warn("Empty Query")
+		return ds, nil
+	}
+
+	noTrace := strings.Contains(sql, noTraceKey)
+	if !noTrace {
+		g.Debug(sql)
+	}
+	queryContext := g.NewContext(ctx)
+	q := conn.Client.Query(sql)
+	q.QueryConfig = bigquery.QueryConfig{
+		Q:                sql,
+		DefaultDatasetID: conn.GetProp("schema"),
+	}
+
+	it, err := q.Read(queryContext.Ctx)
+	if err != nil {
+		err = g.Error(err, "SQL Error for:\n"+sql)
+		return
+	}
+
+	conn.Data.SQL = sql
+	conn.Data.Duration = time.Since(start).Seconds()
+	conn.Data.Rows = [][]interface{}{}
+	conn.Data.NoTrace = !strings.Contains(sql, noTraceKey)
+
+	// need to fetch first row to get schema
+	var values []bigquery.Value
+	err = it.Next(&values)
+	if err != nil && err != iterator.Done {
+		return ds, g.Error(err, "Failed to scan")
+	}
+	conn.Data.Columns, bQTC = conn.getItColumns(it.Schema)
+
+	if err == iterator.Done {
+		return iop.NewDatastreamContext(queryContext.Ctx, conn.Data.Columns), nil
+	}
+
+	nextFunc := func(it2 *iop.Iterator) bool {
+		if Limit > 0 && it2.Counter >= Limit {
+			queryContext.Cancel()
+			return false
+		}
+
+		err := it.Next(&values)
+		if err == iterator.Done {
+			return false
+		} else if err != nil {
+			ds.Context.CaptureErr(g.Error(err, "Failed to scan"))
+			ds.Context.Cancel()
+			return false
+		}
+
+		it2.Row = make([]interface{}, len(ds.Columns))
+		for i := range values {
+			it2.Row[i] = values[i]
+		}
+		it2.Row = processBQTypeCols(it2.Row, &bQTC, ds)
+		return true
+	}
+
+	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
+	ds.NoTrace = !strings.Contains(sql, noTraceKey)
+	ds.Inferred = true
+
+	// add first row pulled to buffer
+	row := make([]interface{}, len(ds.Columns))
+	for i := range values {
+		row[i] = values[i]
+	}
+	ds.Buffer = append(ds.Buffer, row)
+
+	err = ds.Start()
+	if err != nil {
+		queryContext.Cancel()
+		return ds, g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
 // Close closes the connection
 func (conn *BigQueryConn) Close() error {
 	err := conn.Client.Close()
@@ -193,7 +453,7 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	settingMppBulkImportFlow(conn)
+	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
 
 	gcBucket := conn.GetProp("GC_BUCKET")
 

@@ -2792,7 +2792,7 @@ func (conn *BaseConn) credsProvided(provider string) bool {
 
 // settingMppBulkImportFlow sets settings for MPP databases type
 // for BulkImportFlow
-func settingMppBulkImportFlow(conn Connection) {
+func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	if cast.ToInt(conn.GetProp("FILE_MAX_ROWS")) == 0 {
 		conn.SetProp("FILE_MAX_ROWS", "500000")
 	}
@@ -2801,7 +2801,7 @@ func settingMppBulkImportFlow(conn Connection) {
 	}
 
 	if conn.GetProp("COMPRESSION") == "" {
-		conn.SetProp("COMPRESSION", "ZSTD")
+		conn.SetProp("COMPRESSION", string(compressor))
 	}
 
 	conn.SetProp("DBIO_PARALLEL", "true")

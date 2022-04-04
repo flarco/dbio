@@ -221,6 +221,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 
 	var nVal interface{}
 	var sVal string
+	isString := false
 
 	switch v := val.(type) {
 	case godror.Number:
@@ -234,6 +235,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		sp.rowBlankValCnt++
 		return nil
 	case string:
+		isString = true
 		sVal = v
 		if sp.config.trimSpace {
 			sVal = strings.TrimSpace(sVal)
@@ -260,7 +262,8 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 
 		cond1 := cs.TotalCnt > 0 && cs.NullCnt == cs.TotalCnt
-		cond2 := sVal == "" && col.DbType == ""
+		cond2 := !isString
+
 		if (cond1 || cond2) && sp.ds != nil {
 			// this is an attempt to cast correctly "uncasted" columns
 			// (defaulting at string). This will not work in most db insert cases,

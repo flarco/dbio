@@ -33,7 +33,6 @@ jobs:
         export _DEBUG=''
 
         go mod edit -dropreplace='github.com/flarco/g' go.mod
-        go get github.com/flarco/g@HEAD
 
         bash scripts/test.sh
 

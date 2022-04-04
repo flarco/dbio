@@ -25,14 +25,21 @@ azuresql	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE
 azuresql	varbinary	binary	col_varbinary varbinary(100)	TRUE	TRUE	
 azuresql	varchar	string	col_varchar varchar	TRUE	TRUE	
 bigquery	array	string		FALSE	FALSE	
+bigquery	record	json		FALSE	FALSE	
+bigquery	geography	json		FALSE	FALSE	
 bigquery	bool	bool	col_bool bool	FALSE	FALSE	
+bigquery	boolean	bool	col_bool bool	FALSE	FALSE	
 bigquery	bytes	binary	col_bytes bytes	TRUE	FALSE	
 bigquery	date	date	col_date date	FALSE	FALSE	
 bigquery	datetime	datetime	col_datetime datetime	TRUE	TRUE	
+bigquery	float	float	col_float float64	TRUE	TRUE	
 bigquery	float64	float	col_float64 float64	TRUE	TRUE	
 bigquery	geography	string	col_geography geography	FALSE	FALSE	
+bigquery	integer	bigint	col_integer integer	TRUE	TRUE	
+bigquery	int64	bigint	col_int64 int64	TRUE	TRUE	
 bigquery	int64	bigint	col_int64 int64	TRUE	TRUE	
 bigquery	numeric	decimal	col_numeric numeric	TRUE	TRUE	
+bigquery	bignumeric	decimal	col_numeric numeric	TRUE	TRUE	
 bigquery	string	string	col_string string	TRUE	TRUE	
 bigquery	struct	string		FALSE	FALSE	
 bigquery	time	time	col_time time	FALSE	FALSE	

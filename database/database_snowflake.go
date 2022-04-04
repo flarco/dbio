@@ -296,7 +296,7 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	settingMppBulkImportFlow(conn)
+	settingMppBulkImportFlow(conn, iop.ZStandardCompressorType)
 
 	switch conn.CopyMethod {
 	case "AWS":
@@ -341,7 +341,7 @@ func (conn *SnowflakeConn) BulkImportStream(tableFName string, ds *iop.Datastrea
 // CopyViaAWS uses the Snowflake COPY INTO Table command from AWS S3
 // https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html
 func (conn *SnowflakeConn) CopyViaAWS(tableFName string, df *iop.Dataflow) (count uint64, err error) {
-	settingMppBulkImportFlow(conn)
+	settingMppBulkImportFlow(conn, iop.ZStandardCompressorType)
 	if conn.GetProp("AWS_BUCKET") == "" {
 		err = g.Error("Need to set 'AWS_BUCKET' to copy to snowflake from S3")
 		return
@@ -408,7 +408,7 @@ func (conn *SnowflakeConn) CopyFromS3(tableFName, s3Path string) (err error) {
 // CopyViaAzure uses the Snowflake COPY INTO Table command from Azure
 // https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html
 func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (count uint64, err error) {
-	settingMppBulkImportFlow(conn)
+	settingMppBulkImportFlow(conn, iop.ZStandardCompressorType)
 	if !conn.BaseConn.credsProvided("AZURE") {
 		err = g.Error("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy to snowflake from azure")
 		return

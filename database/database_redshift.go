@@ -169,7 +169,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	settingMppBulkImportFlow(conn)
+	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
 	if conn.GetProp("AWS_BUCKET") == "" {
 		return count, g.Error("Need to set 'AWS_BUCKET' to copy to redshift")
 	}
