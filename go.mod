@@ -3,6 +3,7 @@ module github.com/flarco/dbio
 go 1.18
 
 require (
+	cloud.google.com/go v0.100.2
 	cloud.google.com/go/bigquery v1.27.0
 	cloud.google.com/go/storage v1.18.2
 	github.com/360EntSecGroup-Skylar/excelize v1.4.1
@@ -14,7 +15,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.9.0
 	github.com/digitalocean/godo v1.59.0
 	github.com/dustin/go-humanize v1.0.0
-	github.com/flarco/bigquery v0.0.0-00010101000000-000000000000
+	github.com/flarco/bigquery v0.0.9
 	github.com/flarco/g v0.0.7
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
@@ -45,7 +46,6 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.5.0 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
@@ -148,7 +148,5 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
-
-replace github.com/flarco/bigquery => ../bigquery
 
 replace github.com/flarco/g => ../g
