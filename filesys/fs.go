@@ -348,8 +348,10 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if strings.Contains(urlStr, ".json") {
+		if strings.HasSuffix(urlStr, ".json") {
 			err = ds.ConsumeJsonReader(reader)
+		} else if strings.HasSuffix(urlStr, ".xml") {
+			err = ds.ConsumeXmlReader(reader)
 		} else {
 			err = ds.ConsumeCsvReader(reader)
 		}

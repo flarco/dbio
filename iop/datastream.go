@@ -3,7 +3,7 @@ package iop
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/xml"
 	"io"
 	"io/ioutil"
 	"os"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
@@ -39,6 +40,8 @@ type Datastream struct {
 	config        *streamConfig
 	df            *Dataflow
 }
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // Iterator is the row provider for a datastream
 type Iterator struct {
@@ -397,43 +400,38 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 		return g.Error(err, "Could not decompress reader")
 	}
 
-	ds.SetFields([]string{"data"})
-	ds.Columns[0].Type = "json"
-	ds.Inferred = true
 	decoder := json.NewDecoder(reader2)
-	nextFunc := func(it *Iterator) bool {
-
-		var rec interface{}
-		err = decoder.Decode(&rec)
-		if err == io.EOF {
-			return false
-		} else if err != nil {
-			it.Context.CaptureErr(g.Error(err, "could not decode JSON body"))
-			return false
-		}
-		row := []string{g.Marshal(rec)}
-		it.Row = make([]interface{}, len(it.ds.Columns))
-		var val interface{}
-		for i, val0 := range row {
-			if !it.ds.Columns[i].IsString() {
-				val0 = strings.TrimSpace(val0)
-				if val0 == "" {
-					val = nil
-				} else {
-					val = val0
-				}
-			} else {
-				val = val0
-			}
-			it.Row[i] = val
-		}
-
-		return true
-	}
+	js := NewJSONStream(ds, decoder, true)
 
 	ds.it = &Iterator{
 		Row:      make([]interface{}, len(ds.Columns)),
-		nextFunc: nextFunc,
+		nextFunc: js.nextFunc,
+		Context:  g.NewContext(ds.Context.Ctx),
+		ds:       ds,
+	}
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+	return
+}
+
+// ConsumeXmlReader uses the provided reader to stream XML
+// This will put each XML rec as one string value
+// so payload can be processed downstream
+func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
+	reader2, err := AutoDecompress(reader)
+	if err != nil {
+		return g.Error(err, "Could not decompress reader")
+	}
+
+	decoder := xml.NewDecoder(reader2)
+	js := NewJSONStream(ds, decoder, true)
+
+	ds.it = &Iterator{
+		Row:      make([]interface{}, len(ds.Columns)),
+		nextFunc: js.nextFunc,
 		Context:  g.NewContext(ds.Context.Ctx),
 		ds:       ds,
 	}
@@ -647,12 +645,23 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 	// we need to recast up to this marker
 	counterMarker := ds.Count + 10
 
+	// determine diff, and match order of target columns
+	srcColNames := lo.Map(ds.Columns, func(c Column, i int) string { return strings.ToLower(c.Name) })
 	diffCols := false
-	for i := range columns {
-		if columns[i].Type != ds.Columns[i].Type {
+	colMap := map[int]int{}
+	for i, col := range columns {
+		j := lo.IndexOf(srcColNames, strings.ToLower(col.Name))
+		if j == -1 {
+			err = g.Error("column %s not found in source columns", col.Name)
+			return ds, err
+		}
+		colMap[j] = i
+		if columns[i].Type != ds.Columns[j].Type {
 			diffCols = true
-			ds.Columns[i].Type = columns[i].Type
-		} else if columns[i].Name != ds.Columns[i].Name {
+			ds.Columns[j].Type = columns[i].Type
+		} else if columns[i].Name != ds.Columns[j].Name {
+			diffCols = true
+		} else if j != i {
 			diffCols = true
 		}
 	}
@@ -660,19 +669,33 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 	if !diffCols {
 		return ds, nil
 	}
+	// return ds, nil
 
 	g.Trace("shaping ds...")
 	nDs = NewDatastreamContext(ds.Context.Ctx, columns)
 	nDs.Inferred = ds.Inferred
 	nDs.config = ds.config
 	nDs.Sp.config = ds.Sp.config
+	nDs.df = ds.df
+
+	mapRowCol := func(row []interface{}) []interface{} {
+		newRow := make([]interface{}, len(row))
+		for o, t := range colMap {
+			newRow[t] = row[o]
+		}
+		return newRow
+	}
 
 	go func() {
 		defer nDs.Close()
 		nDs.Ready = true
-
+		defer func() {
+			g.Debug("nDs.Count -> %d", nDs.Count)
+			g.Debug("ds.Count -> %d", ds.Count)
+		}()
 	loop:
 		for row := range ds.Rows {
+			row = mapRowCol(row)
 			if nDs.Count <= counterMarker {
 				row = nDs.Sp.CastRow(row, nDs.Columns)
 			}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -216,28 +217,38 @@ func (cols Columns) Normalize(name string) string {
 }
 
 // CompareColumns compared two columns to see if there are similar
-func CompareColumns(columns1 []Column, columns2 []Column) (err error) {
+func CompareColumns(columns1 []Column, columns2 []Column) (reshape bool, err error) {
 	if len(columns1) != len(columns2) {
-		return g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
+		return reshape, g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
 	}
 
 	eG := g.ErrorGroup{}
+	col2Map := lo.KeyBy(columns2, func(c Column) string { return strings.ToLower(c.Name) })
 	for i, c1 := range columns1 {
 		c2 := columns2[i]
 
-		if c1.Type != c2.Type {
+		_, found := col2Map[strings.ToLower(c1.Name)]
+		if c1.Name != c2.Name {
+			if found {
+				// sometimes the orders of columns is different
+				// (especially, multiple json files), shape ds to match columns1
+				reshape = true
+			} else {
+				eG.Add(g.Error("column name mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
+			}
+		} else if c1.Type != c2.Type {
 			// too unpredictable to mark as error? sometimes one column
 			// has not enough data to represent true type. Warn instead
 			// eG.Add(g.Error("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
 			g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
 		}
 	}
-	return eG.Err()
+	return reshape, eG.Err()
 }
 
 // SyncColumns syncs two columns together
 func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err error) {
-	if err = CompareColumns(columns1, columns2); err != nil {
+	if _, err = CompareColumns(columns1, columns2); err != nil {
 		err = g.Error(err)
 		return
 	}
