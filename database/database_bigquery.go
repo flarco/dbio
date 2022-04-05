@@ -99,10 +99,13 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GC_CRED_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
 	} else if val := conn.GetProp("keyfile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
 	} else if val := conn.GetProp("credentialsFile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
 	}
 	if authOption == nil {
 		err = g.Error("no Google crendentials provided")
@@ -349,7 +352,10 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 	conn.Data.Columns, bQTC = conn.getItColumns(it.Schema)
 
 	if err == iterator.Done {
-		return iop.NewDatastreamContext(queryContext.Ctx, conn.Data.Columns), nil
+		ds = iop.NewDatastreamContext(queryContext.Ctx, conn.Data.Columns)
+		ds.Ready = true
+		ds.Close()
+		return ds, nil
 	}
 
 	nextFunc := func(it2 *iop.Iterator) bool {
@@ -384,7 +390,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 	for i := range values {
 		row[i] = values[i]
 	}
-	ds.Buffer = append(ds.Buffer, row)
+	ds.Buffer = append(ds.Buffer, processBQTypeCols(row, &bQTC, ds))
 
 	err = ds.Start()
 	if err != nil {
