@@ -187,7 +187,7 @@ func (sp *StreamProcessor) CastType(val interface{}, typ string) interface{} {
 // GetType returns the type of an interface
 func (sp *StreamProcessor) GetType(val interface{}) (typ string) {
 
-	switch v := val.(type) {
+	switch val.(type) {
 	case time.Time:
 		typ = "timestamp"
 	case int8, int16, uint8, uint16:
@@ -203,7 +203,6 @@ func (sp *StreamProcessor) GetType(val interface{}) (typ string) {
 	case string, []uint8:
 		typ = "string"
 	default:
-		_ = v
 		typ = "string"
 	}
 	return

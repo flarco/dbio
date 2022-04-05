@@ -264,10 +264,18 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 					ds.df = df
 					if df.Ready {
 						// compare columns, if differences than error
-						if err := CompareColumns(df.Columns, ds.Columns); err != nil {
-							df.Context.CaptureErr(g.Error(err, "files columns don't match"))
+						reshape, err := CompareColumns(df.Columns, ds.Columns)
+						if err != nil {
+							ds.Context.CaptureErr(g.Error(err, "files columns don't match"))
 							df.Close()
 							return
+						} else if reshape {
+							ds, err = ds.Shape(df.Columns)
+							if err != nil {
+								ds.Context.CaptureErr(g.Error(err, "could not reshape ds"))
+								df.Close()
+								return
+							}
 						}
 					} else {
 						df.Columns = ds.Columns

@@ -27,7 +27,7 @@ func TestFileSysLocal(t *testing.T) {
 
 	paths, err = fs.ListRecursive(".")
 	assert.NoError(t, err)
-	assert.Contains(t, paths, "test/test1/test1.csv")
+	assert.Contains(t, paths, "test/test1/csv/test1.csv")
 
 	// Test Delete, Write, Read
 	testPath := "test/fs.test"
@@ -54,12 +54,19 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NotContains(t, paths, "./"+testPath)
 
 	// Test datastream
-	df, err := fs.ReadDataflow("test/test1")
+	df, err := fs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
 	data, err := iop.Collect(df.Streams...)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
+
+	df, err = fs.ReadDataflow("test/test1/json")
+	assert.NoError(t, err)
+
+	data, err = iop.Collect(df.Streams...)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1018, len(data.Rows))
 
 	fs.SetProp("header", "FALSE")
 	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
@@ -130,7 +137,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1")
+	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -237,7 +244,7 @@ func TestFileSysS3(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1")
+	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -297,7 +304,7 @@ func TestFileSysAzure(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1")
+	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -353,7 +360,7 @@ func TestFileSysGoogle(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1")
+	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
@@ -407,7 +414,7 @@ func TestFileSysSftp(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df2, err := localFs.ReadDataflow("test/test1")
+	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
