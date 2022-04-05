@@ -246,12 +246,18 @@ func (conn *MySQLConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFie
 	}
 
 	sqlTemplate := `
+	DELETE FROM {tgt_table} tgt
+	WHERE EXISTS (
+			SELECT 1
+			FROM {src_table} src
+			WHERE {src_tgt_pk_equal}
+	)
+	;
+
 	INSERT INTO {tgt_table}
 		({insert_fields})
 	SELECT {src_fields}
-	from {src_table} src
-	ON DUPLICATE KEY UPDATE
-		{set_fields}
+	FROM {src_table} src
 	`
 
 	sql = g.R(

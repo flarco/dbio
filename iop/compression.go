@@ -26,6 +26,8 @@ type Compressor interface {
 type CompressorType string
 
 const (
+	// AutoCompressorType is for auto compression
+	AutoCompressorType CompressorType = "AUTO"
 	// NoneCompressorType is for no compression
 	NoneCompressorType CompressorType = "NONE"
 	// ZipCompressorType is for Zip compression

@@ -3,6 +3,7 @@ package filesys
 import (
 	"context"
 	"io"
+	"os"
 	"strings"
 
 	gcstorage "cloud.google.com/go/storage"
@@ -31,23 +32,30 @@ func (fs *GoogleFileSysClient) Init(ctx context.Context) (err error) {
 
 // Connect initiates the Google Cloud Storage client
 func (fs *GoogleFileSysClient) Connect() (err error) {
-	var authOpthion option.ClientOption
+	var authOption option.ClientOption
 
 	if val := fs.GetProp("GC_CRED_JSON_BODY"); val != "" {
-		authOpthion = option.WithCredentialsJSON([]byte(val))
+		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := fs.GetProp("GC_CRED_API_KEY"); val != "" {
-		authOpthion = option.WithAPIKey(val)
+		authOption = option.WithAPIKey(val)
 	} else if val := fs.GetProp("GC_CRED_FILE"); val != "" {
-		authOpthion = option.WithCredentialsFile(val)
+		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
 	} else if val := fs.GetProp("credentials_json"); val != "" {
-		authOpthion = option.WithCredentialsJSON([]byte(val))
+		authOption = option.WithCredentialsJSON([]byte(val))
+	} else if val := fs.GetProp("keyfile"); val != "" {
+		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
+	} else if val := fs.GetProp("credentialsFile"); val != "" {
+		authOption = option.WithCredentialsFile(val)
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
 	} else {
 		return g.Error("Could not connect. Did not provide credentials")
 	}
 
 	fs.bucket = fs.GetProp("GC_BUCKET")
 
-	fs.client, err = gcstorage.NewClient(fs.Context().Ctx, authOpthion)
+	fs.client, err = gcstorage.NewClient(fs.Context().Ctx, authOption)
 	if err != nil {
 		err = g.Error(err, "Could not connect to GS Storage")
 		return

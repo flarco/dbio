@@ -283,14 +283,14 @@ func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err er
 // MakeColumns makes columns from a struct
 func MakeColumns(obj interface{}, useTag string, typeMap ...map[string]string) Columns {
 	TypeMap := map[string]string{
-		"string":    "string",
-		"bool":      "boolean",
-		"g.Map":     "json",
-		"int":       "integer",
-		"int64":     "bigint",
-		"float32":   "float",
-		"float64":   "float",
-		"time.Time": "datetime",
+		"string":                 "string",
+		"bool":                   "boolean",
+		"map[string]interface{}": "json",
+		"int":                    "integer",
+		"int64":                  "bigint",
+		"float32":                "float",
+		"float64":                "float",
+		"time.Time":              "datetime",
 	}
 	if len(typeMap) > 0 {
 		for k, v := range typeMap[0] {

@@ -1483,7 +1483,7 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 	// get column types
 	g.Trace("GetSQLColumns: %s", sql)
 	sql = sql + " /* GetSQLColumns */ " + noTraceKey
-	ds, err := conn.Self().StreamRows(sql, 1)
+	ds, err := conn.Self().StreamRows(sql)
 	if err != nil {
 		err = g.Error(err, "SQL Error for:\n"+sql)
 		return columns, err
@@ -2800,7 +2800,8 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 		conn.SetProp("FILE_BYTES_LIMIT", "16000000")
 	}
 
-	if conn.GetProp("COMPRESSION") == "" {
+	compr := strings.ToUpper(conn.GetProp("COMPRESSION"))
+	if g.In(compr, "", string(iop.AutoCompressorType)) {
 		conn.SetProp("COMPRESSION", string(compressor))
 	}
 

@@ -92,19 +92,9 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 		g.AsMap(m["data"]),
 	)
 
-	if Type == "" {
-		c2, err1 := NewConnectionFromDbt(name)
-		if c2.Type != "" {
-			c = c2
-			return
-		}
-
-		c2, err1 = NewConnectionFromProfiles(name)
-		if c2.Type != "" {
-			c = c2
-			return
-		}
-		err = err1
+	if c.Type == "" {
+		U, _ := net.NewURL(c.URL())
+		c.Type, _ = dbio.ValidateType(U.U.Scheme)
 	}
 
 	return
@@ -271,6 +261,7 @@ func (c *Connection) setURL() (err error) {
 		}
 
 		c.Type, _ = dbio.ValidateType(U.U.Scheme)
+		setIfMissing("type", c.Type)
 
 		if c.Type.IsDb() {
 			// set props from URL
@@ -364,15 +355,8 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
 		template = "clickhouse://{username}:{password}@{host}:{port}/{database}"
-	case dbio.TypeFileS3:
-		template = "s3://{aws_bucket}"
-	case dbio.TypeFileGoogle:
-		template = "gs://{gc_bucket}"
-	case dbio.TypeFileAzure:
-		template = "azure://{azure_account}"
-	case dbio.TypeFileSftp:
-		template = "sftp://{username}:{password}@{host}:{port}"
-	case dbio.TypeFileLocal:
+	case dbio.TypeFileS3, dbio.TypeFileGoogle, dbio.TypeFileAzure,
+		dbio.TypeFileLocal, dbio.TypeFileSftp:
 		return nil
 	default:
 		if c.Type.IsUnknown() {
@@ -457,8 +441,8 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 	}
 
 	type ProfileConn struct {
-		Target  string           `json:"target" yaml:"target"`
-		Outputs map[string]g.Map `json:"outputs" yaml:"outputs"`
+		Target  string                            `json:"target" yaml:"target"`
+		Outputs map[string]map[string]interface{} `json:"outputs" yaml:"outputs"`
 	}
 
 	dbtProfile := map[string]ProfileConn{}
@@ -568,7 +552,7 @@ func ReadConnections(path string) (conns map[string]Connection, err error) {
 		return
 	}
 
-	profile := map[string]map[string]interface{}{}
+	env := map[string]interface{}{}
 	file, err := os.Open(path)
 	if err != nil {
 		err = g.Error(err, "error reading from yaml")
@@ -581,34 +565,42 @@ func ReadConnections(path string) (conns map[string]Connection, err error) {
 		return
 	}
 
-	err = yaml.Unmarshal(bytes, profile)
+	err = yaml.Unmarshal(bytes, env)
 	if err != nil {
 		err = g.Error(err, "error parsing yaml string")
 		return
 	}
 
-	if connections, ok := profile["connections"]; ok {
-		for name, v := range connections {
-			switch v.(type) {
-			case map[string]interface{}, map[interface{}]interface{}:
-				data := cast.ToStringMap(v)
-				if n := cast.ToString(data["name"]); n != "" {
-					data["name"] = name
-				}
+	if connections, ok := env["connections"]; ok {
+		switch connectionsV := connections.(type) {
+		case map[string]interface{}, map[interface{}]interface{}:
+			connMap := cast.ToStringMap(connectionsV)
+			for name, v := range connMap {
+				switch v.(type) {
+				case map[string]interface{}, map[interface{}]interface{}:
+					data := cast.ToStringMap(v)
+					if n := cast.ToString(data["name"]); n != "" {
+						data["name"] = name
+					}
 
-				conn, err := NewConnectionFromMap(g.M("name", name, "data", data, "type", data["type"]))
-				if err != nil {
-					g.Warn("could not load connection %s", name)
-					g.LogError(err)
-					continue
-				}
+					conn, err := NewConnectionFromMap(g.M("name", name, "data", data, "type", data["type"]))
+					if err != nil {
+						g.Warn("could not load connection %s: %s", name, g.ErrMsgSimple(err))
+						continue
+					}
 
-				conns[name] = conn
-				g.Trace("found connection from YAML: " + name)
-			default:
-				g.Warn("did not handle %s", name)
+					conns[name] = conn
+				default:
+					g.Warn("did not handle %s", name)
+				}
 			}
+		default:
+			g.Warn("did not handle connections profile type %T", connections)
 		}
 	}
 	return
+}
+
+func (i *Info) IsURL() bool {
+	return strings.Contains(i.Name, "://")
 }
