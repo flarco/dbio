@@ -6,7 +6,10 @@ name: Test
 #     branches:
 #       - master
 
-on: [push]
+on:
+  push:
+    tags-ignore:
+      - '**'
 
 jobs:
   test:
