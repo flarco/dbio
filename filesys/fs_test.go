@@ -191,16 +191,6 @@ func TestFileSysS3(t *testing.T) {
 	// fs, err := NewFileSysClient(S3cFileSys, "AWS_ENDPOINT=s3.amazonaws.com")
 	assert.NoError(t, err)
 
-	// Test List
-	paths, err := fs.List("s3://ocral-data-1/")
-	assert.NoError(t, err)
-	assert.Contains(t, paths, "s3://ocral-data-1/test/")
-
-	paths, err = fs.ListRecursive("s3://ocral-data-1/")
-	assert.NoError(t, err)
-	// helpers.P(paths)
-	assert.Contains(t, paths, "s3://ocral-data-1/test/test1.1.csv")
-
 	// Test Delete, Write, Read
 	testPath := "s3://ocral-data-1/test/fs.test"
 	testString := "abcde"
@@ -210,10 +200,15 @@ func TestFileSysS3(t *testing.T) {
 	reader := strings.NewReader(testString)
 	bw, err := fs.Write(testPath, reader)
 	assert.EqualValues(t, 5, bw)
-
-	// writer, err := fs.GetWriter(testPath)
-	// bw, err := Write(reader, writer)
 	assert.NoError(t, err)
+
+	paths, err := fs.List("s3://ocral-data-1/")
+	assert.NoError(t, err)
+	assert.Contains(t, paths, "s3://ocral-data-1/test/")
+
+	paths, err = fs.ListRecursive("s3://ocral-data-1/")
+	assert.NoError(t, err)
+	assert.Contains(t, paths, testPath)
 
 	reader2, err := fs.GetReader(testPath)
 	assert.NoError(t, err)
@@ -228,16 +223,6 @@ func TestFileSysS3(t *testing.T) {
 	paths, err = fs.ListRecursive("s3://ocral-data-1/")
 	assert.NoError(t, err)
 	assert.NotContains(t, paths, testPath)
-
-	// Test datastream
-	df, err := fs.ReadDataflow("s3://ocral-data-1/test/")
-	assert.NoError(t, err)
-
-	for ds := range df.StreamCh {
-		data, err := ds.Collect(0)
-		assert.NoError(t, err)
-		assert.EqualValues(t, 18, len(data.Rows))
-	}
 
 	// Test concurrent wrinting from datastream
 
