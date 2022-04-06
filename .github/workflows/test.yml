@@ -8,6 +8,8 @@ name: Test
 
 on:
   push:
+    paths:
+      - '**'
     tags-ignore:
       - '**'
 
