@@ -1,17 +1,9 @@
 name: Test
 
-# on:
-#   pull_request:
-#     types: [closed]
-#     branches:
-#       - master
-
 on:
   push:
     paths:
       - '**'
-    # tags-ignore:
-    #   - '**'
 
 jobs:
   test:
