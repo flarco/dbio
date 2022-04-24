@@ -508,9 +508,9 @@ analysis:
     with t1 as (
         select
           '{field}'::text as field,
-          extract(year from "{field}") as year,
-          extract(month from "{field}") as month,
-          extract(day from "{field}") as day,
+          extract(year from {field}) as year,
+          extract(month from {field}) as month,
+          extract(day from {field}) as day,
           count(1) cnt
         from "{schema}"."{table}"
         group by 2, 3, 4

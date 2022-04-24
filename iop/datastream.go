@@ -689,10 +689,6 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 	go func() {
 		defer nDs.Close()
 		nDs.Ready = true
-		defer func() {
-			g.Debug("nDs.Count -> %d", nDs.Count)
-			g.Debug("ds.Count -> %d", ds.Count)
-		}()
 	loop:
 		for row := range ds.Rows {
 			row = mapRowCol(row)

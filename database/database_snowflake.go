@@ -109,7 +109,7 @@ func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
 		conn.Exec("USE SCHEMA " + schema + noTraceKey)
 		_, err := conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging + noTraceKey)
 		if err != nil {
-			g.Warn("Tried to create Internal Snowflake Stage but failed.\n" + g.ErrMsg(err))
+			g.Warn("Tried to create Internal Snowflake Stage but failed.\n" + g.ErrMsgSimple(err))
 			return ""
 		}
 		conn.SetProp("schema", schema)
