@@ -2,6 +2,7 @@ package iop
 
 import (
 	"encoding/csv"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -205,7 +206,10 @@ func (data *Dataset) InferColumnTypes() {
 			Name:     field,
 			Position: i + 1,
 			Type:     "string",
-			Stats:    ColumnStats{},
+			Stats: ColumnStats{
+				Min:    math.MaxInt64,
+				MinLen: math.MaxInt32,
+			},
 		})
 	}
 
@@ -220,16 +224,16 @@ func (data *Dataset) InferColumnTypes() {
 			columns[j].Stats.TotalCnt++
 
 			l := len(cast.ToString(val))
-			if l > columns[j].Stats.MaxLen {
-				columns[j].Stats.MaxLen = l
-			}
-			if l < columns[j].Stats.MinLen {
-				columns[j].Stats.MinLen = l
-			}
-
 			if val == nil || l == 0 {
 				columns[j].Stats.NullCnt++
 				continue
+			} else {
+				if l > columns[j].Stats.MaxLen {
+					columns[j].Stats.MaxLen = l
+				}
+				if l < columns[j].Stats.MinLen {
+					columns[j].Stats.MinLen = l
+				}
 			}
 
 			switch v := val.(type) {

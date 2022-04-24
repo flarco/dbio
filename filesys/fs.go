@@ -320,7 +320,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 		return eDs, nil
 	}
 
-	// CSV files
+	// CSV, JSON or XML files
 	go func() {
 		// manage concurrency
 		defer fs.Context().Wg.Read.Done()
@@ -681,10 +681,25 @@ func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow,
 // MakeDatastream create a datastream from a reader
 func MakeDatastream(reader io.Reader) (ds *iop.Datastream, err error) {
 
-	csv := iop.CSV{Reader: reader}
-	ds, err = csv.ReadStream()
+	data, reader2, err := g.Peek(reader, 0)
 	if err != nil {
 		return nil, err
+	}
+
+	peekStr := string(data)
+	if strings.HasPrefix(peekStr, "[") || strings.HasPrefix(peekStr, "{") {
+		ds = iop.NewDatastream(iop.Columns{})
+		ds.SafeInference = true
+		err = ds.ConsumeJsonReader(reader2)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		csv := iop.CSV{Reader: reader2}
+		ds, err = csv.ReadStream()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return ds, nil

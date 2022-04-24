@@ -576,6 +576,7 @@ func (sp *StreamProcessor) ParseString(s string, jj ...int) interface{} {
 		return f
 	}
 
+	// date/time
 	t, err := sp.parseFuncs["time"](s)
 	if err == nil {
 		sp.stringTypeCache[j] = "time"
@@ -583,12 +584,12 @@ func (sp *StreamProcessor) ParseString(s string, jj ...int) interface{} {
 	}
 
 	// boolean
-	// causes issues in SQLite and Oracle
-	// b, err := sp.parseFuncs["bool"](s)
-	// if err == nil {
-	// 	sp.stringTypeCache[j] = "bool"
-	// 	return b
-	// }
+	// FIXME: causes issues in SQLite and Oracle, needed for correct boolean parsing
+	b, err := sp.parseFuncs["bool"](s)
+	if err == nil {
+		sp.stringTypeCache[j] = "bool"
+		return b
+	}
 
 	return s
 }

@@ -30,7 +30,7 @@ type Column struct {
 	DbPrecision int             `json:"-"`
 	DbScale     int             `json:"-"`
 	Sourced     bool            `json:"-"` // whether is was sourced from a typed source
-	Stats       ColumnStats     `json:"-"`
+	Stats       ColumnStats     `json:"stats"`
 	ColType     *sql.ColumnType `json:"-"`
 	goType      reflect.Type    `json:"-"`
 }
@@ -350,9 +350,15 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 				columns[j].Type = "text" // max out
 			}
 			columns[j].goType = reflect.TypeOf("string")
+
+			columns[j].Stats.Min = 0
+			if columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+				columns[j].Stats.MinLen = 0
+			}
 		} else if columns[j].Stats.BoolCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			columns[j].Type = "bool"
 			columns[j].goType = reflect.TypeOf(true)
+			columns[j].Stats.Min = 0
 		} else if columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			if columns[j].Stats.Min*10 < -2147483648 || columns[j].Stats.Max*10 > 2147483647 {
 				columns[j].Type = "bigint"
@@ -366,6 +372,7 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 		} else if columns[j].Stats.DateCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			columns[j].Type = "datetime"
 			columns[j].goType = reflect.TypeOf(time.Now())
+			columns[j].Stats.Min = 0
 		} else if columns[j].Stats.DecCnt+columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			columns[j].Type = "decimal"
 			columns[j].goType = reflect.TypeOf(float64(0.0))

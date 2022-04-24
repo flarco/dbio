@@ -3,6 +3,7 @@ package iop
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"io"
 	"io/ioutil"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
-	jsoniter "github.com/json-iterator/go"
+
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
@@ -40,8 +41,6 @@ type Datastream struct {
 	config        *streamConfig
 	df            *Dataflow
 }
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // Iterator is the row provider for a datastream
 type Iterator struct {
@@ -327,6 +326,7 @@ func (ds *Datastream) Start() (err error) {
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
+		g.PP(ds.Columns)
 	}
 
 	if ds.it.Context.Err() != nil {
