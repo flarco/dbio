@@ -312,4 +312,5 @@ variable:
   error_ignore_drop_table: "does not exist"
   error_ignore_drop_view: "does not exist"
   bind_string: "@p{c}"
+  bool_as: string
   batch_rows: 200

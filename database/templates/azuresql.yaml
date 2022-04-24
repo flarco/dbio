@@ -293,4 +293,5 @@ function:
 
 variable:
   bind_string: "@p{c}"
+  bool_as: string
   batch_rows: 200

@@ -109,6 +109,7 @@ function:
   checksum_datetime: CAST(strftime('%s', {field}) as integer)
 
 variable:
+  bool_as: integer
   bind_string: ${c}
   batch_rows: 50
   batch_values: 1000

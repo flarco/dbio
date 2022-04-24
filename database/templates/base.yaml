@@ -354,6 +354,7 @@ variable:
   timestamp_layout_str: "'{value}'"
   timestamp_layout: '2006-01-02 15:04:05.000'
   error_filter_table_exists: already
+  bool_as: bool
 
 error_filter:
   table_not_exist: exist

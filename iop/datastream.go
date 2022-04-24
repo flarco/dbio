@@ -326,7 +326,6 @@ func (ds *Datastream) Start() (err error) {
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
-		g.PP(ds.Columns)
 	}
 
 	if ds.it.Context.Err() != nil {

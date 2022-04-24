@@ -261,4 +261,5 @@ variable:
   # bind_string: "@p{c}"
   batch_rows: 200
   batch_values: 2000
+  bool_as: string
   error_filter_table_exists: already

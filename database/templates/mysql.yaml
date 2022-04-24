@@ -383,6 +383,7 @@ variable:
   quote_char: '`'
   ddl_col: 1
   batch_rows: 500
+  bool_as: integer
 
 error_filter:
   table_not_exist: exist
