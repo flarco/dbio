@@ -66,7 +66,7 @@ func TestFileSysLocal(t *testing.T) {
 
 	data, err = iop.Collect(df.Streams...)
 	assert.NoError(t, err)
-	assert.EqualValues(t, 1018, len(data.Rows))
+	assert.EqualValues(t, 1036, len(data.Rows))
 
 	fs.SetProp("header", "FALSE")
 	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
