@@ -6,8 +6,8 @@ import (
 	"database/sql/driver"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"math/big"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -79,38 +79,37 @@ func (conn *BigQueryConn) Init() error {
 
 func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client, err error) {
 	var authOption option.ClientOption
+	var credJsonBody string
+
 	to := 15
 	if len(timeOut) > 0 {
 		to = timeOut[0]
 	}
-	if val := conn.GetProp("GC_CRED_JSON_BODY_ENC"); val != "" {
-		decodedValue, err2 := url.QueryUnescape(val)
-		if err2 != nil {
-			err = g.Error(err2, "Could not decode provided GC_CRED_JSON_BODY_ENC")
-			return
-		}
-		jsonBytes := []byte(decodedValue)
-		authOption = option.WithCredentialsJSON(jsonBytes)
-	} else if val := conn.GetProp("GC_CRED_JSON_BODY"); val != "" {
-		authOption = option.WithCredentialsJSON([]byte(val))
-	} else if val := conn.GetProp("credentials_json"); val != "" {
+
+	if val := conn.GetProp("GC_CRED_JSON_BODY"); val != "" {
+		credJsonBody = val
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
-	} else if val := conn.GetProp("GC_CRED_FILE"); val != "" {
+	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
+		b, _ := ioutil.ReadFile(val)
+		credJsonBody = string(b)
 	} else if val := conn.GetProp("keyfile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
-	} else if val := conn.GetProp("credentialsFile"); val != "" {
-		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
-	}
-	if authOption == nil {
-		err = g.Error("no Google crendentials provided")
+		b, _ := ioutil.ReadFile(val)
+		credJsonBody = string(b)
+	} else {
+		err = g.Error("no Google credentials provided")
 		return
 	}
+
+	if conn.ProjectID == "" && credJsonBody != "" {
+		m := g.M()
+		g.Unmarshal(credJsonBody, &m)
+		conn.ProjectID = cast.ToString(m["project_id"])
+	}
+
 	ctx, cancel := context.WithTimeout(conn.BaseConn.Context().Ctx, time.Duration(to)*time.Second)
 	defer cancel()
 	return bigquery.NewClient(ctx, conn.ProjectID, authOption)

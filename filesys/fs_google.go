@@ -3,11 +3,12 @@ package filesys
 import (
 	"context"
 	"io"
-	"os"
+	"io/ioutil"
 	"strings"
 
 	gcstorage "cloud.google.com/go/storage"
 	"github.com/flarco/g"
+	"github.com/spf13/cast"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -15,9 +16,10 @@ import (
 // GoogleFileSysClient is a file system client to write file to Amazon's S3 file sys.
 type GoogleFileSysClient struct {
 	BaseFileSysClient
-	client  *gcstorage.Client
-	context g.Context
-	bucket  string
+	client    *gcstorage.Client
+	context   g.Context
+	bucket    string
+	projectID string
 }
 
 // Init initializes the fs client
@@ -33,27 +35,31 @@ func (fs *GoogleFileSysClient) Init(ctx context.Context) (err error) {
 // Connect initiates the Google Cloud Storage client
 func (fs *GoogleFileSysClient) Connect() (err error) {
 	var authOption option.ClientOption
+	var credJsonBody string
 
 	if val := fs.GetProp("GC_CRED_JSON_BODY"); val != "" {
+		credJsonBody = val
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := fs.GetProp("GC_CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
-	} else if val := fs.GetProp("GC_CRED_FILE"); val != "" {
+	} else if val := fs.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
-	} else if val := fs.GetProp("credentials_json"); val != "" {
-		authOption = option.WithCredentialsJSON([]byte(val))
+		b, _ := ioutil.ReadFile(val)
+		credJsonBody = string(b)
 	} else if val := fs.GetProp("keyfile"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
-	} else if val := fs.GetProp("credentialsFile"); val != "" {
-		authOption = option.WithCredentialsFile(val)
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", val)
+		b, _ := ioutil.ReadFile(val)
+		credJsonBody = string(b)
 	} else {
-		return g.Error("Could not connect. Did not provide credentials")
+		return g.Error("Could not connect. Did not provide Google credentials")
 	}
 
 	fs.bucket = fs.GetProp("GC_BUCKET")
+	if credJsonBody != "" {
+		m := g.M()
+		g.Unmarshal(credJsonBody, &m)
+		fs.projectID = cast.ToString(m["project_id"])
+	}
 
 	fs.client, err = gcstorage.NewClient(fs.Context().Ctx, authOption)
 	if err != nil {
@@ -103,6 +109,24 @@ func (fs *GoogleFileSysClient) GetReader(path string) (reader io.Reader, err err
 	return
 }
 
+// Buckets returns the buckets found in the project
+func (fs *GoogleFileSysClient) Buckets() (paths []string, err error) {
+	// Create S3 service client
+	it := fs.client.Buckets(fs.context.Ctx, fs.projectID)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			err = nil
+			break
+		} else if err != nil {
+			err = g.Error(err, "Error Iterating")
+			return paths, err
+		}
+		paths = append(paths, g.F("gs://%s", attrs.Name))
+	}
+	return
+}
+
 // List returns the list of objects
 func (fs *GoogleFileSysClient) List(path string) (paths []string, err error) {
 	bucket, key, err := ParseURL(path)
@@ -121,12 +145,10 @@ func (fs *GoogleFileSysClient) List(path string) (paths []string, err error) {
 		if err == iterator.Done {
 			err = nil
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			err = g.Error(err, "Error Iterating")
 			return paths, err
-		}
-		if attrs.Name == "" {
+		} else if attrs.Name == "" {
 			continue
 		}
 		if len(strings.Split(attrs.Name, "/")) == len(keyArr)+1 {

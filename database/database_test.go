@@ -187,7 +187,7 @@ var DBs = map[string]*testDB{
 		propStrs: []string{
 			"PROJECT=proven-cider-633",
 			"schema=public",
-			"GC_CRED_FILE=/__/devbox/slingelt-prod-10fbedc838ea.json",
+			"GOOGLE_APPLICATION_CREDENTIALS=/__/devbox/slingelt-prod-10fbedc838ea.json",
 		},
 	},
 

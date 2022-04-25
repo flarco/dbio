@@ -16,6 +16,8 @@ type AzureFileSysClient struct {
 	BaseFileSysClient
 	client  azstorage.Client
 	context g.Context
+	account string
+	key     string
 }
 
 // Init initializes the fs client
@@ -32,8 +34,8 @@ func (fs *AzureFileSysClient) Connect() (err error) {
 
 	if cs := fs.GetProp("AZURE_CONN_STR"); cs != "" {
 		connProps := g.KVArrToMap(strings.Split(cs, ";")...)
-		fs.SetProp("AZURE_ACCOUNT", connProps["AccountName"])
-		fs.SetProp("AZURE_KEY", connProps["AccountKey"])
+		fs.account = connProps["AccountName"]
+		fs.key = connProps["AccountKey"]
 		fs.client, err = azstorage.NewClientFromConnectionString(cs)
 		if err != nil {
 			err = g.Error(err, "Could not connect using provided AZURE_CONN_STR")
@@ -42,13 +44,12 @@ func (fs *AzureFileSysClient) Connect() (err error) {
 	} else if cs := fs.GetProp("AZURE_SAS_SVC_URL"); cs != "" {
 		csArr := strings.Split(cs, "?")
 		if len(csArr) != 2 {
-			err = g.Error(
-				g.Error("Invalid provided AZURE_SAS_SVC_URL"),
-				"",
-			)
+			err = g.Error("Invalid provided AZURE_SAS_SVC_URL")
 			return
 		}
 
+		host, _, _ := ParseURL(cs)
+		fs.account = strings.TrimRight(host, ".blob.core.windows.net")
 		fs.client, err = azstorage.NewAccountSASClientFromEndpointToken(csArr[0], csArr[1])
 		if err != nil {
 			err = g.Error(err, "Could not connect using provided AZURE_SAS_SVC_URL")
@@ -82,7 +83,7 @@ func (fs *AzureFileSysClient) getBlobs(container *azstorage.Container, params az
 func (fs *AzureFileSysClient) getAuthContainerURL(container *azstorage.Container) (containerURL azblob.ContainerURL, err error) {
 
 	if fs.GetProp("AZURE_CONN_STR") != "" {
-		credential, err := azblob.NewSharedKeyCredential(fs.GetProp("AZURE_ACCOUNT"), fs.GetProp("AZURE_KEY"))
+		credential, err := azblob.NewSharedKeyCredential(fs.account, fs.key)
 		if err != nil {
 			err = g.Error(err, "Unable to Authenticate")
 			return containerURL, err
@@ -100,6 +101,22 @@ func (fs *AzureFileSysClient) getAuthContainerURL(container *azstorage.Container
 			"",
 		)
 		return
+	}
+	return
+}
+
+// Buckets returns the containers found in the project
+func (fs *AzureFileSysClient) Buckets() (paths []string, err error) {
+	containers, err := fs.getContainers()
+	if err != nil {
+		err = g.Error(err, "Could not get Containers")
+		return paths, err
+	}
+	for _, container := range containers {
+		paths = append(
+			paths,
+			g.F("https://%s.blob.core.windows.net/%s", fs.account, container.Name),
+		)
 	}
 	return
 }

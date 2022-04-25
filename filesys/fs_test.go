@@ -191,6 +191,10 @@ func TestFileSysS3(t *testing.T) {
 	// fs, err := NewFileSysClient(S3cFileSys, "AWS_ENDPOINT=s3.amazonaws.com")
 	assert.NoError(t, err)
 
+	buckets, err := fs.Buckets()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, buckets)
+
 	// Test Delete, Write, Read
 	testPath := "s3://ocral-data-1/test/fs.test"
 	testString := "abcde"
@@ -251,12 +255,6 @@ func TestFileSysS3(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
 
-	// if fs.Context().Err == nil {
-	// 	data, err := Collect(dss...)
-	// 	assert.NoError(t, err)
-	// 	assert.EqualValues(t, 1036, len(data.Rows))
-	// }
-
 }
 
 func TestFileSysAzure(t *testing.T) {
@@ -264,6 +262,10 @@ func TestFileSysAzure(t *testing.T) {
 
 	fs, err := NewFileSysClient(dbio.TypeFileAzure)
 	assert.NoError(t, err)
+
+	buckets, err := fs.Buckets()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, buckets)
 
 	testString := "abcde"
 	testPath := "https://flarcostorage.blob.core.windows.net/testcont/test1"
@@ -319,6 +321,10 @@ func TestFileSysGoogle(t *testing.T) {
 
 	fs, err := NewFileSysClient(dbio.TypeFileGoogle, "GC_BUCKET=flarco_us_bucket")
 	assert.NoError(t, err)
+
+	buckets, err := fs.Buckets()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, buckets)
 
 	testString := "abcde"
 	testPath := "gs://flarco_us_bucket/test/test1"

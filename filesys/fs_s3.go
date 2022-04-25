@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"sort"
@@ -18,7 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/flarco/g"
-	"github.com/minio/minio-go"
 	"github.com/spf13/cast"
 )
 
@@ -78,6 +76,9 @@ func (fs *S3FileSysClient) Connect() (err error) {
 
 	region := fs.GetProp("AWS_REGION")
 	endpoint := fs.GetProp("AWS_ENDPOINT")
+	if region == "" {
+		region = defaultRegion
+	}
 
 	// https://docs.aws.amazon.com/sdk-for-go/api/service/s3/
 	fs.session, err = session.NewSession(&aws.Config{
@@ -105,11 +106,13 @@ func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 	fs.mux.Lock()
 	defer fs.mux.Unlock()
 	endpoint := fs.GetProp("AWS_ENDPOINT")
-	if strings.HasSuffix(endpoint, ".digitaloceanspaces.com") {
+	if fs.bucket == "" {
+		return fs.session
+	} else if strings.HasSuffix(endpoint, ".digitaloceanspaces.com") {
 		region := strings.TrimRight(endpoint, ".digitaloceanspaces.com")
 		region = strings.TrimLeft(endpoint, "https://")
 		fs.RegionMap[fs.bucket] = region
-	} else if fs.RegionMap[fs.bucket] == "" && fs.bucket != "" {
+	} else if fs.RegionMap[fs.bucket] == "" {
 		region, err := s3manager.GetBucketRegion(fs.Context().Ctx, fs.session, fs.bucket, defaultRegion)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "NotFound" {
@@ -337,6 +340,21 @@ func (fs *S3FileSysClient) Write(path string, reader io.Reader) (bw int64, err e
 	return
 }
 
+// Buckets returns the buckets found in the account
+func (fs *S3FileSysClient) Buckets() (paths []string, err error) {
+	// Create S3 service client
+	svc := s3.New(fs.getSession())
+	result, err := svc.ListBuckets(&s3.ListBucketsInput{})
+	if err != nil {
+		return nil, g.Error(err, "could not list buckets")
+	}
+
+	for _, bucket := range result.Buckets {
+		paths = append(paths, g.F("s3://%s", *bucket.Name))
+	}
+	return
+}
+
 // List lists the file in given directory path
 // path should specify the full path with scheme:
 // `s3://my_bucket/key/to/directory`
@@ -443,198 +461,5 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 	sort.Strings(prefixes)
 	sort.Strings(paths)
 	paths = append(prefixes, paths...)
-	return
-}
-
-///////////////////////////// S3 compatible
-
-// S3cFileSysClient is a file system client to write file to Amazon's S3 file sys.
-type S3cFileSysClient struct {
-	BaseFileSysClient
-	context   g.Context
-	bucket    string
-	client    *minio.Client
-	RegionMap map[string]string
-	mux       sync.Mutex
-}
-
-// Init initializes the fs client
-func (fs *S3cFileSysClient) Init(ctx context.Context) (err error) {
-	var instance FileSysClient
-	instance = fs
-	fs.BaseFileSysClient.instance = &instance
-	fs.BaseFileSysClient.context = g.NewContext(ctx)
-
-	fs.bucket = fs.GetProp("AWS_BUCKET")
-	if fs.bucket == "" {
-		fs.bucket = os.Getenv("AWS_BUCKET")
-	}
-	fs.RegionMap = map[string]string{}
-
-	return fs.Connect()
-}
-
-// Connect initiates the Google Cloud Storage client
-func (fs *S3cFileSysClient) Connect() (err error) {
-
-	if fs.GetProp("AWS_ACCESS_KEY_ID") == "" || fs.GetProp("AWS_SECRET_ACCESS_KEY") == "" {
-		return g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3")
-	}
-
-	endpoint := fs.GetProp("AWS_ENDPOINT")
-
-	fs.client, err = minio.New(endpoint, fs.GetProp("AWS_ACCESS_KEY_ID"), fs.GetProp("AWS_SECRET_ACCESS_KEY"), true)
-	if err != nil {
-		err = g.Error(err, "Could not create S3 session")
-		return
-	}
-
-	return
-}
-
-// Delete deletes the given path (file or directory)
-// path should specify the full path with scheme:
-// `s3://my_bucket/key/to/file.txt`
-func (fs *S3cFileSysClient) Delete(path string) (err error) {
-	bucket, key, err := ParseURL(path)
-	if err != nil {
-		err = g.Error(err, "Error Parsing url: "+path)
-		return
-	}
-	fs.bucket = bucket
-	key = cleanKey(key)
-
-	objectsCh := make(chan string)
-
-	// Send object names that are needed to be removed to objectsCh
-	go func() {
-
-		defer close(objectsCh)
-		doneCh := make(chan struct{})
-
-		// Indicate to our routine to exit cleanly upon return.
-		defer close(doneCh)
-
-		// List all objects from a bucket-name with a matching prefix.
-		for object := range fs.client.ListObjects(bucket, key, true, doneCh) {
-			if object.Err != nil {
-				log.Fatalln(object.Err)
-			}
-			objectsCh <- object.Key
-		}
-	}()
-
-	// Call RemoveObjects API
-	errorCh := fs.client.RemoveObjects(bucket, objectsCh)
-
-	// Print errors received from RemoveObjects API
-	for e := range errorCh {
-		err = g.Error(e.Err, "could not delete file")
-		return
-	}
-
-	return
-}
-
-// List lists the file in given directory path
-// path should specify the full path with scheme:
-// `s3://my_bucket/key/to/directory`
-func (fs *S3cFileSysClient) List(path string) (paths []string, err error) {
-	bucket, key, err := ParseURL(path)
-	if err != nil || bucket == "" {
-		err = g.Error(err, "Error Parsing url: "+path)
-		return
-	}
-	fs.bucket = bucket
-	key = cleanKey(key)
-	urlPrefix := fmt.Sprintf("s3://%s/", bucket)
-
-	// Create a done channel to control 'ListObjects' go routine.
-	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
-	defer close(doneCh)
-
-	// List all objects from a bucket-name with a matching prefix.
-	for object := range fs.client.ListObjectsV2(bucket, key, false, doneCh) {
-		if object.Err != nil {
-			g.LogError(object.Err)
-			return
-		}
-		// fmt.Println(object)
-		paths = append(paths, urlPrefix+object.Key)
-	}
-	return
-}
-
-// ListRecursive lists the file in given directory path recusively
-// path should specify the full path with scheme:
-// `s3://my_bucket/key/to/directory`
-func (fs *S3cFileSysClient) ListRecursive(path string) (paths []string, err error) {
-	bucket, key, err := ParseURL(path)
-	if err != nil || bucket == "" {
-		err = g.Error(err, "Error Parsing url: "+path)
-		return
-	}
-	fs.bucket = bucket
-	key = cleanKey(key)
-	urlPrefix := fmt.Sprintf("s3://%s/", bucket)
-
-	// Create a done channel to control 'ListObjects' go routine.
-	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
-	defer close(doneCh)
-
-	// List all objects from a bucket-name with a matching prefix.
-	for object := range fs.client.ListObjectsV2(bucket, key, true, doneCh) {
-		if object.Err != nil {
-			g.LogError(object.Err)
-			return
-		}
-		paths = append(paths, urlPrefix+object.Key)
-	}
-	return
-}
-
-// GetReader return a reader for the given path
-// path should specify the full path with scheme:
-// `s3://my_bucket/key/to/file.txt` or `s3://my_bucket/key/to/directory`
-func (fs *S3cFileSysClient) GetReader(path string) (reader io.Reader, err error) {
-	bucket, key, err := ParseURL(path)
-	if err != nil {
-		err = g.Error(err, "Error Parsing url: "+path)
-		return
-	}
-	fs.bucket = bucket
-	key = cleanKey(key)
-
-	reader, err = fs.client.GetObjectWithContext(fs.Context().Ctx, bucket, key, minio.GetObjectOptions{})
-	if err != nil {
-		err = g.Error(err, "failed to download file: "+key)
-		return
-	}
-
-	return
-}
-
-func (fs *S3cFileSysClient) Write(path string, reader io.Reader) (bw int64, err error) {
-	bucket, key, err := ParseURL(path)
-	if err != nil || bucket == "" {
-		err = g.Error(err, "Error Parsing url: "+path)
-		return
-	}
-	fs.bucket = bucket
-	key = cleanKey(key)
-	size := int64(-1)
-
-	bw, err = fs.client.PutObjectWithContext(fs.Context().Ctx, bucket, key, reader, size, minio.PutObjectOptions{ContentType: "application/octet-stream"})
-	if err != nil {
-		err = g.Error(err, "failed to upload file: "+key)
-		return
-	}
-
-	err = fs.Context().Err()
-
 	return
 }

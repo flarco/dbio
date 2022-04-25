@@ -36,6 +36,7 @@ type FileSysClient interface {
 	GetReaders(paths ...string) (readers []io.Reader, err error)
 	GetDatastream(path string) (ds *iop.Datastream, err error)
 	GetWriter(path string) (writer io.Writer, err error)
+	Buckets() (paths []string, err error)
 	List(path string) (paths []string, err error)
 	ListRecursive(path string) (paths []string, err error)
 	Write(path string, reader io.Reader) (bw int64, err error)
@@ -268,6 +269,11 @@ func (fs *BaseFileSysClient) Self() FileSysClient {
 // FsType return the type of the client
 func (fs *BaseFileSysClient) FsType() dbio.Type {
 	return fs.fsType
+}
+
+// Buckets returns the buckets found in the account
+func (fs *BaseFileSysClient) Buckets() (paths []string, err error) {
+	return
 }
 
 // GetProp returns the value of a property

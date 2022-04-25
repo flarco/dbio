@@ -236,8 +236,8 @@ func (p *Profile) ListConnections(includeEnv bool) (cArr []connection.Connection
 
 		// BigQuery: adjust path of service account json file
 		if c.Info().Type == dbio.TypeDbBigQuery {
-			if val, ok := data["GC_CRED_FILE"]; ok {
-				data["GC_CRED_FILE"] = g.F("%s/%s", home.Path, val)
+			if val, ok := data["GOOGLE_APPLICATION_CREDENTIALS"]; ok {
+				data["GOOGLE_APPLICATION_CREDENTIALS"] = g.F("%s/%s", home.Path, val)
 			}
 		}
 
