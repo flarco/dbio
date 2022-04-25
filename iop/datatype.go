@@ -56,11 +56,11 @@ type ColumnStats struct {
 }
 
 func init() {
-	if os.Getenv("DBIO_SAMPLE_SIZE") != "" {
-		SampleSize = cast.ToInt(os.Getenv("DBIO_SAMPLE_SIZE"))
+	if os.Getenv("SAMPLE_SIZE") != "" {
+		SampleSize = cast.ToInt(os.Getenv("SAMPLE_SIZE"))
 	}
-	if os.Getenv("DBIO_REMOVE_TRAILING_ZEROS") != "" {
-		RemoveTrailingDecZeros = cast.ToBool(os.Getenv("DBIO_REMOVE_TRAILING_ZEROS"))
+	if os.Getenv("REMOVE_TRAILING_ZEROS") != "" {
+		RemoveTrailingDecZeros = cast.ToBool(os.Getenv("REMOVE_TRAILING_ZEROS"))
 	}
 }
 

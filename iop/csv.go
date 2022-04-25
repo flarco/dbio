@@ -471,8 +471,8 @@ func detectCarrRet(testBytes []byte) (needsCleanUp bool) {
 func detectDelimiter(testBytes []byte) (bestDeli rune, numCols int) {
 	bestDeli = ','
 	deliList := []rune{',', '\t', '|', ';'}
-	if os.Getenv("DBIO_DELIMITER") != "" {
-		deliList = append([]rune(os.Getenv("DBIO_DELIMITER")), deliList...)
+	if os.Getenv("DELIMITER") != "" {
+		deliList = append([]rune(os.Getenv("DELIMITER")), deliList...)
 	}
 	testCsvRowLens := map[rune][]int{}
 

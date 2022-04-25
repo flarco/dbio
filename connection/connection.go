@@ -117,7 +117,7 @@ func NewConnectionFromDbt(name string) (c Connection, err error) {
 // NewConnectionFromProfiles loads a Connection from YAML Profiles
 func NewConnectionFromProfiles(name string) (c Connection, err error) {
 	profileConns := map[string]Connection{}
-	for _, path := range strings.Split(os.Getenv("DBIO_PROFILE_PATHS"), ",") {
+	for _, path := range strings.Split(os.Getenv("PROFILE_PATHS"), ",") {
 		if strings.TrimSpace(path) == "" {
 			continue
 		}

@@ -63,8 +63,8 @@ func NewFileSysClient(fst dbio.Type, props ...string) (fsClient FileSysClient, e
 // props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
 func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string) (fsClient FileSysClient, err error) {
 	concurencyLimit := defaultConcurencyLimit
-	if os.Getenv("DBIO_CONCURENCY_LIMIT") != "" {
-		concurencyLimit = cast.ToInt(os.Getenv("DBIO_CONCURENCY_LIMIT"))
+	if os.Getenv("CONCURENCY_LIMIT") != "" {
+		concurencyLimit = cast.ToInt(os.Getenv("CONCURENCY_LIMIT"))
 	}
 
 	switch fst {
@@ -101,8 +101,8 @@ func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string
 		fsClient.SetProp(k, v)
 	}
 
-	if fsClient.GetProp("DBIO_CONCURENCY_LIMIT") != "" {
-		concurencyLimit = cast.ToInt(fsClient.GetProp("DBIO_CONCURENCY_LIMIT"))
+	if fsClient.GetProp("CONCURENCY_LIMIT") != "" {
+		concurencyLimit = cast.ToInt(fsClient.GetProp("CONCURENCY_LIMIT"))
 	}
 
 	for k, v := range env.Vars() {

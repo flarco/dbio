@@ -83,7 +83,7 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 			"s3_path", s3PathPart,
 			"aws_access_key_id", AwsID,
 			"aws_secret_access_key", AwsAccessKey,
-			"parallel", conn.GetProp("DBIO_PARALLEL"),
+			"parallel", conn.GetProp("PARALLEL"),
 		)
 		_, err = conn.Exec(unloadSQL)
 		if err != nil {

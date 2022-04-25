@@ -378,18 +378,18 @@ var (
 	noTraceKey = " -- nT --"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
-	usePool  = os.Getenv("DBIO_USE_POOL") == "TRUE"
+	usePool  = os.Getenv("USE_POOL") == "TRUE"
 )
 
 //go:embed templates/*
 var templatesFolder embed.FS
 
 func init() {
-	if os.Getenv("DBIO_SAMPLE_SIZE") != "" {
-		SampleSize = cast.ToInt(os.Getenv("DBIO_SAMPLE_SIZE"))
+	if os.Getenv("SAMPLE_SIZE") != "" {
+		SampleSize = cast.ToInt(os.Getenv("SAMPLE_SIZE"))
 	}
-	if os.Getenv("DBIO_FILEPATH_SLUG") != "" {
-		filePathStorageSlug = os.Getenv("DBIO_FILEPATH_SLUG")
+	if os.Getenv("FILEPATH_SLUG") != "" {
+		filePathStorageSlug = os.Getenv("FILEPATH_SLUG")
 	}
 }
 
@@ -478,23 +478,6 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	err = conn.Init()
 
 	return conn, err
-}
-
-// GetSlingEnv return sling Env Data
-func GetSlingEnv() map[string]string {
-	slingEnvs := map[string]string{}
-
-	for _, env := range os.Environ() {
-		key := strings.Split(env, "=")[0]
-		value := strings.ReplaceAll(env, key+"=", "")
-
-		keyUpper := strings.ToUpper(key)
-		if strings.HasPrefix(keyUpper, "DBIO_") {
-			slingEnvs[keyUpper] = value
-		}
-	}
-
-	return slingEnvs
 }
 
 func getDriverName(dbType dbio.Type) (driverName string) {
@@ -687,7 +670,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		to = timeOut[0]
 	}
 
-	usePool = os.Getenv("DBIO_USE_POOL") == "TRUE"
+	usePool = os.Getenv("USE_POOL") == "TRUE"
 	// g.Trace("conn.Type: %s", conn.Type)
 	// g.Trace("conn.URL: " + conn.Self().GetURL())
 	if conn.Type == "" {
@@ -2839,7 +2822,7 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 		conn.SetProp("COMPRESSION", string(compressor))
 	}
 
-	conn.SetProp("DBIO_PARALLEL", "true")
+	conn.SetProp("PARALLEL", "true")
 }
 
 // TestPermissions tests the needed permissions in a given connection
