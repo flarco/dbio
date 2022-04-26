@@ -1456,19 +1456,18 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 		return
 	}
 
-	// add 1=0
-	// sql = g.R(conn.GetTemplateValue("core.column_names"), "sql", sql)
-	if !strings.Contains(sql, " ") {
-		// is table
-		sql = g.R(conn.GetTemplateValue("core.limit"), "table", sql, "fields", "*", "limit", "1")
-	}
+	limitSQL := g.R(
+		conn.GetTemplateValue("core.limit"),
+		"sql", sql,
+		"limit", "1",
+	)
 
 	// get column types
-	g.Trace("GetSQLColumns: %s", sql)
-	sql = sql + " /* GetSQLColumns */ " + noTraceKey
-	ds, err := conn.Self().StreamRows(sql)
+	g.Trace("GetSQLColumns: %s", limitSQL)
+	limitSQL = limitSQL + " /* GetSQLColumns */ " + noTraceKey
+	ds, err := conn.Self().StreamRows(limitSQL)
 	if err != nil {
-		err = g.Error(err, "SQL Error for:\n"+sql)
+		err = g.Error(err, "SQL Error for:\n"+limitSQL)
 		return columns, err
 	}
 
