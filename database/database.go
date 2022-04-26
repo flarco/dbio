@@ -1850,7 +1850,7 @@ func (conn *BaseConn) ProcessTemplate(level, text string, values map[string]inte
 		if len(cols) == 0 {
 			// get all columns then
 			tableFName := g.F("%s.%s", values["schema"], values["table"])
-			cols, err = conn.GetSQLColumns(tableFName)
+			cols, err = conn.GetSQLColumns("select * from " + tableFName)
 			if err != nil {
 				err = g.Error(err, "could not obtain table columns")
 			}
@@ -2520,12 +2520,12 @@ func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFiel
 // GenerateUpsertExpressions returns a map with needed expressions
 func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error) {
 
-	srcColumns, err := conn.GetSQLColumns(srcTable)
+	srcColumns, err := conn.GetSQLColumns("select * from " + srcTable)
 	if err != nil {
 		err = g.Error(err, "could not get columns for "+srcTable)
 		return
 	}
-	tgtColumns, err := conn.GetSQLColumns(tgtTable)
+	tgtColumns, err := conn.GetSQLColumns("select * from " + tgtTable)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -2584,7 +2584,7 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 // GetColumnStats analyzes the table and returns the column statistics
 func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error) {
 
-	tableColumns, err := conn.Self().GetSQLColumns(tableName)
+	tableColumns, err := conn.Self().GetSQLColumns("select * from " + tableName)
 	if err != nil {
 		err = g.Error(err, "could not obtain columns data")
 		return
@@ -2704,7 +2704,7 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (
 // CompareChecksums compares the checksum values from the database side
 // to the checkum values from the StreamProcessor
 func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (err error) {
-	tColumns, err := conn.GetSQLColumns(tableName)
+	tColumns, err := conn.GetSQLColumns("select * from " + tableName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return

@@ -38,7 +38,7 @@ core:
       SELECT 1 FROM DUAL
   insert_option: /*+ APPEND NOLOGGING */
   sample: SELECT {fields} FROM {table} SAMPLE(50) where rownum <= {n}
-  limit: select * from ( {sql} ) as t rownum <= {limit}
+  limit: select * from ( {sql} ) where rownum <= {limit}
   replace: |
     merge into {table} tgt
     USING (SELECT {name_values}

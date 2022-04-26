@@ -210,7 +210,7 @@ func (t *Transaction) Upsert(sourceTable, targetTable string, pkFields []string)
 // InsertStream inserts a stream
 func InsertStream(conn Connection, tx *Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	// make sure fields match
-	columns, err := conn.GetSQLColumns(tableFName)
+	columns, err := conn.GetSQLColumns("select * from " + tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -257,7 +257,7 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 	}
 
 	// make sure fields match
-	columns, err := conn.GetSQLColumns(tableFName)
+	columns, err := conn.GetSQLColumns("select * from " + tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return

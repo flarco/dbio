@@ -57,7 +57,7 @@ func (conn *OracleConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	}
 
 	// needs to get columns to shape stream
-	columns, err := conn.GetSQLColumns(tableFName)
+	columns, err := conn.GetSQLColumns("select * from " + tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
