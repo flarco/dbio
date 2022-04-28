@@ -146,6 +146,13 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
 
+	df2, err = localFs.ReadDataflow("test/test1/csv")
+	assert.NoError(t, err)
+	writeFolderPath = "s3://ocral/test.fs.write.json"
+	_, err = fs.WriteDataflow(df2, writeFolderPath)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1036, df2.Count())
+
 	// eventual consistency
 	time.Sleep(2 * time.Second) // wait to s3 files to write on AWS side
 	df3, err := fs.ReadDataflow(writeFolderPath)

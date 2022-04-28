@@ -3,7 +3,6 @@ package iop
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"encoding/xml"
 	"io"
 	"io/ioutil"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
+	"github.com/flarco/g/json"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -895,15 +895,142 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				pipeR, pipeW = io.Pipe()
 				w = csv.NewWriter(pipeW)
 
-				bw, err = w.Write(ds.GetFields())
-				ds.AddBytes(int64(bw))
-				tbw = tbw + cast.ToInt64(bw)
-				if err != nil {
-					ds.Context.CaptureErr(g.Error(err, "error writing header"))
-					ds.Context.Cancel()
-					pipeW.Close()
-					return
+				if ds.config.header {
+					bw, err = w.Write(ds.GetFields(true))
+					ds.AddBytes(int64(bw))
+					tbw = tbw + cast.ToInt64(bw)
+					if err != nil {
+						ds.Context.CaptureErr(g.Error(err, "error writing header"))
+						ds.Context.Cancel()
+						pipeW.Close()
+						return
+					}
 				}
+				readerChn <- pipeR
+			}
+		}
+		pipeW.Close()
+	}()
+
+	return readerChn
+}
+
+// NewJsonReaderChnl provides a channel of readers as the limit is reached
+// each channel flows as fast as the consumer consumes
+func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
+	readerChn = make(chan *io.PipeReader, 100)
+
+	pipeR, pipeW := io.Pipe()
+
+	readerChn <- pipeR
+	tbw := int64(0)
+	fields := ds.GetFields(true)
+
+	go func() {
+		defer close(readerChn)
+
+		c := 0 // local counter
+		w := json.NewEncoder(pipeW)
+
+		// open array
+		bw, err := pipeW.Write([]byte("["))
+		ds.AddBytes(int64(bw))
+		if err != nil {
+			ds.Context.CaptureErr(g.Error(err, "error writing row"))
+			ds.Context.Cancel()
+			pipeW.Close()
+			return
+		}
+
+		firstRec := true
+		for row0 := range ds.Rows {
+			c++
+
+			rec := g.M()
+			for i, val := range row0 {
+				rec[fields[i]] = val
+			}
+
+			if !firstRec {
+				bw, _ := pipeW.Write([]byte(",")) // comma in between records
+				ds.AddBytes(int64(bw))
+			}
+
+			bw, err := w.EncodeN(rec)
+			ds.AddBytes(int64(bw))
+			tbw = tbw + cast.ToInt64(bw)
+			if err != nil {
+				ds.Context.CaptureErr(g.Error(err, "error writing row"))
+				ds.Context.Cancel()
+				pipeW.Close()
+				return
+			}
+			firstRec = false
+
+			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+				bw, _ := pipeW.Write([]byte("]")) // close array
+				ds.AddBytes(int64(bw))
+				pipeW.Close() // close the prior reader?
+				tbw = 0       // reset
+
+				// new reader
+				c = 0
+				pipeR, pipeW = io.Pipe()
+				w = json.NewEncoder(pipeW)
+				readerChn <- pipeR
+			}
+		}
+		bw, _ = pipeW.Write([]byte("]")) // close array
+		ds.AddBytes(int64(bw))
+		pipeW.Close()
+	}()
+
+	return readerChn
+}
+
+// NewJsonLinesReaderChnl provides a channel of readers as the limit is reached
+// each channel flows as fast as the consumer consumes
+func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
+	readerChn = make(chan *io.PipeReader, 100)
+
+	pipeR, pipeW := io.Pipe()
+
+	readerChn <- pipeR
+	tbw := int64(0)
+	fields := ds.GetFields(true)
+
+	go func() {
+		defer close(readerChn)
+
+		c := 0 // local counter
+		w := json.NewEncoder(pipeW)
+
+		for row0 := range ds.Rows {
+			c++
+
+			rec := g.M()
+			for i, val := range row0 {
+				rec[fields[i]] = val
+			}
+
+			bw, err := w.EncodeN(rec)
+			ds.AddBytes(int64(bw))
+			tbw = tbw + cast.ToInt64(bw)
+			if err != nil {
+				ds.Context.CaptureErr(g.Error(err, "error writing row"))
+				ds.Context.Cancel()
+				pipeW.Close()
+				return
+			}
+
+			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+				pipeW.Close() // close the prior reader?
+				tbw = 0       // reset
+
+				// new reader
+				c = 0
+				pipeR, pipeW = io.Pipe()
+				w = json.NewEncoder(pipeW)
 				readerChn <- pipeR
 			}
 		}

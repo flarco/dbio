@@ -354,7 +354,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if strings.HasSuffix(urlStr, ".json") {
+		if strings.HasSuffix(urlStr, ".json") || strings.HasSuffix(urlStr, ".jsonlines") {
 			err = ds.ConsumeJsonReader(reader)
 		} else if strings.HasSuffix(urlStr, ".xml") {
 			err = ds.ConsumeXmlReader(reader)
@@ -506,6 +506,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	useBufferedStream := cast.ToBool(fs.GetProp("USE_BUFFERED_STREAM"))
 	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
 	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
+	fileExt := cast.ToString(fs.GetProp("FILE_EXT"))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
 	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
 	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
@@ -516,6 +517,17 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 	if concurrency > 7 {
 		concurrency = 7
+	}
+
+	if fileExt == "" {
+		switch {
+		case strings.Contains(url, ".jsonlines"):
+			fileExt = "jsonlines"
+		case strings.Contains(url, ".json"):
+			fileExt = "json"
+		default:
+			fileExt = "csv"
+		}
 	}
 
 	if strings.HasSuffix(url, "/") {
@@ -550,7 +562,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 		processReader := func(reader io.Reader) error {
 			fileCount++
-			subPartURL := fmt.Sprintf("%s.%04d.csv", partURL, fileCount)
+			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileExt)
 			if singleFile {
 				subPartURL = partURL
 				if strings.HasSuffix(partURL, ".gz") {
@@ -569,20 +581,37 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			return df.Err()
 		}
 
-		if useBufferedStream {
-			// faster, but dangerous. Holds data in memory
-			for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
+		switch fileExt {
+		case "json":
+			for reader := range ds.NewJsonReaderChnl(fileRowLimit, fileBytesLimit) {
 				err := processReader(reader)
 				if err != nil {
 					break
 				}
 			}
-		} else {
-			// slower! but safer, waits for compression but does not hold data in memory
-			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+		case "jsonlines":
+			for reader := range ds.NewJsonLinesReaderChnl(fileRowLimit, fileBytesLimit) {
 				err := processReader(reader)
 				if err != nil {
 					break
+				}
+			}
+		case "csv":
+			if useBufferedStream {
+				// faster, but dangerous. Holds data in memory
+				for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
+					err := processReader(reader)
+					if err != nil {
+						break
+					}
+				}
+			} else {
+				// slower! but safer, waits for compression but does not hold data in memory
+				for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+					err := processReader(reader)
+					if err != nil {
+						break
+					}
 				}
 			}
 		}

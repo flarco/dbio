@@ -13,7 +13,7 @@ import (
 )
 
 type decoderLike interface {
-	Decode(obj interface{}) error
+	Decode(obj any) error
 }
 
 type jsonStream struct {
