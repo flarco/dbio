@@ -15,9 +15,14 @@ import (
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
 	"github.com/flarco/g/json"
+	jit "github.com/json-iterator/go"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
+)
+
+var (
+	jsoniter = jit.ConfigCompatibleWithStandardLibrary
 )
 
 // Datastream is a stream of rows
@@ -920,9 +925,9 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
 	readerChn = make(chan *io.PipeReader, 100)
 
-	pipeR, pipeW := io.Pipe()
+	pipe := g.NewPipe()
 
-	readerChn <- pipeR
+	readerChn <- pipe.Reader
 	tbw := int64(0)
 	fields := ds.GetFields(true)
 
@@ -930,15 +935,14 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 		defer close(readerChn)
 
 		c := 0 // local counter
-		w := json.NewEncoder(pipeW)
 
 		// open array
-		bw, err := pipeW.Write([]byte("["))
+		bw, err := pipe.Writer.Write([]byte("["))
 		ds.AddBytes(int64(bw))
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "error writing row"))
 			ds.Context.Cancel()
-			pipeW.Close()
+			pipe.Writer.Close()
 			return
 		}
 
@@ -952,37 +956,44 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 			}
 
 			if !firstRec {
-				bw, _ := pipeW.Write([]byte(",")) // comma in between records
+				bw, _ := pipe.Writer.Write([]byte(",")) // comma in between records
 				ds.AddBytes(int64(bw))
 			}
 
-			bw, err := w.EncodeN(rec)
+			b, err := jsoniter.Marshal(rec)
+			if err != nil {
+				ds.Context.CaptureErr(g.Error(err, "error marshaling rec"))
+				ds.Context.Cancel()
+				pipe.Writer.Close()
+				return
+			}
+
+			bw, err := pipe.Writer.Write(b)
 			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
 				ds.Context.Cancel()
-				pipeW.Close()
+				pipe.Writer.Close()
 				return
 			}
 			firstRec = false
 
 			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-				bw, _ := pipeW.Write([]byte("]")) // close array
+				bw, _ := pipe.Writer.Write([]byte("]")) // close array
 				ds.AddBytes(int64(bw))
-				pipeW.Close() // close the prior reader?
-				tbw = 0       // reset
+				pipe.Writer.Close() // close the prior reader?
+				tbw = 0             // reset
 
 				// new reader
 				c = 0
-				pipeR, pipeW = io.Pipe()
-				w = json.NewEncoder(pipeW)
-				readerChn <- pipeR
+				pipe = g.NewPipe()
+				readerChn <- pipe.Reader
 			}
 		}
-		bw, _ = pipeW.Write([]byte("]")) // close array
+		bw, _ = pipe.Writer.Write([]byte("]")) // close array
 		ds.AddBytes(int64(bw))
-		pipeW.Close()
+		pipe.Writer.Close()
 	}()
 
 	return readerChn
@@ -993,9 +1004,9 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
 	readerChn = make(chan *io.PipeReader, 100)
 
-	pipeR, pipeW := io.Pipe()
+	pipe := g.NewPipe()
 
-	readerChn <- pipeR
+	readerChn <- pipe.Reader
 	tbw := int64(0)
 	fields := ds.GetFields(true)
 
@@ -1003,7 +1014,6 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 		defer close(readerChn)
 
 		c := 0 // local counter
-		w := json.NewEncoder(pipeW)
 
 		for row0 := range ds.Rows {
 			c++
@@ -1013,28 +1023,35 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 				rec[fields[i]] = val
 			}
 
-			bw, err := w.EncodeN(rec)
+			b, err := jsoniter.Marshal(rec)
+			if err != nil {
+				ds.Context.CaptureErr(g.Error(err, "error marshaling rec"))
+				ds.Context.Cancel()
+				pipe.Writer.Close()
+				return
+			}
+
+			bw, err := pipe.Writer.Write(b)
 			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
 				ds.Context.Cancel()
-				pipeW.Close()
+				pipe.Writer.Close()
 				return
 			}
 
 			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-				pipeW.Close() // close the prior reader?
-				tbw = 0       // reset
+				pipe.Writer.Close() // close the prior reader?
+				tbw = 0             // reset
 
 				// new reader
 				c = 0
-				pipeR, pipeW = io.Pipe()
-				w = json.NewEncoder(pipeW)
-				readerChn <- pipeR
+				pipe = g.NewPipe()
+				readerChn <- pipe.Reader
 			}
 		}
-		pipeW.Close()
+		pipe.Writer.Close()
 	}()
 
 	return readerChn

@@ -576,7 +576,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			g.Trace("writing stream to " + subPartURL)
 			go writePart(compressor.Compress(reader), subPartURL)
 			localCtx.Wg.Read.Add()
-			localCtx.MemBasedLimit(90) // wait until memory is lower than 90%
+			// localCtx.MemBasedLimit(98) // wait until memory is lower than 90%
 
 			return df.Err()
 		}

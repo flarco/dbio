@@ -230,9 +230,9 @@ func (c *CSV) getReader() (*csv.Reader, error) {
 	}
 
 	deli, numCols := detectDelimiter(testBytes)
-	if !c.NoTrace {
-		g.Trace("delimiter chosen %#v", string(deli))
-	}
+	// if !c.NoTrace {
+	// 	g.Trace("delimiter chosen %#v", string(deli))
+	// }
 
 	// inject dummy header if none present
 	if c.NoHeader && numCols > 0 {
