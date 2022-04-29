@@ -928,7 +928,6 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 	pipe := g.NewPipe()
 
 	readerChn <- pipe.Reader
-	tbw := int64(0)
 	fields := ds.GetFields(true)
 
 	go func() {
@@ -937,8 +936,7 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 		c := 0 // local counter
 
 		// open array
-		bw, err := pipe.Writer.Write([]byte("["))
-		ds.AddBytes(int64(bw))
+		_, err := pipe.Write([]byte("["))
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "error writing row"))
 			ds.Context.Cancel()
@@ -946,6 +944,7 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 			return
 		}
 
+		w := json.NewEncoder(pipe)
 		firstRec := true
 		for row0 := range ds.Rows {
 			c++
@@ -956,21 +955,11 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 			}
 
 			if !firstRec {
-				bw, _ := pipe.Writer.Write([]byte(",")) // comma in between records
-				ds.AddBytes(int64(bw))
+				pipe.Write([]byte(",")) // comma in between records
 			}
 
-			b, err := jsoniter.Marshal(rec)
-			if err != nil {
-				ds.Context.CaptureErr(g.Error(err, "error marshaling rec"))
-				ds.Context.Cancel()
-				pipe.Writer.Close()
-				return
-			}
-
-			bw, err := pipe.Writer.Write(b)
-			ds.AddBytes(int64(bw))
-			tbw = tbw + cast.ToInt64(bw)
+			err = w.Encode(rec)
+			ds.Bytes = cast.ToUint64(pipe.BytesWritten)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
 				ds.Context.Cancel()
@@ -979,11 +968,9 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 			}
 			firstRec = false
 
-			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-				bw, _ := pipe.Writer.Write([]byte("]")) // close array
-				ds.AddBytes(int64(bw))
-				pipe.Writer.Close() // close the prior reader?
-				tbw = 0             // reset
+			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && pipe.BytesWritten >= bytesLimit) {
+				pipe.Write([]byte("]")) // close array
+				pipe.Writer.Close()     // close the prior reader?
 
 				// new reader
 				c = 0
@@ -991,8 +978,9 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 				readerChn <- pipe.Reader
 			}
 		}
-		bw, _ = pipe.Writer.Write([]byte("]")) // close array
-		ds.AddBytes(int64(bw))
+
+		pipe.Write([]byte("]")) // close array
+		ds.Bytes = cast.ToUint64(pipe.BytesWritten)
 		pipe.Writer.Close()
 	}()
 
@@ -1023,7 +1011,7 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 				rec[fields[i]] = val
 			}
 
-			b, err := jsoniter.Marshal(rec)
+			b, err := json.Marshal(rec)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error marshaling rec"))
 				ds.Context.Cancel()

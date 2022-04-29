@@ -25,7 +25,6 @@ require (
 	github.com/klauspost/compress v1.13.6
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v1.14.5
-	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/nqd/flat v0.1.1
 	github.com/pkg/sftp v1.12.0
 	github.com/samber/lo v1.10.1
@@ -80,7 +79,6 @@ require (
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
@@ -107,11 +105,9 @@ require (
 	github.com/jaypipes/pcidb v0.5.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.4 // indirect
-	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.1.17 // indirect
 	github.com/labstack/gommon v0.3.0 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -127,7 +123,6 @@ require (
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
@@ -146,7 +141,6 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
-	gopkg.in/ini.v1 v1.62.0 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
 
