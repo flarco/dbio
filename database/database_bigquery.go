@@ -312,6 +312,11 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 	Limit := uint64(0) // infinite
 	if len(limit) > 0 && limit[0] != 0 {
 		Limit = cast.ToUint64(limit[0])
+		sql = g.R(
+			conn.GetTemplateValue("core.limit"),
+			"sql", sql,
+			"limit", cast.ToString(Limit),
+		)
 	}
 
 	start := time.Now()
