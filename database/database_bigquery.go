@@ -359,7 +359,6 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 
 	nextFunc := func(it2 *iop.Iterator) bool {
 		if Limit > 0 && it2.Counter >= Limit {
-			queryContext.Cancel()
 			return false
 		}
 

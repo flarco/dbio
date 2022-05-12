@@ -1014,7 +1014,6 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	nextFunc := func(it *iop.Iterator) bool {
 		if Limit > 0 && it.Counter >= Limit {
-			queryContext.Cancel()
 			result.Next()
 			result.Close()
 			return false
