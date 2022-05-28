@@ -186,7 +186,18 @@ func (c *Connection) Context() *g.Context {
 
 // URL returns the url string
 func (c *Connection) URL() string {
-	return cast.ToString(c.Data["url"])
+	url := cast.ToString(c.Data["url"])
+	if c.Type.IsFile() && url == "" {
+		url = c.Type.String() + "://"
+		switch c.Type {
+		case dbio.TypeFileS3:
+			url = g.F("%s://%s", c.Type.String(), cast.ToString(c.Data["aws_bucket"]))
+		case dbio.TypeFileGoogle:
+			url = g.F("%s://%s", c.Type.String(), cast.ToString(c.Data["gc_bucket"]))
+		case dbio.TypeFileAzure:
+		}
+	}
+	return url
 }
 
 func (c *Connection) AsDatabase() (database.Connection, error) {

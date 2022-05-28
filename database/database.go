@@ -731,7 +731,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		g.Trace("new connection URL: " + conn.Self().GetURL(connURL))
 	}
 
-	if conn.tx == nil {
+	if conn.db == nil {
 		connURL = conn.Self().GetURL(connURL)
 		connPool.Mux.Lock()
 		db, poolOk := connPool.Dbs[connURL]
@@ -751,7 +751,13 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		// 15 sec timeout
 		pingCtx, cancel := context.WithTimeout(conn.Context().Ctx, time.Duration(to)*time.Second)
 		_ = cancel // lint complaint
-		_ = pingCtx
+
+		if conn.Type != dbio.TypeDbBigQuery {
+			err = conn.db.PingContext(pingCtx)
+			if err != nil {
+				return g.Error(err, "could not connect to database")
+			}
+		}
 
 		// add to pool after successful connection
 		if usePool && !poolOk {
