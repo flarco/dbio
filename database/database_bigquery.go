@@ -127,12 +127,12 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 	it := conn.Client.Datasets(conn.Context().Ctx)
 	for {
 		dataset, err := it.Next()
-		if err != nil {
-			return g.Error(err, "Failed to get datasets")
-		} else if err == iterator.Done {
+		 if err == iterator.Done {
 			err = nil
 			break
-		}
+		} else if err != nil {
+			return g.Error(err, "Failed to get datasets")
+		} 
 
 		conn.Datasets = append(conn.Datasets, dataset.DatasetID)
 		if conn.Location == "" {
