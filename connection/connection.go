@@ -468,7 +468,7 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 
 	for pName, pc := range dbtProfile {
 		for target, data := range pc.Outputs {
-			connName := strings.ToUpper(pName + "_" + target)
+			connName := strings.ToUpper(pName + "/" + target)
 			data["dbt"] = true
 
 			conn, err := NewConnectionFromMap(
