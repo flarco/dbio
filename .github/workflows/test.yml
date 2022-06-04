@@ -30,14 +30,13 @@ jobs:
       run: |
         source /__/envkey/dbio/development
         ENVKEY=$ENVKEY /__/bin/envkey-source -f --dot-env > .env
-        set -o allexport ; source .env ; set +o allexport
 
         export _DEBUG=''
 
         go mod edit -dropreplace='github.com/flarco/g' go.mod
         go mod tidy
 
-        bash scripts/test.sh
+        eval $(cat .env) bash scripts/test.sh
 
     
         
