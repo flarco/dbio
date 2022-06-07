@@ -540,6 +540,9 @@ func (ds *Datastream) AddBytes(b int64) {
 func (ds *Datastream) Records() <-chan map[string]interface{} {
 	chnl := make(chan map[string]interface{}, 1000)
 	ds.WaitReady()
+
+	fields := ds.GetFields(true)
+
 	go func() {
 		defer close(chnl)
 
@@ -547,8 +550,8 @@ func (ds *Datastream) Records() <-chan map[string]interface{} {
 			// get records
 			rec := map[string]interface{}{}
 
-			for i, field := range ds.GetFields() {
-				rec[strings.ToLower(field)] = row[i]
+			for i, field := range fields {
+				rec[field] = row[i]
 			}
 			chnl <- rec
 		}
