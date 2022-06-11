@@ -512,7 +512,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
 		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
 	}
-	if concurrency == 0 {
+	if concurrency == 0 || concurrency > runtime.NumCPU() {
 		concurrency = runtime.NumCPU()
 	}
 	if concurrency > 7 {
@@ -530,9 +530,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		}
 	}
 
-	if strings.HasSuffix(url, "/") {
-		url = url[:len(url)-1]
-	}
+	url = strings.TrimSuffix(url, "/")
 
 	singleFile := fileRowLimit == 0 && fileBytesLimit == 0 && len(df.Streams) == 1
 
