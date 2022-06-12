@@ -547,11 +547,10 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				df.Context.CaptureErr(g.Error(err))
 				ds.Context.Cancel()
 				df.Context.Cancel()
-			} else {
-				g.Trace("wrote %s to %s", humanize.Bytes(cast.ToUint64(bw0)), partURL)
-				bw += bw0
-				df.AddOutBytes(uint64(bw0))
 			}
+			g.Trace("wrote %s to %s", humanize.Bytes(cast.ToUint64(bw0)), partURL)
+			bw += bw0
+			df.AddOutBytes(uint64(bw0))
 		}
 
 		// pre-add to WG to not hold next reader in memory while waiting
