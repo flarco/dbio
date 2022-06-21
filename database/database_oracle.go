@@ -217,8 +217,7 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 		c := uint64(0) // local counter
 		w := csv.NewWriter(pipeW)
 
-		b, err := w.Write(ds.GetFields())
-		ds.AddBytes(int64(b))
+		_, err := w.Write(ds.GetFields())
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error writing ds.Fields"))
 			ds.Context.Cancel()
@@ -255,8 +254,7 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 				row[i] = valS
 			}
 
-			b, err := w.Write(row)
-			ds.AddBytes(int64(b))
+			_, err = w.Write(row)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "Error w.Write(row)"))
 				ds.Context.Cancel()

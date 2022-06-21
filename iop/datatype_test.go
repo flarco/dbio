@@ -128,6 +128,19 @@ func BenchmarkProcessRow3(b *testing.B) {
 	}
 }
 
+// go test -benchmem -run='^$ github.com/flarco/dbio/iop' -bench '^BenchmarkProcessRows'
+func BenchmarkProcessRows(b *testing.B) {
+	columns, row := initProcessRow("")
+	ds := NewDatastream(columns)
+	go func() {
+		for range ds.Rows {
+		}
+	}()
+	for n := 0; n < b.N; n++ {
+		ds.Push(row)
+	}
+}
+
 // go test -benchmem -run='^$ github.com/flarco/dbio/iop' -bench '^BenchmarkProcessVal'
 func BenchmarkProcessValFloat(b *testing.B) {
 	sp := NewStreamProcessor()

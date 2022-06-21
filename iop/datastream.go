@@ -45,6 +45,8 @@ type Datastream struct {
 	it            *Iterator
 	config        *streamConfig
 	df            *Dataflow
+	bwRows        chan []interface{} // for correct byte written
+	bwCsv         *csv.Writer        // for correct byte written
 }
 
 // Iterator is the row provider for a datastream
@@ -85,8 +87,19 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		config:     &streamConfig{emptyAsNull: true, header: true, delimiter: ","},
 		deferFuncs: []func(){},
 		clones:     []*Datastream{},
+		bwCsv:      csv.NewWriter(ioutil.Discard),
+		bwRows:     make(chan []interface{}, 100),
 	}
 	ds.Sp.ds = ds
+
+	// bwRows slows process speed by 10x, but this is needed for byte sizing
+	go func() {
+		ds.writeBwCsv(ds.Columns.Names()) // for bytes written
+		for row := range ds.bwRows {
+			ds.writeBwCsv(ds.castRowToString(row))
+			ds.bwCsv.Flush()
+		}
+	}()
 
 	return
 }
@@ -107,6 +120,21 @@ func (ds *Datastream) IsEmpty() bool {
 	return ds.empty
 }
 
+// castRowToString returns the row as string casted
+func (ds *Datastream) castRowToString(row []any) []string {
+	rowStr := make([]string, len(row))
+	for i, val := range row {
+		rowStr[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
+	}
+	return rowStr
+}
+
+// writeBwCsv writes to the nullCsv
+func (ds *Datastream) writeBwCsv(row []string) {
+	bw, _ := ds.bwCsv.Write(row)
+	ds.AddBytes(int64(bw))
+}
+
 // Push return the fields of the Data
 func (ds *Datastream) Push(row []interface{}) {
 	if !ds.Ready {
@@ -120,6 +148,7 @@ func (ds *Datastream) Push(row []interface{}) {
 		return
 	default:
 		ds.Rows <- row
+		ds.bwRows <- row
 	}
 	for _, cDs := range ds.clones {
 		cDs.Push(row)
@@ -185,6 +214,7 @@ func (ds *Datastream) Defer(f func()) {
 func (ds *Datastream) Close() {
 	if !ds.closed {
 		close(ds.Rows)
+		close(ds.bwRows)
 
 		for _, f := range ds.deferFuncs {
 			f()
@@ -866,7 +896,6 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		if ds.config.header {
 			bw, err := w.Write(ds.GetFields(true))
-			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -884,7 +913,6 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
 			bw, err := w.Write(row)
-			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
@@ -905,7 +933,6 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 				if ds.config.header {
 					bw, err = w.Write(ds.GetFields(true))
-					ds.AddBytes(int64(bw))
 					tbw = tbw + cast.ToInt64(bw)
 					if err != nil {
 						ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -1023,7 +1050,6 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 			}
 
 			bw, err := pipe.Writer.Write(b)
-			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))
@@ -1068,7 +1094,6 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		if ds.config.header {
 			bw, err := w.Write(fields)
-			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -1085,7 +1110,6 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
 			bw, err := w.Write(row)
-			ds.AddBytes(int64(bw))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing row"))

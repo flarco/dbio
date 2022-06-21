@@ -355,8 +355,7 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 	for _, field := range ds.GetFields() {
 		fields = append(fields, strings.ToLower(field))
 	}
-	b, err := w.Write(fields)
-	ds.AddBytes(int64(b))
+	_, err = w.Write(fields)
 	if err != nil {
 		return cnt, g.Error(err, "error write row to csv file")
 	}
@@ -367,8 +366,7 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 		for i, val := range row0 {
 			row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 		}
-		b, err := w.Write(row)
-		ds.AddBytes(int64(b))
+		_, err = w.Write(row)
 		if err != nil {
 			return cnt, g.Error(err, "error write row to csv file")
 		}

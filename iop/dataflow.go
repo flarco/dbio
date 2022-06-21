@@ -195,8 +195,8 @@ func (df *Dataflow) AddOutBytes(bytes uint64) {
 }
 
 func (df *Dataflow) Bytes() (inBytes, outBytes uint64) {
-	outBytes = df.OutBytes
-	inBytes = df.InBytes
+	// outBytes = df.OutBytes // use DsTotalBytes
+	// inBytes = df.InBytes // use DsTotalBytes
 
 	dsBytes := df.DsTotalBytes()
 	if inBytes == 0 {
