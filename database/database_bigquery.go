@@ -127,12 +127,12 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 	it := conn.Client.Datasets(conn.Context().Ctx)
 	for {
 		dataset, err := it.Next()
-		 if err == iterator.Done {
+		if err == iterator.Done {
 			err = nil
 			break
 		} else if err != nil {
 			return g.Error(err, "Failed to get datasets")
-		} 
+		}
 
 		conn.Datasets = append(conn.Datasets, dataset.DatasetID)
 		if conn.Location == "" {
@@ -383,7 +383,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = !strings.Contains(sql, noTraceKey)
-	ds.Inferred = true
+	// ds.Inferred = true // since precision and scale is not guaranteed
 
 	// add first row pulled to buffer
 	row := make([]interface{}, len(ds.Columns))

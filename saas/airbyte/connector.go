@@ -287,7 +287,7 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	cont := g.NewContext(context.Background())
 	ds = iop.NewDatastreamIt(cont.Ctx, columns, nextFunc)
-	ds.Inferred = true
+	// ds.Inferred = true
 	ds.Defer(func() { os.RemoveAll(c.tempFolder) })
 
 	err = ds.Start()

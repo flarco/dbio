@@ -1047,7 +1047,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = !strings.Contains(sql, noTraceKey)
-	ds.Inferred = true
+	// ds.Inferred = true // since precision and scale is not guaranteed
 
 	err = ds.Start()
 	if err != nil {
