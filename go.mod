@@ -28,7 +28,7 @@ require (
 	github.com/nqd/flat v0.1.1
 	github.com/pkg/sftp v1.12.0
 	github.com/samber/lo v1.10.1
-	github.com/snowflakedb/gosnowflake v1.6.8
+	github.com/snowflakedb/gosnowflake v1.6.10
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.1
 	github.com/xitongsys/parquet-go v1.5.4
