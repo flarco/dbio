@@ -9,6 +9,7 @@ import (
 
 	"github.com/flarco/g"
 	"github.com/jmoiron/sqlx"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -88,11 +89,19 @@ func (data *Dataset) WriteCsv(path string) error {
 }
 
 // GetFields return the fields of the Data
-func (data *Dataset) GetFields() []string {
+func (data *Dataset) GetFields(lower ...bool) []string {
+	Lower := false
+	if len(lower) > 0 {
+		Lower = lower[0]
+	}
 	fields := make([]string, len(data.Columns))
 
 	for j, column := range data.Columns {
-		fields[j] = strings.ToLower(column.Name)
+		if Lower {
+			fields[j] = strings.ToLower(column.Name)
+		} else {
+			fields[j] = column.Name
+		}
 	}
 
 	return fields
@@ -179,7 +188,7 @@ func (data *Dataset) Records() []map[string]interface{} {
 	records := make([]map[string]interface{}, len(data.Rows))
 	for i, row := range data.Rows {
 		rec := map[string]interface{}{}
-		for j, field := range data.GetFields() {
+		for j, field := range data.GetFields(true) {
 			rec[field] = row[j]
 		}
 		records[i] = rec
@@ -201,16 +210,14 @@ func (data *Dataset) InferColumnTypes() {
 		return
 	}
 
-	for i, field := range data.GetFields() {
-		columns = append(columns, Column{
-			Name:     field,
-			Position: i + 1,
-			Type:     "string",
-			Stats: ColumnStats{
-				Min:    math.MaxInt64,
-				MinLen: math.MaxInt32,
-			},
-		})
+	for i, column := range data.Columns {
+		column.Type = lo.Ternary(column.Type == "", "string", column.Type)
+		column.Stats = ColumnStats{
+			Min:    math.MaxInt64,
+			MinLen: math.MaxInt32,
+		}
+		column.Position = i + 1
+		columns = append(columns, column)
 	}
 
 	// g.Trace("InferColumnTypes with sample size %d", SampleSize)

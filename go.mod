@@ -16,7 +16,7 @@ require (
 	github.com/digitalocean/godo v1.59.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.16
+	github.com/flarco/g v0.1.18
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/jmespath/go-jmespath v0.4.0
