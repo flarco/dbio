@@ -94,7 +94,6 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 
 	// bwRows slows process speed by 10x, but this is needed for byte sizing
 	go func() {
-		ds.writeBwCsv(ds.Columns.Names()) // for bytes written
 		for row := range ds.bwRows {
 			ds.writeBwCsv(ds.castRowToString(row))
 			ds.bwCsv.Flush()
