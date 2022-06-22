@@ -284,6 +284,10 @@ s3:
       title: AWS Secret Key
       description: The AWS Secret Key to access the bucket
       secret: true
+    aws_endpoint:
+      type: text
+      title: Endpoint Hostname
+      description: The hostname of the endpoint (e.g. nyc3.digitaloceanspaces.com)
 
 azure:
   title: 'Azure Storage'
