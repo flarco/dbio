@@ -375,7 +375,7 @@ var (
 
 	filePathStorageSlug = "temp"
 
-	noTraceKey = " -- nT --"
+	noTraceKey = " /* nT */"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
 	usePool  = os.Getenv("USE_POOL") == "TRUE"
