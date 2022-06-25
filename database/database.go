@@ -789,10 +789,13 @@ func (conn *BaseConn) Close() error {
 	if conn.db != nil {
 		err = conn.db.Close()
 		g.LogError(err)
+		conn.db = nil
 	}
 	if conn.sshClient != nil {
 		conn.sshClient.Close()
+		conn.sshClient = nil
 	}
+	conn.SetProp("connected", "false")
 	return err
 }
 
@@ -1167,6 +1170,7 @@ func (conn *BaseConn) Prepare(query string) (stmt *sql.Stmt, err error) {
 // Exec runs a sql query, returns `error`
 func (conn *BaseConn) Exec(sql string, args ...interface{}) (result sql.Result, err error) {
 	if conn.GetProp("connected") != "true" {
+		g.Debug("connection was closed, reconnecting")
 		err = conn.Self().Connect()
 		if err != nil {
 			err = g.Error(err, "Could not connect")
