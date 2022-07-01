@@ -44,9 +44,9 @@ type ConnectionInt interface {
 
 // Connection is the base connection struct
 type Connection struct {
-	Name    string                 `json:"name"`
-	Type    dbio.Type              `json:"type"`
-	Data    map[string]interface{} `json:"data"`
+	Name    string                 `json:"name,omitempty"`
+	Type    dbio.Type              `json:"type,omitempty"`
+	Data    map[string]interface{} `json:"data,omitempty"`
 	context *g.Context             `json:"-"`
 }
 
