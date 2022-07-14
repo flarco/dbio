@@ -8,6 +8,8 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -65,7 +67,11 @@ func GetSourceConnectors(fetch bool) (connectors Connectors, err error) {
 
 	connectors = make(Connectors, len(cds))
 	for i, cd := range cds {
-		connectors[i] = Connector{Definition: cd, State: g.M()}
+		connectors[i] = Connector{
+			Definition: cd,
+			State:      g.M(),
+			ctx:        g.NewContext(context.Background()),
+		}
 	}
 
 	return
@@ -77,6 +83,7 @@ type Connector struct {
 	Specification ConnectorSpecification
 	State         map[string]interface{}
 	tempFolder    string
+	ctx           g.Context
 }
 
 // InitTempDir initalize temp directory
@@ -126,7 +133,8 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 	}
 
 	p.SetScanner(func(stderr bool, text string) {
-		// g.Debug("(stderr: %s)\n%s", cast.ToString(stderr), text)
+		// g.Debug("(stderr: %t)\n%s", stderr, text)
+		g.Debug(text)
 
 		if stderr || !strings.HasPrefix(strings.TrimSpace(text), "{") {
 			// g.Debug(text)
@@ -152,12 +160,14 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 	}
 	args = append(defArgs, args...)
 
+	p.Workdir = c.tempFolder
 	err = p.Start(args...)
 	if err != nil {
 		return msgChan, g.Error(err, "error getting spec for "+c.Definition.Name)
 	}
 
 	g.Debug(p.CmdStr())
+	g.Debug("started sub-process %d", p.Cmd.Process.Pid)
 
 	go func() {
 		defer close(msgChan)
@@ -168,11 +178,39 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 		// println(p.Stderr.String())
 	}()
 
+	// listen for context cancel
+	go func() {
+		select {
+		case <-p.Done:
+			return
+		case <-c.ctx.Ctx.Done():
+		}
+
+		g.Debug("interrupting sub-process %d", p.Cmd.Process.Pid)
+		p.Cmd.Process.Signal(syscall.SIGINT)
+		t := time.NewTimer(5 * time.Second)
+		select {
+		case <-p.Done:
+			return
+		case <-t.C:
+			g.Debug("killing sub-process %d", p.Cmd.Process.Pid)
+			// g.LogError(exec.Command("pkill", "-P", cast.ToString(p.Cmd.Process.Pid)).Run())
+			// g.LogError(p.Cmd.Process.Kill())
+		}
+	}()
+
 	return
 }
 
 // GetSpec retrieve spec from docker command
 func (c *Connector) GetSpec() (err error) {
+	err = c.InitTempDir()
+	if err != nil {
+		err = g.Error(err, "could not create temp dir")
+		return
+	}
+	defer os.RemoveAll(c.tempFolder)
+
 	messages, err := c.DockerRun("spec")
 	if err != nil {
 		return g.Error(err, "error getting spec for "+c.Definition.Name)
@@ -183,6 +221,31 @@ func (c *Connector) GetSpec() (err error) {
 	if messages[0].Spec != nil {
 		c.Specification = *messages[0].Spec
 	}
+	return
+}
+
+// Pull pulls the docker image. Useful for outputing
+func (c *Connector) Pull() (err error) {
+	p, err := process.NewProc("docker")
+	if err != nil {
+		return g.Error(err, "could not create process")
+	}
+	args := []string{"pull", c.Definition.Image()}
+
+	p.Workdir = g.UserHomeDir()
+	p.SetScanner(func(stderr bool, text string) {
+		if strings.Contains(text, "Pulling from ") {
+			g.Info(text)
+		} else {
+			g.Debug(text)
+		}
+	})
+
+	err = p.Run(args...)
+	if err != nil {
+		return g.Error(err, "error pulling image "+c.Definition.Name)
+	}
+
 	return
 }
 
@@ -209,12 +272,15 @@ func (c *Connector) Check(config map[string]interface{}) (s AirbyteConnectionSta
 		return s, g.Error("no messages received")
 	}
 
-	if msg := messages.First(TypeLog); g.In(msg.Log.Level, LevelFatal, LevelError) {
+	if msg := messages.First(TypeLog); msg.Log != nil && g.In(msg.Log.Level, LevelFatal, LevelError) {
 		return s, g.Error(msg.Log.Message)
 	}
 
 	if msg := messages.First(TypeConnectionStatus); msg.ConnectionStatus != nil {
 		s = *msg.ConnectionStatus
+		if s.Status == StatusFailed {
+			err = g.Error(s.Message)
+		}
 	}
 	return
 }

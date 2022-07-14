@@ -63,8 +63,8 @@ type AirbyteStateMessage struct {
 
 // AirbyteLogMessage is the AirbyteLogMessage
 type AirbyteLogMessage struct {
-	Level   Level  `json:"level"`
-	Message string `json:"message"`
+	Level   Level       `json:"level"`
+	Message interface{} `json:"message"`
 }
 
 // AirbyteTraceMessage is the AirbyteTraceMessage
@@ -267,14 +267,22 @@ func (cs Connectors) Names() (n []string) {
 func (cs Connectors) Get(name string) (c Connector, err error) {
 	for _, c = range cs {
 		if strings.EqualFold(name, c.Definition.Name) {
+
+			// pull image if needed
+			err = c.Pull()
+			if err != nil {
+				err = g.Error(err, "error pulling image for "+c.Definition.Name)
+				return
+			}
+
 			err = c.GetSpec()
 			if err != nil {
-				err = g.Error(err, "could not get spec for ", name)
+				err = g.Error(err, "could not get spec for %s", name)
 			}
 			return c, err
 		}
 	}
-	return c, g.Error("could not find connector: " + name)
+	return c, g.Error("could not find connector: %s", name)
 }
 
 // ConnectorDefinition is a connector information
