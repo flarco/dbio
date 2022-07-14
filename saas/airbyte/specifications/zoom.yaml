@@ -5,11 +5,11 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - jwt
+        - jwt
     properties:
         jwt:
-            description: Zoom JWT Token. See the <a href="https://docs.airbyte.io/integrations/sources/zoom">docs</a>
-                for more information on how to obtain this key.
+            title: JWT Token
+            description: Zoom JWT Token. See the <a href="https://docs.airbyte.io/integrations/sources/zoom">docs</a> for more information on how to obtain this key.
             airbyte_secret: true
             type: string
 supportsIncremental: false

@@ -3,20 +3,66 @@ changelogUrl: ""
 connectionSpecification:
     title: Google Directory Spec
     type: object
-    additionalProperties: false
-    required:
-      - credentials_json
-      - email
+    additionalProperties: true
+    required: []
     properties:
-        credentials_json:
-            description: The contents of the JSON service account key. See the <a
-                href="https://developers.google.com/admin-sdk/directory/v1/guides/delegation">docs</a>
-                for more information on how to generate this key.
-            airbyte_secret: true
-            type: string
-        email:
-            description: The email of the user, which has permissions to access the
-                Google Workspace Admin APIs.
-            type: string
+        credentials:
+            title: Google Credentials
+            description: Google APIs use the OAuth 2.0 protocol for authentication and authorization. The Source supports <a href="https://developers.google.com/identity/protocols/oauth2#webserver" target="_blank">Web server application</a> and <a href="https://developers.google.com/identity/protocols/oauth2#serviceaccount" target="_blank">Service accounts</a> scenarios.
+            type: object
+            oneOf:
+                - title: Sign in via Google (OAuth)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of the developer application.
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        title: Client secret
+                        description: The Client Secret of the developer application.
+                        airbyte_secret: true
+                        type: string
+                    credentials_title:
+                        title: Credentials Title
+                        const: Web server app
+                        description: Authentication Scenario
+                        type: string
+                        order: 0
+                        default: Web server app
+                    refresh_token:
+                        title: Refresh Token
+                        description: The Token for obtaining a new access token.
+                        airbyte_secret: true
+                        type: string
+                - title: Service Account Key
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - credentials_json
+                    - email
+                  properties:
+                    credentials_json:
+                        title: Credentials JSON
+                        description: The contents of the JSON service account key. See the <a href="https://developers.google.com/admin-sdk/directory/v1/guides/delegation">docs</a> for more information on how to generate this key.
+                        airbyte_secret: true
+                        type: string
+                    credentials_title:
+                        title: Credentials Title
+                        const: Service accounts
+                        description: Authentication Scenario
+                        type: string
+                        order: 0
+                        default: Service accounts
+                    email:
+                        title: Email
+                        description: The email of the user, which has permissions to access the Google Workspace Admin APIs.
+                        type: string
 supportsIncremental: false
 supported_destination_sync_modes: []

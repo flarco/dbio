@@ -5,33 +5,192 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - dataset_name
-      - format
-      - url
-      - provider
+        - dataset_name
+        - format
+        - url
+        - provider
     properties:
         dataset_name:
-            description: Name of the final table where to replicate this file (should
-                include only letters, numbers dash and underscores)
+            title: Dataset Name
+            description: The Name of the final table to replicate this file into (should include letters, numbers dash and underscores only).
             type: string
         format:
-            description: 'File Format of the file to be replicated (Warning: some
-                format may be experimental, please refer to docs).'
+            title: File Format
+            description: 'The Format of the file which should be replicated (Warning: some formats may be experimental, please refer to the docs).'
             type: string
             default: csv
         provider:
-            description: Storage Provider or Location of the file(s) to be replicated.
+            title: Storage Provider
+            description: The storage Provider or Location of the file(s) which should be replicated.
             type: object
+            oneOf:
+                - title: 'HTTPS: Public Web'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                  properties:
+                    storage:
+                        const: HTTPS
+                        type: string
+                - title: 'GCS: Google Cloud Storage'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                  properties:
+                    service_account_json:
+                        title: Service Account JSON
+                        description: In order to access private Buckets stored on Google Cloud, this connector would need a service account json credentials with the proper permissions as described <a href="https://cloud.google.com/iam/docs/service-accounts" target="_blank">here</a>. Please generate the credentials.json file and copy/paste its content to this field (expecting JSON formats). If accessing publicly available data, this field is not necessary.
+                        type: string
+                    storage:
+                        title: Storage
+                        const: GCS
+                        type: string
+                - title: 'S3: Amazon Web Services'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                  properties:
+                    aws_access_key_id:
+                        title: AWS Access Key ID
+                        description: In order to access private Buckets stored on AWS S3, this connector would need credentials with the proper permissions. If accessing publicly available data, this field is not necessary.
+                        type: string
+                    aws_secret_access_key:
+                        title: AWS Secret Access Key
+                        description: In order to access private Buckets stored on AWS S3, this connector would need credentials with the proper permissions. If accessing publicly available data, this field is not necessary.
+                        airbyte_secret: true
+                        type: string
+                    storage:
+                        title: Storage
+                        const: S3
+                        type: string
+                - title: 'AzBlob: Azure Blob Storage'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                    - storage_account
+                  properties:
+                    sas_token:
+                        title: SAS Token
+                        description: To access Azure Blob Storage, this connector would need credentials with the proper permissions. One option is a SAS (Shared Access Signature) token. If accessing publicly available data, this field is not necessary.
+                        airbyte_secret: true
+                        type: string
+                    shared_key:
+                        title: Shared Key
+                        description: To access Azure Blob Storage, this connector would need credentials with the proper permissions. One option is a storage account shared key (aka account key or access key). If accessing publicly available data, this field is not necessary.
+                        airbyte_secret: true
+                        type: string
+                    storage:
+                        title: Storage
+                        const: AzBlob
+                        type: string
+                    storage_account:
+                        title: Storage Account
+                        description: The globally unique name of the storage account that the desired blob sits within. See <a href="https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview" target="_blank">here</a> for more details.
+                        type: string
+                - title: 'SSH: Secure Shell'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                    - user
+                    - host
+                  properties:
+                    host:
+                        title: Host
+                        type: string
+                    password:
+                        title: Password
+                        airbyte_secret: true
+                        type: string
+                    port:
+                        title: Port
+                        type: string
+                        default: "22"
+                    storage:
+                        title: Storage
+                        const: SSH
+                        type: string
+                    user:
+                        title: User
+                        type: string
+                - title: 'SCP: Secure copy protocol'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                    - user
+                    - host
+                  properties:
+                    host:
+                        title: Host
+                        type: string
+                    password:
+                        title: Password
+                        airbyte_secret: true
+                        type: string
+                    port:
+                        title: Port
+                        type: string
+                        default: "22"
+                    storage:
+                        title: Storage
+                        const: SCP
+                        type: string
+                    user:
+                        title: User
+                        type: string
+                - title: 'SFTP: Secure File Transfer Protocol'
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                    - user
+                    - host
+                  properties:
+                    host:
+                        title: Host
+                        type: string
+                    password:
+                        title: Password
+                        airbyte_secret: true
+                        type: string
+                    port:
+                        title: Port
+                        type: string
+                        default: "22"
+                    storage:
+                        title: Storage
+                        const: SFTP
+                        type: string
+                    user:
+                        title: User
+                        type: string
+                - title: Local Filesystem (limited)
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - storage
+                  properties:
+                    storage:
+                        title: Storage
+                        const: local
+                        description: 'WARNING: Note that the local storage URL available for reading must start with the local mount "/local/" at the moment until we implement more advanced docker mounting options.'
+                        type: string
             default: Public Web
         reader_options:
-            description: This should be a valid JSON string used by each reader/parser
-                to provide additional options and tune its behavior
+            title: Reader Options
+            description: This should be a string in JSON format. It depends on the chosen file format to provide additional options and tune its behavior.
             type: string
             examples:
-              - '{}'
-              - '{''sep'': '' ''}'
+                - '{}'
+                - '{"sep": " "}'
         url:
-            description: URL path to access the file to be replicated
+            title: URL
+            description: The URL path to access the file which should be replicated.
             type: string
 supportsIncremental: false
 supported_destination_sync_modes: []

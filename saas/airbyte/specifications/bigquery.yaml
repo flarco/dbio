@@ -1,0 +1,25 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/bigquery
+changelogUrl: ""
+connectionSpecification:
+    title: BigQuery Source Spec
+    type: object
+    additionalProperties: false
+    required:
+        - project_id
+        - credentials_json
+    properties:
+        credentials_json:
+            title: Credentials JSON
+            description: The contents of your Service Account Key JSON file. See the <a href="https://docs.airbyte.io/integrations/sources/bigquery#setup-the-bigquery-source-in-airbyte">docs</a> for more information on how to obtain this key.
+            airbyte_secret: true
+            type: string
+        dataset_id:
+            title: Default Dataset ID
+            description: The dataset ID to search for tables and views. If you are only loading data from one dataset, setting this option could result in much faster schema discovery.
+            type: string
+        project_id:
+            title: Project ID
+            description: The GCP project ID for the project containing the target BigQuery dataset.
+            type: string
+supportsIncremental: true
+supported_destination_sync_modes: []

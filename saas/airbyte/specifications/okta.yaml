@@ -5,16 +5,17 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - token
-      - base_url
+        - token
+        - base_url
     properties:
         base_url:
+            title: Base URL
             description: The Okta base URL.
             airbyte_secret: true
             type: string
         token:
-            description: A Okta token. See the <a href="https://docs.airbyte.io/integrations/sources/okta">docs</a>
-                for instructions on how to generate it.
+            title: API Token
+            description: A Okta token. See the <a href="https://docs.airbyte.io/integrations/sources/okta">docs</a> for instructions on how to generate it.
             airbyte_secret: true
             type: string
 supportsIncremental: false

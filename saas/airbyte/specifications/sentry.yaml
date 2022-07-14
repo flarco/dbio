@@ -1,0 +1,31 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/sentry
+changelogUrl: ""
+connectionSpecification:
+    title: Sentry Spec
+    type: object
+    additionalProperties: false
+    required:
+        - auth_token
+        - organization
+        - project
+    properties:
+        auth_token:
+            title: Authentication Tokens
+            description: Log into Sentry and then <a href="https://sentry.io/settings/account/api/auth-tokens/">create authentication tokens</a>.For self-hosted, you can find or create authentication tokens by visiting "{instance_url_prefix}/settings/account/api/auth-tokens/"
+            airbyte_secret: true
+            type: string
+        hostname:
+            title: Host Name
+            description: Host name of Sentry API server.For self-hosted, specify your host name here. Otherwise, leave it empty.
+            type: string
+            default: sentry.io
+        organization:
+            title: Organization
+            description: The slug of the organization the groups belong to.
+            type: string
+        project:
+            title: Project
+            description: The name (slug) of the Project you want to sync.
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

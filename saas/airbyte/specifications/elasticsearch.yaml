@@ -1,0 +1,69 @@
+documentationUrl: https://docs.airbyte.io/integrations/source/elasticsearch
+changelogUrl: ""
+connectionSpecification:
+    title: Elasticsearch Connection Configuration
+    type: object
+    additionalProperties: false
+    required:
+        - endpoint
+    properties:
+        authenticationMethod:
+            title: Authentication Method
+            description: The type of authentication to be used
+            type: object
+            oneOf:
+                - title: None
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - method
+                  properties:
+                    method:
+                        const: none
+                        type: string
+                - title: Api Key/Secret
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - method
+                    - apiKeyId
+                    - apiKeySecret
+                  properties:
+                    apiKeyId:
+                        title: API Key ID
+                        description: The Key ID to used when accessing an enterprise Elasticsearch instance.
+                        type: string
+                    apiKeySecret:
+                        title: API Key Secret
+                        description: The secret associated with the API Key ID.
+                        airbyte_secret: true
+                        type: string
+                    method:
+                        const: secret
+                        type: string
+                - title: Username/Password
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - method
+                    - username
+                    - password
+                  properties:
+                    method:
+                        const: basic
+                        type: string
+                    password:
+                        title: Password
+                        description: Basic auth password to access a secure Elasticsearch server
+                        airbyte_secret: true
+                        type: string
+                    username:
+                        title: Username
+                        description: Basic auth username to access a secure Elasticsearch server
+                        type: string
+        endpoint:
+            title: Server Endpoint
+            description: The full url of the Elasticsearch server
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -3,24 +3,69 @@ changelogUrl: ""
 connectionSpecification:
     title: Shopify Source CDK Specifications
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - shop
-      - start_date
-      - api_password
+        - shop
+        - start_date
     properties:
-        api_password:
-            description: The API PASSWORD for a private application in Shopify shop.
-            airbyte_secret: true
-            type: string
+        credentials:
+            title: Shopify Authorization Method
+            description: The authorization method to use to retrieve data from Shopify
+            type: object
+            order: 2
+            oneOf:
+                - title: OAuth2.0
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_method
+                  properties:
+                    access_token:
+                        title: Access Token
+                        description: The Access Token for making authenticated requests.
+                        airbyte_secret: true
+                        type: string
+                    auth_method:
+                        const: oauth2.0
+                        type: string
+                        order: 0
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of the Shopify developer application.
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of the Shopify developer application.
+                        airbyte_secret: true
+                        type: string
+                - title: API Password
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_method
+                    - api_password
+                  properties:
+                    api_password:
+                        title: API Password
+                        description: The API Password for your private application in the `Shopify` store.
+                        airbyte_secret: true
+                        type: string
+                    auth_method:
+                        const: api_password
+                        type: string
+                        order: 0
         shop:
-            description: The name of the shopify store. For https://EXAMPLE.myshopify.com,
-                the shop name is 'EXAMPLE'.
+            title: Shopify Store
+            description: The name of your Shopify store found in the URL. For example, if your URL was https://NAME.myshopify.com, then the name would be 'NAME'.
             type: string
+            order: 1
         start_date:
-            description: 'The date you would like to replicate data. Format: YYYY-MM-DD.'
+            title: Replication Start Date
+            description: 'The date you would like to replicate data from. Format: YYYY-MM-DD. Any data before this date will not be replicated.'
             type: string
+            order: 3
             examples:
-              - "2021-01-01"
+                - "2021-01-01"
 supportsIncremental: false
 supported_destination_sync_modes: []

@@ -1,0 +1,85 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/tiktok-marketing
+changelogUrl: https://docs.airbyte.io/integrations/sources/tiktok-marketing
+connectionSpecification:
+    title: TikTok Marketing Source Spec
+    type: object
+    additionalProperties: false
+    required: []
+    properties:
+        credentials:
+            title: Authentication Method
+            description: Authentication method
+            type: object
+            order: 0
+            oneOf:
+                - title: OAuth2.0
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - app_id
+                    - secret
+                    - access_token
+                  properties:
+                    access_token:
+                        title: Access Token
+                        description: Long-term Authorized Access Token.
+                        airbyte_secret: true
+                        type: string
+                    app_id:
+                        title: App ID
+                        description: The Developer Application App ID.
+                        airbyte_secret: true
+                        type: string
+                    auth_type:
+                        title: Auth Type
+                        const: oauth2.0
+                        type: string
+                        order: 0
+                    secret:
+                        title: Secret
+                        description: The Developer Application Secret.
+                        airbyte_secret: true
+                        type: string
+                - title: Sandbox Access Token
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - advertiser_id
+                    - access_token
+                  properties:
+                    access_token:
+                        title: Access Token
+                        description: The long-term authorized access token.
+                        airbyte_secret: true
+                        type: string
+                    advertiser_id:
+                        title: Advertiser ID
+                        description: The Advertiser ID which generated for the developer's Sandbox application.
+                        type: string
+                    auth_type:
+                        title: Auth Type
+                        const: sandbox_access_token
+                        type: string
+                        order: 0
+            default: {}
+        end_date:
+            title: End Date
+            description: The date until which you'd like to replicate data for all incremental streams, in the format YYYY-MM-DD. All data generated between start_date and this date will be replicated. Not setting this option will result in always syncing the data till the current date.
+            type: string
+            order: 2
+        report_granularity:
+            title: Report Aggregation Granularity
+            description: The granularity used for aggregating performance data in reports. See <a href="https://docs.airbyte.com/integrations/sources/tiktok-marketing/#report-aggregation">the docs</a>.
+            type: string
+            order: 3
+        start_date:
+            title: Replication Start Date *
+            description: 'The Start Date in format: YYYY-MM-DD. Any data before this date will not be replicated. If this parameter is not set, all data will be replicated.'
+            type: string
+            order: 1
+            default: "2016-09-01"
+supportsIncremental: true
+supported_destination_sync_modes:
+    - overwrite
+    - append
+    - append_dedup

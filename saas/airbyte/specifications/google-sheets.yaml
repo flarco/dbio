@@ -3,19 +3,65 @@ changelogUrl: ""
 connectionSpecification:
     title: Stripe Source Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - spreadsheet_id
-      - credentials_json
+        - spreadsheet_id
+        - credentials
     properties:
-        credentials_json:
-            description: The contents of the JSON service account key. See the <a
-                href="https://docs.airbyte.io/integrations/sources/google-sheets">docs</a>
-                for more information on how to generate this key.
-            airbyte_secret: true
-            type: string
+        credentials:
+            title: Authentication
+            description: Credentials for connecting to the Google Sheets API
+            type: object
+            oneOf:
+                - title: Authenticate via Google (OAuth)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_type
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    auth_type:
+                        const: Client
+                        type: string
+                    client_id:
+                        title: Client ID
+                        description: Enter your Google application's Client ID
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: Enter your Google application's Client Secret
+                        airbyte_secret: true
+                        type: string
+                    refresh_token:
+                        title: Refresh Token
+                        description: Enter your Google application's refresh token
+                        airbyte_secret: true
+                        type: string
+                - title: Service Account Key Authentication
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_type
+                    - service_account_info
+                  properties:
+                    auth_type:
+                        const: Service
+                        type: string
+                    service_account_info:
+                        title: Service Account Information.
+                        description: Enter your Google Cloud <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys#creating_service_account_keys">service account key</a> in JSON format
+                        airbyte_secret: true
+                        type: string
+                        examples:
+                            - '{ "type": "service_account", "project_id": YOUR_PROJECT_ID, "private_key_id": YOUR_PRIVATE_KEY, ... }'
         spreadsheet_id:
-            description: The ID of the spreadsheet to be replicated.
+            title: Spreadsheet Link
+            description: Enter the link to the Google spreadsheet you want to sync
             type: string
+            examples:
+                - https://docs.google.com/spreadsheets/d/1hLd9Qqti3UyLXZB2aFfUWDT7BG-arw2xy4HR3D-dwUb/edit
 supportsIncremental: false
 supported_destination_sync_modes: []

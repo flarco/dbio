@@ -5,29 +5,30 @@ connectionSpecification:
     type: object
     additionalProperties: true
     required:
-      - client_id
-      - secret
-      - start_date
-      - is_sandbox
+        - client_id
+        - secret
+        - start_date
+        - is_sandbox
     properties:
         client_id:
-            description: The Paypal Client ID for API credentials
+            title: Client ID
+            description: The Client ID of your Paypal developer application.
             type: string
         is_sandbox:
-            description: Whether or not to Sandbox or Production environment to extract
-                data from
+            title: Sandbox
+            description: Determines whether to use the sandbox or production environment.
             type: boolean
             default: false
         secret:
-            description: The Secret for a given Client ID.
+            title: Client Secret
+            description: The Client Secret of your Paypal developer application.
             airbyte_secret: true
             type: string
         start_date:
-            description: Start Date for data extraction in <a href="https://datatracker.ietf.org/doc/html/rfc3339#section-5.6">ISO
-                format</a>. Date must be in range from 3 years till 12 hrs before
-                present time
+            title: Start Date
+            description: Start Date for data extraction in <a href="https://datatracker.ietf.org/doc/html/rfc3339#section-5.6">ISO format</a>. Date must be in range from 3 years till 12 hrs before present time.
             type: string
             examples:
-              - "2021-06-11T23:59:59-00:00"
+                - "2021-06-11T23:59:59-00:00"
 supportsIncremental: false
 supported_destination_sync_modes: []

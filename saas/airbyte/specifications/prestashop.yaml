@@ -1,0 +1,19 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: PrestaShop Spec
+    type: object
+    additionalProperties: false
+    required:
+        - url
+        - access_key
+    properties:
+        access_key:
+            description: Your PrestaShop access key. See <a href="https://devdocs.prestashop.com/1.7/webservice/tutorials/creating-access/#create-an-access-key"> the docs </a> for info on how to obtain this.
+            airbyte_secret: true
+            type: string
+        url:
+            description: Shop URL without trailing slash (domain name or IP address)
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

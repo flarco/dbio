@@ -1,0 +1,16 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Pivotal Tracker Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_token
+    properties:
+        api_token:
+            description: Pivotal Tracker API token
+            type: string
+            examples:
+                - 5c054d0de3440452190fdc5d5a04d871
+supportsIncremental: false
+supported_destination_sync_modes: []

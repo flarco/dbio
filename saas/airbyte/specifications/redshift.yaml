@@ -5,35 +5,51 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - host
-      - port
-      - database
-      - username
-      - password
+        - host
+        - port
+        - database
+        - username
+        - password
     properties:
         database:
+            title: Database
             description: Name of the database.
             type: string
+            order: 3
             examples:
-              - master
+                - master
         host:
-            description: Host Endpoint of the Redshift Cluster (must include the cluster-id,
-                region and end with .redshift.amazonaws.com)
+            title: Host
+            description: Host Endpoint of the Redshift Cluster (must include the cluster-id, region and end with .redshift.amazonaws.com).
             type: string
+            order: 1
         password:
+            title: Password
             description: Password associated with the username.
             airbyte_secret: true
             type: string
+            order: 6
         port:
+            title: Port
             description: Port of the database.
             type: integer
+            order: 2
             minimum: 0
             maximum: 65536
             default: 5439
             examples:
-              - "5439"
+                - "5439"
+        schemas:
+            title: Schemas
+            description: The list of schemas to sync from. Specify one or more explicitly or keep empty to process all schemas. Schema names are case sensitive.
+            type: array
+            order: 4
+            examples:
+                - public
         username:
+            title: Username
             description: Username to use to access the database.
             type: string
+            order: 5
 supportsIncremental: false
 supported_destination_sync_modes: []

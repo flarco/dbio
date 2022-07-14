@@ -1,0 +1,25 @@
+documentationUrl: https://developers.short.io/reference
+changelogUrl: ""
+connectionSpecification:
+    title: Shortio Spec
+    type: object
+    additionalProperties: false
+    required:
+        - domain_id
+        - secret_key
+        - start_date
+    properties:
+        domain_id:
+            title: Domain ID
+            type: string
+        secret_key:
+            title: Secret Key
+            description: Short.io Secret Key
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

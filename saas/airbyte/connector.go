@@ -126,7 +126,9 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 	}
 
 	p.SetScanner(func(stderr bool, text string) {
-		if stderr {
+		// g.Debug("(stderr: %s)\n%s", cast.ToString(stderr), text)
+
+		if stderr || !strings.HasPrefix(strings.TrimSpace(text), "{") {
 			// g.Debug(text)
 			return
 		}
@@ -134,9 +136,7 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 		err = g.Unmarshal(text, &msg)
 		g.LogError(err, "could not unmarshall airbyte message for %s", c.Key())
 		if err == nil {
-			if msg.Type == TypeLog {
-				// g.Debug("LOG: " + strings.TrimSpace(msg.Log.Message))
-			} else if g.In(msg.Type, TypeState) {
+			if g.In(msg.Type, TypeState) {
 				c.State = msg.State.Data
 			} else {
 				msgChan <- msg
@@ -157,13 +157,14 @@ func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, er
 		return msgChan, g.Error(err, "error getting spec for "+c.Definition.Name)
 	}
 
-	g.P(p.CmdStr())
+	g.Debug(p.CmdStr())
 
 	go func() {
 		defer close(msgChan)
 		err = p.Wait()
 		g.LogError(err)
-		// println(p.Stdout.String())
+		// g.Info(p.Combined.String())
+		// g.Info(p.Stdout.String())
 		// println(p.Stderr.String())
 	}()
 
@@ -179,7 +180,9 @@ func (c *Connector) GetSpec() (err error) {
 		return g.Error("no messages received")
 	}
 
-	c.Specification = messages[0].Spec
+	if messages[0].Spec != nil {
+		c.Specification = *messages[0].Spec
+	}
 	return
 }
 
@@ -206,7 +209,13 @@ func (c *Connector) Check(config map[string]interface{}) (s AirbyteConnectionSta
 		return s, g.Error("no messages received")
 	}
 
-	s = messages.First(TypeConnectionStatus).ConnectionStatus
+	if msg := messages.First(TypeLog); g.In(msg.Log.Level, LevelFatal, LevelError) {
+		return s, g.Error(msg.Log.Message)
+	}
+
+	if msg := messages.First(TypeConnectionStatus); msg.ConnectionStatus != nil {
+		s = *msg.ConnectionStatus
+	}
 	return
 }
 
@@ -232,7 +241,9 @@ func (c *Connector) Discover(config map[string]interface{}) (ac AirbyteCatalog, 
 		return ac, g.Error("no messages received")
 	}
 
-	ac = messages.First(TypeCatalog).Catalog
+	if msg := messages.First(TypeCatalog); msg.Catalog != nil {
+		ac = *msg.Catalog
+	}
 	return
 }
 
@@ -276,6 +287,10 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	nextFunc := func(it *iop.Iterator) bool {
 		for msg := range msgChan {
+			// g.PP(msg)
+			if msg.Record == nil {
+				continue
+			}
 			it.Row = make([]interface{}, len(fm))
 			for k, i := range fm {
 				it.Row[i] = msg.Record.Data[k]

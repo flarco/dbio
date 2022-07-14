@@ -1,0 +1,51 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/strava
+changelogUrl: ""
+connectionSpecification:
+    title: Strava Spec
+    type: object
+    additionalProperties: false
+    required:
+        - client_id
+        - client_secret
+        - refresh_token
+        - athlete_id
+        - start_date
+    properties:
+        athlete_id:
+            title: Athlete ID
+            description: The Athlete ID of your Strava developer application.
+            type: integer
+            examples:
+                - "17831421"
+        auth_type:
+            const: Client
+            type: string
+            default: Client
+        client_id:
+            title: Client ID
+            description: The Client ID of your Strava developer application.
+            type: string
+            examples:
+                - "12345"
+        client_secret:
+            title: Client Secret
+            description: The Client Secret of your Strava developer application.
+            airbyte_secret: true
+            type: string
+            examples:
+                - fc6243f283e51f6ca989aab298b17da125496f50
+        refresh_token:
+            title: Refresh Token
+            description: 'The Refresh Token with the activity: read_all permissions.'
+            airbyte_secret: true
+            type: string
+            examples:
+                - fc6243f283e51f6ca989aab298b17da125496f50
+        start_date:
+            title: Start Date
+            description: UTC date and time. Any data before this date will not be replicated.
+            type: string
+            examples:
+                - "2016-12-31 23:59:59"
+supportsIncremental: false
+supported_destination_sync_modes: []

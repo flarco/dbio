@@ -3,27 +3,73 @@ changelogUrl: ""
 connectionSpecification:
     title: Harvest Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - api_token
-      - account_id
-      - replication_start_date
+        - account_id
+        - replication_start_date
     properties:
         account_id:
-            description: Harvest account ID. Required for all Harvest requests in
-                pair with API Key
+            title: Account ID
+            description: Harvest account ID. Required for all Harvest requests in pair with Personal Access Token
             airbyte_secret: true
             type: string
-        api_token:
-            description: Harvest API Token.
-            airbyte_secret: true
-            type: string
+            order: 0
+        credentials:
+            title: Authentication mechanism
+            description: Choose how to authenticate to Harvest.
+            type: object
+            order: 2
+            oneOf:
+                - title: Authenticate via Harvest (OAuth)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    auth_type:
+                        const: Client
+                        type: string
+                        order: 0
+                        default: Client
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your Harvest developer application.
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your Harvest developer application.
+                        airbyte_secret: true
+                        type: string
+                    refresh_token:
+                        title: Refresh Token
+                        description: Refresh Token to renew the expired Access Token.
+                        airbyte_secret: true
+                        type: string
+                - title: Authenticate with Personal Access Token
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - api_token
+                  properties:
+                    api_token:
+                        title: Personal Access Token
+                        description: Log into Harvest and then create new <a href="https://id.getharvest.com/developers"> personal access token</a>.
+                        airbyte_secret: true
+                        type: string
+                    auth_type:
+                        const: Token
+                        type: string
+                        order: 0
+                        default: Token
         replication_start_date:
-            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
-                data before this date will not be replicated.
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
             type: string
+            order: 1
             examples:
-              - "2017-01-25T00:00:00Z"
+                - "2017-01-25T00:00:00Z"
 supportsIncremental: true
 supported_destination_sync_modes:
-  - append
+    - append

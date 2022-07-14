@@ -3,36 +3,82 @@ changelogUrl: ""
 connectionSpecification:
     title: Square Source CDK Specifications
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - api_key
-      - is_sandbox
+        - is_sandbox
     properties:
-        api_key:
-            description: The API key for a Square application
-            airbyte_secret: true
-            type: string
+        credentials:
+            title: Credential Type
+            type: object
+            oneOf:
+                - title: Oauth authentication
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_type
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    auth_type:
+                        const: Oauth
+                        type: string
+                        order: 0
+                        default: Oauth
+                    client_id:
+                        title: Client ID
+                        description: The Square-issued ID of your application
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Square-issued application secret for your application
+                        airbyte_secret: true
+                        type: string
+                    refresh_token:
+                        title: Refresh Token
+                        description: A refresh token generated using the above client ID and secret
+                        airbyte_secret: true
+                        type: string
+                - title: API Key
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_type
+                    - api_key
+                  properties:
+                    api_key:
+                        title: API key token
+                        description: The API key for a Square application
+                        airbyte_secret: true
+                        type: string
+                    auth_type:
+                        const: Apikey
+                        type: string
+                        order: 1
+                        default: Apikey
         include_deleted_objects:
-            description: In some streams there is and option to include deleted objects
-                (Items, Categories, Discounts, Taxes)
+            title: Include Deleted Objects
+            description: In some streams there is an option to include deleted objects (Items, Categories, Discounts, Taxes)
             type: boolean
             default: false
             examples:
-              - true
-              - false
+                - true
+                - false
         is_sandbox:
-            description: Determines the sandbox (true) or production (false) API version
+            title: Sandbox
+            description: Determines whether to use the sandbox or production environment.
             type: boolean
-            default: true
+            default: false
             examples:
-              - true
-              - false
+                - true
+                - false
         start_date:
-            description: 'The start date to sync data. Leave blank for full sync.
-                Format: YYYY-MM-DD.'
+            title: Start Date
+            description: UTC date in the format YYYY-MM-DD. Any data before this date will not be replicated. If not set, all data will be replicated.
             type: string
-            default: "1970-01-01"
+            default: "2021-01-01"
             examples:
-              - "2021-01-01"
+                - "2021-01-01"
 supportsIncremental: false
 supported_destination_sync_modes: []

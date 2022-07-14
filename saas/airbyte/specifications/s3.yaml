@@ -1,0 +1,10 @@
+documentationUrl: ""
+changelogUrl: ""
+connectionSpecification:
+    title: S3
+    type: ""
+    additionalProperties: false
+    required: []
+    properties: {}
+supportsIncremental: false
+supported_destination_sync_modes: []

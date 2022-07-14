@@ -1,50 +1,108 @@
-documentationUrl: https://docsurl.com
-changelogUrl: ""
+documentationUrl: https://docs.airbyte.io/integrations/sources/amazon-seller-partner
+changelogUrl: https://docs.airbyte.io/integrations/sources/amazon-seller-partner
 connectionSpecification:
     title: Amazon Seller Partner Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - start_date
-      - refresh_token
-      - lwa_app_id
-      - lwa_client_secret
-      - aws_access_key
-      - aws_secret_key
-      - role_arn
+        - lwa_app_id
+        - lwa_client_secret
+        - refresh_token
+        - aws_access_key
+        - aws_secret_key
+        - role_arn
+        - replication_start_date
+        - aws_environment
+        - region
     properties:
+        app_id:
+            title: App Id *
+            description: Your Amazon App ID
+            airbyte_secret: true
+            type: string
+            order: 0
+        auth_type:
+            title: Auth Type
+            const: oauth2.0
+            type: string
+            order: 1
         aws_access_key:
-            description: AWS USER ACCESS KEY
+            title: AWS Access Key
+            description: Specifies the AWS access key used as part of the credentials to authenticate the user.
+            airbyte_secret: true
+            type: string
+            order: 5
+        aws_environment:
+            title: AWSEnvironment
+            description: An enumeration.
             type: string
         aws_secret_key:
-            description: AWS USER SECRET KEY
+            title: AWS Secret Access Key
+            description: Specifies the AWS secret key used as part of the credentials to authenticate the user.
+            airbyte_secret: true
             type: string
+            order: 6
         lwa_app_id:
-            description: Your login with amazon app id
+            title: LWA Client Id
+            description: Your Login with Amazon Client ID.
             type: string
+            order: 2
         lwa_client_secret:
-            description: Your login with amazon client secret
+            title: LWA Client Secret
+            description: Your Login with Amazon Client Secret.
+            airbyte_secret: true
             type: string
-        marketplace:
-            description: The marketplace from which you'd like to pull data.
-            type: string
+            order: 3
+        max_wait_seconds:
+            title: Max wait time for reports (in seconds)
+            description: Sometimes report can take up to 30 minutes to generate. This will set the limit for how long to wait for a successful report.
+            type: integer
+            default: 500
+            examples:
+                - "500"
+                - "1980"
+        period_in_days:
+            title: Period In Days
+            description: Will be used for stream slicing for initial full_refresh sync when no updated state is present for reports that support sliced incremental sync.
+            type: integer
+            default: 30
+            examples:
+                - "30"
+                - "365"
         refresh_token:
-            description: The refresh token used obtained via authorization (can be
-                passed to the client instead)
+            title: Refresh Token
+            description: The Refresh Token obtained via OAuth flow authorization.
+            airbyte_secret: true
             type: string
-        role_arn:
-            description: The role’s arn (needs permission to “Assume Role” STS)
+            order: 4
+        region:
+            title: AWSRegion
+            description: An enumeration.
             type: string
-        seller_id:
-            description: 'Amazon doesn''t return seller_id in the response thus seller_id
-                is added to each row as an identifier. Note: It is not used in querying
-                the data.'
-            type: string
-        start_date:
-            description: UTC date in the format 2017-01-25. Any data before this date
-                will not be replicated.
+        replication_end_date:
+            title: End Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data after this date will not be replicated.
             type: string
             examples:
-              - "2017-01-25"
+                - "2017-01-25T00:00:00Z"
+        replication_start_date:
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
+            type: string
+            examples:
+                - "2017-01-25T00:00:00Z"
+        report_options:
+            title: Report Options
+            description: Additional information passed to reports. This varies by report type. Must be a valid json string.
+            type: string
+            examples:
+                - '{"GET_BRAND_ANALYTICS_SEARCH_TERMS_REPORT": {"reportPeriod": "WEEK"}}'
+                - '{"GET_SOME_REPORT": {"custom": "true"}}'
+        role_arn:
+            title: Role ARN
+            description: Specifies the Amazon Resource Name (ARN) of an IAM role that you want to use to perform operations requested using this profile. (Needs permission to 'Assume Role' STS).
+            airbyte_secret: true
+            type: string
+            order: 7
 supportsIncremental: false
 supported_destination_sync_modes: []

@@ -5,24 +5,34 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - client_secret
-      - account_id
-      - start_date
+        - client_secret
+        - account_id
+        - start_date
     properties:
         account_id:
-            description: Your Stripe account ID (starts with 'acct_', find yours <a
-                href="https://dashboard.stripe.com/settings/account">here</a>).
+            title: Account ID
+            description: Your Stripe account ID (starts with 'acct_', find yours <a href="https://dashboard.stripe.com/settings/account">here</a>).
             type: string
+            order: 0
         client_secret:
-            description: Stripe API key (usually starts with 'sk_live_'; find yours
-                <a href="https://dashboard.stripe.com/apikeys">here</a>).
+            title: Secret Key
+            description: Stripe API key (usually starts with 'sk_live_'; find yours <a href="https://dashboard.stripe.com/apikeys">here</a>).
             airbyte_secret: true
             type: string
+            order: 1
+        lookback_window_days:
+            title: Lookback Window in days (Optional)
+            description: When set, the connector will always re-export data from the past N days, where N is the value set here. This is useful if your data is frequently updated after creation. More info <a href="https://docs.airbyte.com/integrations/sources/stripe#requirements">here</a>
+            type: integer
+            order: 3
+            minimum: 0
+            default: 0
         start_date:
-            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
-                data before this date will not be replicated.
+            title: Replication start date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Only data generated after this date will be replicated.
             type: string
+            order: 2
             examples:
-              - "2017-01-25T00:00:00Z"
+                - "2017-01-25T00:00:00Z"
 supportsIncremental: false
 supported_destination_sync_modes: []

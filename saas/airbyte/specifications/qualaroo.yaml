@@ -1,0 +1,33 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/qualaroo
+changelogUrl: ""
+connectionSpecification:
+    title: Qualaroo Spec
+    type: object
+    additionalProperties: true
+    required:
+        - token
+        - key
+        - start_date
+    properties:
+        key:
+            title: API key
+            description: A Qualaroo token. See the <a href="https://help.qualaroo.com/hc/en-us/articles/201969438-The-REST-Reporting-API">docs</a> for instructions on how to generate it.
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
+            type: string
+            examples:
+                - "2021-03-01T00:00:00.000Z"
+        survey_ids:
+            title: Qualaroo survey IDs
+            description: IDs of the surveys from which you'd like to replicate data. If left empty, data from all surveys to which you have access will be replicated.
+            type: array
+        token:
+            title: API token
+            description: A Qualaroo token. See the <a href="https://help.qualaroo.com/hc/en-us/articles/201969438-The-REST-Reporting-API">docs</a> for instructions on how to generate it.
+            airbyte_secret: true
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

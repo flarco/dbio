@@ -1,0 +1,41 @@
+documentationUrl: https://docs.withorb.com/
+changelogUrl: ""
+connectionSpecification:
+    title: Orb Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_key
+    properties:
+        api_key:
+            title: Orb API Key
+            description: Orb API Key, issued from the Orb admin console.
+            airbyte_secret: true
+            type: string
+            order: 1
+        lookback_window_days:
+            title: Lookback Window (in days)
+            description: When set to N, the connector will always refresh resources created within the past N days. By default, updated objects that are not newly created are not incrementally synced.
+            type: integer
+            order: 3
+            minimum: 0
+            default: 0
+        numeric_event_properties_keys:
+            title: Event properties keys (numeric values)
+            description: Property key names to extract from all events, in order to enrich ledger entries corresponding to an event deduction.
+            type: array
+            order: 5
+        start_date:
+            title: Start Date
+            description: UTC date and time in the format 2022-03-01T00:00:00Z. Any data with created_at before this data will not be synced.
+            type: string
+            order: 2
+            examples:
+                - "2022-03-01T00:00:00Z"
+        string_event_properties_keys:
+            title: Event properties keys (string values)
+            description: Property key names to extract from all events, in order to enrich ledger entries corresponding to an event deduction.
+            type: array
+            order: 4
+supportsIncremental: false
+supported_destination_sync_modes: []

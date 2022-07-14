@@ -1,0 +1,25 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Delighted Spec
+    type: object
+    additionalProperties: false
+    required:
+        - since
+        - api_key
+    properties:
+        api_key:
+            title: Delighted API Key
+            description: A Delighted API key.
+            airbyte_secret: true
+            type: string
+            order: 1
+        since:
+            title: Since
+            description: The date from which you'd like to replicate the data
+            type: string
+            order: 0
+            examples:
+                - "2022-05-30 04:50:23"
+supportsIncremental: false
+supported_destination_sync_modes: []

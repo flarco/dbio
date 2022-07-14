@@ -1,0 +1,110 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/mongodb-v2
+changelogUrl: https://docs.airbyte.io/integrations/sources/mongodb-v2
+connectionSpecification:
+    title: MongoDb Source Spec
+    type: object
+    additionalProperties: true
+    required:
+        - database
+    properties:
+        auth_source:
+            title: Authentication Source
+            description: The authentication source where the user information is stored.
+            type: string
+            order: 4
+            default: admin
+            examples:
+                - admin
+        database:
+            title: Database Name
+            description: The database you want to replicate.
+            type: string
+            order: 1
+        instance_type:
+            title: MongoDb Instance Type
+            description: The MongoDb instance to connect to. For MongoDB Atlas and Replica Set TLS connection is used by default.
+            type: object
+            order: 0
+            oneOf:
+                - title: Standalone MongoDb Instance
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - instance
+                    - host
+                    - port
+                  properties:
+                    host:
+                        title: Host
+                        description: The host name of the Mongo database.
+                        type: string
+                        order: 0
+                    instance:
+                        type: string
+                        default: standalone
+                    port:
+                        title: Port
+                        description: The port of the Mongo database.
+                        type: integer
+                        order: 1
+                        minimum: 0
+                        maximum: 65536
+                        default: 27017
+                        examples:
+                            - "27017"
+                    tls:
+                        title: TLS Connection
+                        description: Indicates whether TLS encryption protocol will be used to connect to MongoDB. It is recommended to use TLS connection if possible. For more information see <a href="https://docs.airbyte.io/integrations/sources/mongodb-v2">documentation</a>.
+                        type: boolean
+                        order: 2
+                        default: false
+                - title: Replica Set
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - instance
+                    - server_addresses
+                  properties:
+                    instance:
+                        type: string
+                        default: replica
+                    replica_set:
+                        title: Replica Set
+                        description: A replica set in MongoDB is a group of mongod processes that maintain the same data set.
+                        type: string
+                        order: 1
+                    server_addresses:
+                        title: Server Addresses
+                        description: The members of a replica set. Please specify `host`:`port` of each member separated by comma.
+                        type: string
+                        order: 0
+                        examples:
+                            - host1:27017,host2:27017,host3:27017
+                - title: MongoDB Atlas
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - instance
+                    - cluster_url
+                  properties:
+                    cluster_url:
+                        title: Cluster URL
+                        description: The URL of a cluster to connect to.
+                        type: string
+                        order: 0
+                    instance:
+                        type: string
+                        default: atlas
+        password:
+            title: Password
+            description: The password associated with this username.
+            airbyte_secret: true
+            type: string
+            order: 3
+        user:
+            title: User
+            description: The username which is used to access the database.
+            type: string
+            order: 2
+supportsIncremental: false
+supported_destination_sync_modes: []

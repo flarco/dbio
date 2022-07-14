@@ -1,50 +1,52 @@
-documentationUrl: https://docs.airbyte.io/integrations/sources/salesforce
+documentationUrl: https://docs.airbyte.com/integrations/sources/salesforce
 changelogUrl: ""
 connectionSpecification:
     title: Salesforce Source Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - client_id
-      - client_secret
-      - refresh_token
-      - start_date
-      - api_type
+        - client_id
+        - client_secret
+        - refresh_token
     properties:
-        api_type:
-            description: Unless you know that you are transferring a very small amount
-                of data, prefer using the BULK API. This will help avoid using up
-                all of your API call quota with Salesforce. Valid values are BULK
-                or REST.
+        auth_type:
+            const: Client
             type: string
-            default: BULK
         client_id:
-            description: The Consumer Key that can be found when viewing your app
-                in Salesforce
+            title: Client ID
+            description: Enter your Salesforce developer application's <a href="https://developer.salesforce.com/forums/?id=9062I000000DLgbQAG">Client ID</a>
             type: string
+            order: 2
         client_secret:
-            description: The Consumer Secret that can be found when viewing your app
-                in Salesforce
+            title: Client Secret
+            description: Enter your Salesforce developer application's <a href="https://developer.salesforce.com/forums/?id=9062I000000DLgbQAG">Client secret</a>
             airbyte_secret: true
             type: string
+            order: 3
         is_sandbox:
-            description: Whether or not the the app is in a Salesforce sandbox. If
-                you do not know what this, assume it is false. We provide more info
-                on this field in the <a href="https://docs.airbyte.io/integrations/destinations/salesforce#is_sandbox">docs</a>.
+            title: Sandbox
+            description: Toggle if you're using a <a href="https://help.salesforce.com/s/articleView?id=sf.deploy_sandboxes_parent.htm&type=5">Salesforce Sandbox</a>
             type: boolean
+            order: 1
             default: false
         refresh_token:
-            description: Salesforce Refresh Token used for Airbyte to access your
-                Salesforce account. If you don't know what this is, follow this <a
-                href="https://medium.com/@bpmmendis94/obtain-access-refresh-tokens-from-salesforce-rest-api-a324fe4ccd9b">guide</a>
-                to retrieve it.
+            title: Refresh Token
+            description: 'Enter your application''s <a href="https://developer.salesforce.com/docs/atlas.en-us.mobile_sdk.meta/mobile_sdk/oauth_refresh_token_flow.htm">Salesforce Refresh Token</a> used for Airbyte to access your Salesforce account. '
             airbyte_secret: true
             type: string
+            order: 4
         start_date:
-            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
-                data before this date will not be replicated.
+            title: Start Date
+            description: Enter the date in the YYYY-MM-DD format. Airbyte will replicate the data added on and after this date. If this field is blank, Airbyte will replicate all data.
             type: string
+            order: 5
             examples:
-              - "2017-01-25T00:00:00Z"
+                - "2021-07-25"
+                - "2021-07-25T00:00:00Z"
+        streams_criteria:
+            title: Filter Salesforce Objects (Optional)
+            description: Filter streams relevant to you
+            type: array
+            order: 6
 supportsIncremental: false
 supported_destination_sync_modes: []

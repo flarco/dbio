@@ -1,0 +1,77 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/zendesk_sunshine
+changelogUrl: ""
+connectionSpecification:
+    title: Zendesk Sunshine Spec
+    type: object
+    additionalProperties: true
+    required:
+        - start_date
+        - subdomain
+    properties:
+        credentials:
+            title: Authorization Method
+            type: object
+            oneOf:
+                - title: OAuth2.0
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_method
+                    - client_id
+                    - client_secret
+                    - access_token
+                  properties:
+                    access_token:
+                        title: Access Token
+                        description: Long-term access Token for making authenticated requests.
+                        airbyte_secret: true
+                        type: string
+                    auth_method:
+                        const: oauth2.0
+                        type: string
+                        order: 0
+                        default: oauth2.0
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your OAuth application.
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your OAuth application.
+                        airbyte_secret: true
+                        type: string
+                - title: API Token
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - auth_method
+                    - api_token
+                    - email
+                  properties:
+                    api_token:
+                        title: API Token
+                        description: API Token. See the <a href="https://docs.airbyte.io/integrations/sources/zendesk_sunshine">docs</a> for information on how to generate this key.
+                        airbyte_secret: true
+                        type: string
+                    auth_method:
+                        const: api_token
+                        type: string
+                        order: 1
+                        default: api_token
+                    email:
+                        title: Email
+                        description: The user email for your Zendesk account
+                        type: string
+        start_date:
+            title: Start Date
+            description: The date from which you'd like to replicate data for Zendesk Sunshine API, in the format YYYY-MM-DDT00:00:00Z.
+            type: string
+            examples:
+                - "2021-01-01T00:00:00Z"
+        subdomain:
+            title: Subdomain
+            description: The subdomain for your Zendesk Account.
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

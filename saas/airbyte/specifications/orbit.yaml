@@ -1,0 +1,28 @@
+documentationUrl: https://docs.airbyte.com/integrations/sources/orbit
+changelogUrl: ""
+connectionSpecification:
+    title: Orbit Source Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_token
+        - workspace
+    properties:
+        api_token:
+            title: API Token
+            description: Authorizes you to work with Orbit workspaces associated with the token.
+            airbyte_secret: true
+            type: string
+            order: 0
+        start_date:
+            title: Start Date
+            description: Date in the format 2022-06-26. Only load members whose last activities are after this date.
+            type: string
+            order: 2
+        workspace:
+            title: Workspace
+            description: The unique name of the workspace that your API token is associated with.
+            type: string
+            order: 1
+supportsIncremental: false
+supported_destination_sync_modes: []

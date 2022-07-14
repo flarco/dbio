@@ -5,12 +5,15 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - pokemon_name
+        - pokemon_name
     properties:
         pokemon_name:
+            title: Pokemon Name
             description: Pokemon requested from the API.
             type: string
             examples:
-              - ditto, luxray, snorlax
+                - ditto
+                - luxray
+                - snorlax
 supportsIncremental: false
 supported_destination_sync_modes: []

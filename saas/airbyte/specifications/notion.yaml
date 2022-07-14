@@ -1,0 +1,23 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/notion
+changelogUrl: ""
+connectionSpecification:
+    title: Notion Source Spec
+    type: object
+    additionalProperties: false
+    required:
+        - access_token
+        - start_date
+    properties:
+        access_token:
+            title: Access Token
+            description: Notion API access token, see the <a href="https://developers.notion.com/docs/authorization">docs</a> for more information on how to obtain this token.
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: The date from which you'd like to replicate data for Notion API, in the format YYYY-MM-DDT00:00:00.000Z. All data generated after this date will be replicated.
+            type: string
+            examples:
+                - "2020-11-16T00:00:00.000Z"
+supportsIncremental: false
+supported_destination_sync_modes: []

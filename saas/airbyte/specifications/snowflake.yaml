@@ -3,50 +3,121 @@ changelogUrl: ""
 connectionSpecification:
     title: Snowflake Source Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - host
-      - role
-      - warehouse
-      - database
-      - schema
-      - username
-      - password
+        - host
+        - role
+        - warehouse
+        - database
+        - schema
     properties:
+        credentials:
+            title: Authorization Method
+            type: object
+            order: 0
+            oneOf:
+                - title: OAuth2.0
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - auth_type
+                  properties:
+                    access_token:
+                        title: Access Token
+                        description: Access Token for making authenticated requests.
+                        airbyte_secret: true
+                        type: string
+                        order: 3
+                    auth_type:
+                        const: OAuth
+                        type: string
+                        order: 0
+                        default: OAuth
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your Snowflake developer application.
+                        airbyte_secret: true
+                        type: string
+                        order: 1
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your Snowflake developer application.
+                        airbyte_secret: true
+                        type: string
+                        order: 2
+                    refresh_token:
+                        title: Refresh Token
+                        description: Refresh Token for making authenticated requests.
+                        airbyte_secret: true
+                        type: string
+                        order: 4
+                - title: Username and Password
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - username
+                    - password
+                    - auth_type
+                  properties:
+                    auth_type:
+                        const: username/password
+                        type: string
+                        order: 0
+                        default: username/password
+                    password:
+                        title: Password
+                        description: The password associated with the username.
+                        airbyte_secret: true
+                        type: string
+                        order: 2
+                    username:
+                        title: Username
+                        description: The username you created to allow Airbyte to access the database.
+                        type: string
+                        order: 1
+                        examples:
+                            - AIRBYTE_USER
         database:
-            description: The database you created for Airbyte to access data into.
+            title: Database
+            description: The database you created for Airbyte to access data.
             type: string
+            order: 4
             examples:
-              - AIRBYTE_DATABASE
+                - AIRBYTE_DATABASE
         host:
-            description: Host domain of the snowflake instance (must include the account,
-                region, cloud environment, and end with snowflakecomputing.com).
+            title: Account Name
+            description: The host domain of the snowflake instance (must include the account, region, cloud environment, and end with snowflakecomputing.com).
             type: string
+            order: 1
             examples:
-              - accountname.us-east-2.aws.snowflakecomputing.com
-        password:
-            description: Password associated with the username.
-            airbyte_secret: true
+                - accountname.us-east-2.aws.snowflakecomputing.com
+        jdbc_url_params:
+            title: JDBC URL Params
+            description: 'Additional properties to pass to the JDBC URL string when connecting to the database formatted as ''key=value'' pairs separated by the symbol ''&''. (example: key1=value1&key2=value2&key3=value3).'
             type: string
+            order: 6
         role:
+            title: Role
             description: The role you created for Airbyte to access Snowflake.
             type: string
+            order: 2
             examples:
-              - AIRBYTE_ROLE
+                - AIRBYTE_ROLE
         schema:
+            title: Schema
             description: The source Snowflake schema tables.
             type: string
+            order: 5
             examples:
-              - AIRBYTE_SCHEMA
-        username:
-            description: The username you created to allow Airbyte to access the database.
-            type: string
-            examples:
-              - AIRBYTE_USER
+                - AIRBYTE_SCHEMA
         warehouse:
-            description: The warehouse you created for Airbyte to access data into.
+            title: Warehouse
+            description: The warehouse you created for Airbyte to access data.
             type: string
+            order: 3
             examples:
-              - AIRBYTE_WAREHOUSE
+                - AIRBYTE_WAREHOUSE
 supportsIncremental: false
 supported_destination_sync_modes: []

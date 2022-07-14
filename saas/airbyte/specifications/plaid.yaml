@@ -5,22 +5,33 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - access_token
-      - api_key
-      - client_id
+        - access_token
+        - api_key
+        - client_id
+        - plaid_env
     properties:
         access_token:
+            title: Access Token
             description: The end-user's Link access token.
             type: string
         api_key:
+            title: API Key
             description: The Plaid API key to use to hit the API.
             airbyte_secret: true
             type: string
         client_id:
+            title: Client ID
             description: The Plaid client id
             type: string
         plaid_env:
+            title: Plaid Environment
             description: The Plaid environment
             type: string
+        start_date:
+            title: Start Date
+            description: The date from which you'd like to replicate data for Plaid in the format YYYY-MM-DD. All data generated after this date will be replicated.
+            type: string
+            examples:
+                - "2021-03-01"
 supportsIncremental: false
 supported_destination_sync_modes: []

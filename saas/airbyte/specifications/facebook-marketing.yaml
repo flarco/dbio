@@ -5,43 +5,73 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - account_id
-      - access_token
-      - start_date
+        - account_id
+        - start_date
+        - access_token
     properties:
         access_token:
-            description: The value of the access token generated. See the <a href="https://docs.airbyte.io/integrations/sources/facebook-marketing">docs</a>
-                for more information
+            title: Access Token
+            description: The value of the access token generated. See the <a href="https://docs.airbyte.io/integrations/sources/facebook-marketing">docs</a> for more information
             airbyte_secret: true
             type: string
+            order: 3
         account_id:
-            description: The Facebook Ad account ID to use when pulling data from
-                the Facebook Marketing API.
+            title: Account ID
+            description: The Facebook Ad account ID to use when pulling data from the Facebook Marketing API.
             type: string
-        include_deleted:
-            description: Include data from deleted campaigns, ads, and adsets.
+            order: 0
+            examples:
+                - "111111111111111"
+        custom_insights:
+            title: Custom Insights
+            description: A list which contains insights entries, each entry must have a name and can contains fields, breakdowns or action_breakdowns)
+            type: array
+            order: 6
+        end_date:
+            title: End Date
+            description: The date until which you'd like to replicate data for all incremental streams, in the format YYYY-MM-DDT00:00:00Z. All data generated between start_date and this date will be replicated. Not setting this option will result in always syncing the latest data.
+            type: string
+            order: 2
+            examples:
+                - "2017-01-26T00:00:00Z"
+        fetch_thumbnail_images:
+            title: Fetch Thumbnail Images
+            description: In each Ad Creative, fetch the thumbnail_url and store the result in thumbnail_data_url
             type: boolean
+            order: 5
             default: false
-        insights_days_per_job:
-            description: Number of days to sync in one job. The more data you have
-                - the smaller you want this parameter to be.
-            type: integer
-            minimum: 1
-            maximum: 30
-            default: 7
+        include_deleted:
+            title: Include Deleted
+            description: Include data from deleted Campaigns, Ads, and AdSets
+            type: boolean
+            order: 4
+            default: false
         insights_lookback_window:
-            description: The attribution window for the actions
+            title: Insights Lookback Window
+            description: The attribution window
             type: integer
-            minimum: 0
+            order: 8
             maximum: 28
             default: 28
+        max_batch_size:
+            title: Maximum size of Batched Requests
+            description: Maximum batch size used when sending batch requests to Facebook API. Most users do not need to set this field unless they specifically need to tune the connector to address specific issues or use cases.
+            type: integer
+            order: 9
+            default: 50
+        page_size:
+            title: Page Size of Requests
+            description: Page size used when sending requests to Facebook API to specify number of records per page when response has pagination. Most users do not need to set this field unless they specifically need to tune the connector to address specific issues or use cases.
+            type: integer
+            order: 7
+            default: 100
         start_date:
-            description: The date from which you'd like to replicate data for AdCreatives
-                and AdInsights APIs, in the format YYYY-MM-DDT00:00:00Z. All data
-                generated after this date will be replicated.
+            title: Start Date
+            description: The date from which you'd like to replicate data for all incremental streams, in the format YYYY-MM-DDT00:00:00Z. All data generated after this date will be replicated.
             type: string
+            order: 1
             examples:
-              - "2017-01-25T00:00:00Z"
+                - "2017-01-25T00:00:00Z"
 supportsIncremental: true
 supported_destination_sync_modes:
-  - append
+    - append

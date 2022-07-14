@@ -1,38 +1,41 @@
 documentationUrl: https://docs.airbyte.io/integrations/sources/marketo
 changelogUrl: ""
 connectionSpecification:
-    title: Source Marketo Singer Spec
+    title: Source Marketo Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - endpoint_url
-      - identity_url
-      - client_id
-      - client_secret
-      - start_date
+        - domain_url
+        - client_id
+        - client_secret
+        - start_date
     properties:
         client_id:
-            description: Your Marketo client_id. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
-                the docs </a> for info on how to obtain this.
-            type: string
-        client_secret:
-            description: Your Marketo client secret. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
-                the docs </a> for info on how to obtain this.
+            title: Client ID
+            description: The Client ID of your Marketo developer application. See <a href="https://docs.airbyte.io/integrations/sources/marketo"> the docs </a> for info on how to obtain this.
             airbyte_secret: true
             type: string
-        endpoint_url:
-            description: Your Marketo Endpoint URL. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
-                the docs </a> for info on how to obtain this.
+            order: 0
+        client_secret:
+            title: Client Secret
+            description: The Client Secret of your Marketo developer application. See <a href="https://docs.airbyte.io/integrations/sources/marketo"> the docs </a> for info on how to obtain this.
+            airbyte_secret: true
             type: string
-        identity_url:
-            description: Your Marketo Identity URL. See <a href="https://docs.airbyte.io/integrations/sources/marketo">
-                the docs </a> for info on how to obtain this.
+            order: 1
+        domain_url:
+            title: Domain URL
+            description: Your Marketo Base URL. See <a href="https://docs.airbyte.io/integrations/sources/marketo"> the docs </a> for info on how to obtain this.
+            airbyte_secret: true
             type: string
-        start_date:
-            description: Data generated in Marketo after this date will be replicated.
-                This date must be specified in the format YYYY-MM-DDT00:00:00Z.
-            type: string
+            order: 3
             examples:
-              - "2020-09-25T00:00:00Z"
+                - https://000-AAA-000.mktorest.com
+        start_date:
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
+            type: string
+            order: 2
+            examples:
+                - "2020-09-25T00:00:00Z"
 supportsIncremental: false
 supported_destination_sync_modes: []

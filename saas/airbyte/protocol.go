@@ -15,13 +15,14 @@ import (
 
 // AirbyteMessage is the AirbyteMessage
 type AirbyteMessage struct {
-	Type             Type                    `json:"type"`
-	Log              AirbyteLogMessage       `json:"log,omitempty"`
-	Spec             ConnectorSpecification  `json:"spec,omitempty"`
-	ConnectionStatus AirbyteConnectionStatus `json:"connectionStatus,omitempty"`
-	Catalog          AirbyteCatalog          `json:"catalog,omitempty"`
-	Record           AirbyteRecordMessage    `json:"record,omitempty"`
-	State            AirbyteStateMessage     `json:"state,omitempty"`
+	Type             Type                     `json:"type"`
+	Log              *AirbyteLogMessage       `json:"log,omitempty"`
+	Trace            *AirbyteTraceMessage     `json:"trace,omitempty"`
+	Spec             *ConnectorSpecification  `json:"spec,omitempty"`
+	ConnectionStatus *AirbyteConnectionStatus `json:"connectionStatus,omitempty"`
+	Catalog          *AirbyteCatalog          `json:"catalog,omitempty"`
+	Record           *AirbyteRecordMessage    `json:"record,omitempty"`
+	State            *AirbyteStateMessage     `json:"state,omitempty"`
 }
 
 // AirbyteMessages is a list of messages
@@ -42,6 +43,7 @@ type Type string
 
 const TypeRecord Type = "RECORD"
 const TypeState Type = "STATE"
+const TypeTrace Type = "TRACE"
 const TypeLog Type = "LOG"
 const TypeSpec Type = "SPEC"
 const TypeConnectionStatus Type = "CONNECTION_STATUS"
@@ -61,8 +63,15 @@ type AirbyteStateMessage struct {
 
 // AirbyteLogMessage is the AirbyteLogMessage
 type AirbyteLogMessage struct {
-	Level   Level  `json:"status"`
+	Level   Level  `json:"level"`
 	Message string `json:"message"`
+}
+
+// AirbyteTraceMessage is the AirbyteTraceMessage
+type AirbyteTraceMessage struct {
+	Type      Level                  `json:"type"`
+	EmittedAt float64                `json:"emitted_at"`
+	Error     map[string]interface{} `json:"error"`
 }
 
 // Level is for AirbyteLogMessage
@@ -121,7 +130,7 @@ type AirbyteStream struct {
 	SupportedSyncModes      []SyncMode       `json:"supported_sync_modes"`
 	SourceDefinedCursor     bool             `json:"source_defined_cursor"`
 	DefaultCursorField      []string         `json:"default_cursor_field"`
-	SourceDefinedPrimaryKey []string         `json:"source_defined_primary_key"`
+	SourceDefinedPrimaryKey [][]string       `json:"source_defined_primary_key"`
 }
 
 type StreamJsonSchema struct {
@@ -229,13 +238,17 @@ type ConnectionSpecification struct {
 
 type ConnectionProperties map[string]ConnectionProperty
 type ConnectionProperty struct {
-	Description   string        `json:"description,omitempty" yaml:"description,omitempty"`
-	AirbyteSecret bool          `json:"airbyte_secret,omitempty" yaml:"airbyte_secret,omitempty"`
-	Type          string        `json:"type,omitempty" yaml:"type,omitempty"`
-	Minimum       interface{}   `json:"minimum,omitempty" yaml:"minimum,omitempty"`
-	Maximum       interface{}   `json:"maximum,omitempty" yaml:"maximum,omitempty"`
-	Default       interface{}   `json:"default,omitempty" yaml:"default,omitempty"`
-	Examples      []interface{} `json:"examples,omitempty" yaml:"examples,omitempty"`
+	Title         string                    `json:"title,omitempty" yaml:"title,omitempty"`
+	Const         string                    `json:"const,omitempty" yaml:"const,omitempty"`
+	Description   string                    `json:"description,omitempty" yaml:"description,omitempty"`
+	AirbyteSecret bool                      `json:"airbyte_secret,omitempty" yaml:"airbyte_secret,omitempty"`
+	Type          string                    `json:"type,omitempty" yaml:"type,omitempty"`
+	Order         *int                      `json:"order,omitempty" yaml:"order,omitempty"`
+	OneOf         []ConnectionSpecification `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
+	Minimum       interface{}               `json:"minimum,omitempty" yaml:"minimum,omitempty"`
+	Maximum       interface{}               `json:"maximum,omitempty" yaml:"maximum,omitempty"`
+	Default       interface{}               `json:"default,omitempty" yaml:"default,omitempty"`
+	Examples      []interface{}             `json:"examples,omitempty" yaml:"examples,omitempty"`
 }
 
 // Connectors is a list of Connector

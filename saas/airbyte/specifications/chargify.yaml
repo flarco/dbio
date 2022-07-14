@@ -1,0 +1,19 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/chargify
+changelogUrl: ""
+connectionSpecification:
+    title: Chargify Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_key
+        - domain
+    properties:
+        api_key:
+            description: Chargify API Key.
+            airbyte_secret: true
+            type: string
+        domain:
+            description: Chargify domain. Normally this domain follows the following format companyname.chargify.com
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

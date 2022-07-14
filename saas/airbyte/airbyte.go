@@ -149,5 +149,5 @@ type Objects []Object
 type Object struct {
 	Name    string
 	Columns iop.Columns
-	PK      []string
+	PK      [][]string
 }

@@ -1,0 +1,27 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Confluence Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_token
+        - domain_name
+        - email
+    properties:
+        api_token:
+            description: 'Please follow the Jira confluence for generating an API token: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/'
+            airbyte_secret: true
+            type: string
+        domain_name:
+            description: Your Confluence domain name
+            type: string
+            examples:
+                - example.atlassian.net
+        email:
+            description: Your Confluence login email
+            type: string
+            examples:
+                - abc@example.com
+supportsIncremental: false
+supported_destination_sync_modes: []

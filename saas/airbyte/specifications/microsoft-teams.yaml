@@ -3,29 +3,78 @@ changelogUrl: ""
 connectionSpecification:
     title: Microsoft Teams Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - tenant_id
-      - client_id
-      - client_secret
-      - period
+        - period
     properties:
-        client_id:
-            description: Application (client) ID
-            type: string
-        client_secret:
-            description: Client secret
-            airbyte_secret: true
-            type: string
+        credentials:
+            title: Authentication mechanism
+            description: Choose how to authenticate to Microsoft
+            type: object
+            oneOf:
+                - title: Authenticate via Microsoft (OAuth 2.0)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - tenant_id
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    auth_type:
+                        const: Client
+                        type: string
+                        order: 0
+                        default: Client
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your Microsoft Teams developer application.
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your Microsoft Teams developer application.
+                        airbyte_secret: true
+                        type: string
+                    refresh_token:
+                        title: Refresh Token
+                        description: A Refresh Token to renew the expired Access Token.
+                        airbyte_secret: true
+                        type: string
+                    tenant_id:
+                        title: Directory (tenant) ID
+                        description: 'A globally unique identifier (GUID) that is different than your organization name or domain. Follow these steps to obtain: open one of the Teams where you belong inside the Teams Application -> Click on the … next to the Team title -> Click on Get link to team -> Copy the link to the team and grab the tenant ID form the URL'
+                        type: string
+                - title: Authenticate via Microsoft
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - tenant_id
+                    - client_id
+                    - client_secret
+                  properties:
+                    auth_type:
+                        const: Token
+                        type: string
+                        order: 0
+                        default: Token
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your Microsoft Teams developer application.
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your Microsoft Teams developer application.
+                        airbyte_secret: true
+                        type: string
+                    tenant_id:
+                        title: Directory (tenant) ID
+                        description: 'A globally unique identifier (GUID) that is different than your organization name or domain. Follow these steps to obtain: open one of the Teams where you belong inside the Teams Application -> Click on the … next to the Team title -> Click on Get link to team -> Copy the link to the team and grab the tenant ID form the URL'
+                        type: string
         period:
-            description: 'Specifies the length of time over which the Team Device
-                Report stream is aggregated. The supported values are: D7, D30, D90,
-                and D180.'
+            title: Period
+            description: 'Specifies the length of time over which the Team Device Report stream is aggregated. The supported values are: D7, D30, D90, and D180.'
             type: string
             examples:
-              - D7
-        tenant_id:
-            description: Directory (tenant) ID
-            type: string
+                - D7
 supportsIncremental: false
 supported_destination_sync_modes: []

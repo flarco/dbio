@@ -1,0 +1,32 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Azure Data Table Spec
+    type: object
+    additionalProperties: false
+    required:
+        - storage_account_name
+        - storage_access_key
+    properties:
+        storage_access_key:
+            title: Access Key
+            description: Azure Table Storage Access Key. See the <a href="https://docs.airbyte.io/integrations/sources/azure-table">docs</a> for more information on how to obtain this key.
+            airbyte_secret: true
+            type: string
+            order: 1
+        storage_account_name:
+            title: Account Name
+            description: The name of your storage account.
+            type: string
+            order: 0
+        storage_endpoint_suffix:
+            title: Endpoint Suffix
+            description: Azure Table Storage service account URL suffix. See the <a href="https://docs.airbyte.io/integrations/sources/azure-table">docs</a> for more information on how to obtain endpoint suffix
+            type: string
+            order: 2
+            default: core.windows.net
+            examples:
+                - core.windows.net
+                - core.chinacloudapi.cn
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -5,22 +5,29 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - domain
-      - api_key
+        - domain
+        - api_key
     properties:
         api_key:
-            description: Freshdesk API Key. See the <a href="https://docs.airbyte.io/integrations/sources/freshdesk">docs</a>
-                for more information on how to obtain this key.
+            title: API Key
+            description: Freshdesk API Key. See the <a href="https://docs.airbyte.io/integrations/sources/freshdesk">docs</a> for more information on how to obtain this key.
             airbyte_secret: true
             type: string
         domain:
+            title: Domain
             description: Freshdesk domain
             type: string
             examples:
-              - myaccount.freshdesk.com
+                - myaccount.freshdesk.com
         requests_per_minute:
-            description: Number of requests per minute that this source allowed to
-                use.
+            title: Requests per minute
+            description: The number of requests per minute that this source allowed to use. There is a rate limit of 50 requests per minute per app per account.
             type: integer
+        start_date:
+            title: Start Date
+            description: UTC date and time. Any data created after this date will be replicated. If this parameter is not set, all data will be replicated.
+            type: string
+            examples:
+                - "2020-12-01T00:00:00Z"
 supportsIncremental: false
 supported_destination_sync_modes: []

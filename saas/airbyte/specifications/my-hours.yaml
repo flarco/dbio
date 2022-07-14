@@ -1,0 +1,38 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/my-hours
+changelogUrl: ""
+connectionSpecification:
+    title: My Hours Spec
+    type: object
+    additionalProperties: false
+    required:
+        - email
+        - password
+        - start_date
+    properties:
+        email:
+            title: Email
+            description: Your My Hours username
+            type: string
+        logs_batch_size:
+            title: Time logs batch size
+            description: Pagination size used for retrieving logs in days
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 30
+            examples:
+                - 30
+        password:
+            title: Password
+            description: The password associated to the username
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: Start date for collecting time logs
+            type: string
+            examples:
+                - '%Y-%m-%d'
+                - "2016-01-01"
+supportsIncremental: false
+supported_destination_sync_modes: []

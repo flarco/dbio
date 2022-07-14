@@ -5,11 +5,10 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - api_key
+        - api_key
     properties:
         api_key:
-            description: Greenhouse API Key. See the <a href="https://docs.airbyte.io/integrations/sources/greenhouse">docs</a>
-                for more information on how to generate this key.
+            description: Greenhouse API Key. See the <a href="https://docs.airbyte.io/integrations/sources/greenhouse">docs</a> for more information on how to generate this key.
             airbyte_secret: true
             type: string
 supportsIncremental: false

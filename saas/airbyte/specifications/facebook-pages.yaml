@@ -1,0 +1,21 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/facebook-pages
+changelogUrl: ""
+connectionSpecification:
+    title: Facebook Pages Spec
+    type: object
+    additionalProperties: true
+    required:
+        - access_token
+        - page_id
+    properties:
+        access_token:
+            title: Page Access Token
+            description: Facebook Page Access Token
+            airbyte_secret: true
+            type: string
+        page_id:
+            title: Page ID
+            description: Page ID
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

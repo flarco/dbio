@@ -5,32 +5,34 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - key_id
-      - private_key
-      - issuer_id
-      - vendor
-      - start_date
+        - key_id
+        - private_key
+        - issuer_id
+        - vendor
+        - start_date
     properties:
         issuer_id:
-            description: <a href="https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests">Issuer_id</a>
-                is used to generate the credentials to connect to appstore's API.
+            title: Issuer ID
+            description: Appstore Issuer ID. See the <a href="https://docs.airbyte.io/integrations/sources/appstore">docs</a> for more information on how to obtain this ID.
             type: string
         key_id:
-            description: <a href="https://developer.apple.com/documentation/appstoreconnectapi/creating_api_keys_for_app_store_connect_api">Key_id</a>
-                is the API key you use to connect to appstore's API.
+            title: Key ID
+            description: Appstore Key ID. See the <a href="https://docs.airbyte.io/integrations/sources/appstore">docs</a> for more information on how to obtain this key.
             type: string
         private_key:
-            description: Private_key is the contents of the <a href="https://developer.apple.com/documentation/appstoreconnectapi/creating_api_keys_for_app_store_connect_api">key
-                file</a> you use to connect to appstore's API.
+            title: Private Key
+            description: Appstore Private Key. See the <a href="https://docs.airbyte.io/integrations/sources/appstore">docs</a> for more information on how to obtain this key.
             airbyte_secret: true
             type: string
         start_date:
-            description: Date from which to start pulling data.
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
             type: string
             examples:
-              - "2020-11-16T00:00:00Z"
+                - "2020-11-16T00:00:00Z"
         vendor:
-            description: This is the Apple ID of your account.
+            title: Vendor ID
+            description: Appstore Vendor ID. See the <a href="https://docs.airbyte.io/integrations/sources/appstore">docs</a> for more information on how to obtain this ID.
             type: string
 supportsIncremental: false
 supported_destination_sync_modes: []

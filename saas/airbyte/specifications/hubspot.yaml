@@ -1,20 +1,76 @@
 documentationUrl: https://docs.airbyte.io/integrations/sources/hubspot
 changelogUrl: ""
 connectionSpecification:
-    title: Hubspot Source Spec
+    title: HubSpot Source Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - start_date
-      - credentials
+        - start_date
+        - credentials
     properties:
         credentials:
+            title: Authentication
+            description: Choose how to authenticate to HubSpot.
             type: object
+            oneOf:
+                - title: OAuth
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                    - credentials_title
+                  properties:
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your HubSpot developer application. See the <a href="https://legacydocs.hubspot.com/docs/methods/oauth2/oauth2-quickstart">Hubspot docs</a> if you need help finding this ID.
+                        type: string
+                        examples:
+                            - "123456789000"
+                    client_secret:
+                        title: Client Secret
+                        description: The client secret for your HubSpot developer application. See the <a href="https://legacydocs.hubspot.com/docs/methods/oauth2/oauth2-quickstart">Hubspot docs</a> if you need help finding this secret.
+                        airbyte_secret: true
+                        type: string
+                        examples:
+                            - secret
+                    credentials_title:
+                        title: Credentials
+                        const: OAuth Credentials
+                        description: Name of the credentials
+                        type: string
+                        order: 0
+                    refresh_token:
+                        title: Refresh Token
+                        description: Refresh token to renew an expired access token. See the <a href="https://legacydocs.hubspot.com/docs/methods/oauth2/oauth2-quickstart">Hubspot docs</a> if you need help finding this token.
+                        airbyte_secret: true
+                        type: string
+                        examples:
+                            - refresh_token
+                - title: API key
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - api_key
+                    - credentials_title
+                  properties:
+                    api_key:
+                        title: API key
+                        description: HubSpot API Key. See the <a href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key">Hubspot docs</a> if you need help finding this key.
+                        airbyte_secret: true
+                        type: string
+                    credentials_title:
+                        title: Credentials
+                        const: API Key Credentials
+                        description: Name of the credentials set
+                        type: string
+                        order: 0
         start_date:
-            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any
-                data before this date will not be replicated.
+            title: Start date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
             type: string
             examples:
-              - "2017-01-25T00:00:00Z"
+                - "2017-01-25T00:00:00Z"
 supportsIncremental: false
 supported_destination_sync_modes: []

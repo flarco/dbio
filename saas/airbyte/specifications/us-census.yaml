@@ -1,0 +1,29 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/us-census
+changelogUrl: ""
+connectionSpecification:
+    title: https://api.census.gov/ Source Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_key
+        - query_path
+    properties:
+        api_key:
+            description: Your API Key. Get your key <a href="https://api.census.gov/data/key_signup.html">here</a>.
+            airbyte_secret: true
+            type: string
+        query_params:
+            description: The query parameters portion of the GET request, without the api key
+            type: string
+            examples:
+                - get=NAME,NAICS2017_LABEL,LFO_LABEL,EMPSZES_LABEL,ESTAB,PAYANN,PAYQTR1,EMP&for=us:*&NAICS2017=72&LFO=001&EMPSZES=001
+                - get=MOVEDIN,GEOID1,GEOID2,MOVEDOUT,FULL1_NAME,FULL2_NAME,MOVEDNET&for=county:*
+        query_path:
+            description: The path portion of the GET request
+            type: string
+            examples:
+                - data/2019/cbp
+                - data/2018/acs
+                - data/timeseries/healthins/sahie
+supportsIncremental: false
+supported_destination_sync_modes: []

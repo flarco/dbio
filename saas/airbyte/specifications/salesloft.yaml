@@ -1,0 +1,34 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/salesloft
+changelogUrl: ""
+connectionSpecification:
+    title: Source Salesloft Spec
+    type: object
+    additionalProperties: false
+    required:
+        - client_id
+        - client_secret
+        - refresh_token
+        - start_date
+    properties:
+        client_id:
+            title: Client ID
+            description: The Client ID of your Salesloft developer application.
+            type: string
+        client_secret:
+            title: Client Secret
+            description: The Client Secret of your Salesloft developer application.
+            airbyte_secret: true
+            type: string
+        refresh_token:
+            title: Refresh Token
+            description: The token for obtaining a new access token.
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: The date from which you'd like to replicate data for Salesloft API, in the format YYYY-MM-DDT00:00:00Z. All data generated after this date will be replicated.
+            type: string
+            examples:
+                - "2020-11-16T00:00:00Z"
+supportsIncremental: false
+supported_destination_sync_modes: []

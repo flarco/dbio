@@ -1,42 +1,209 @@
-documentationUrl: https://docs.airbyte.io/integrations/sources/postgres
+documentationUrl: https://docs.airbyte.com/integrations/sources/postgres
 changelogUrl: ""
 connectionSpecification:
     title: Postgres Source Spec
     type: object
     additionalProperties: false
     required:
-      - host
-      - port
-      - database
-      - username
+        - host
+        - port
+        - database
+        - username
     properties:
         database:
+            title: DB Name
             description: Name of the database.
             type: string
+            order: 2
         host:
+            title: Host
             description: Hostname of the database.
             type: string
+            order: 0
+        jdbc_url_params:
+            title: JDBC URL Parameters (Advanced)
+            description: 'Additional properties to pass to the JDBC URL string when connecting to the database formatted as ''key=value'' pairs separated by the symbol ''&''. (example: key1=value1&key2=value2&key3=value3). For more information read about <a href="https://docs.airbyte.com/integrations/sources/postgres#jdbc-url-params">additional JDBC URL parameters</a>.'
+            type: string
+            order: 6
         password:
+            title: Password
             description: Password associated with the username.
             airbyte_secret: true
             type: string
+            order: 5
         port:
+            title: Port
             description: Port of the database.
             type: integer
+            order: 1
             minimum: 0
             maximum: 65536
             default: 5432
             examples:
-              - "5432"
+                - "5432"
         replication_method:
+            title: Replication Method
             description: Replication method to use for extracting data from the database.
             type: object
+            order: 8
+            oneOf:
+                - title: Standard
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - method
+                  properties:
+                    method:
+                        const: Standard
+                        type: string
+                        order: 0
+                        default: Standard
+                - title: Logical Replication (CDC)
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - method
+                    - replication_slot
+                    - publication
+                  properties:
+                    method:
+                        const: CDC
+                        type: string
+                        order: 0
+                        default: CDC
+                    plugin:
+                        title: Plugin
+                        description: |-
+                            A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.
+                            If replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a href="https://docs.airbyte.com/integrations/sources/postgres#replication-plugin">Select replication plugin</a>.
+                        type: string
+                        order: 1
+                        default: pgoutput
+                    publication:
+                        title: Publication
+                        description: A Postgres publication used for consuming changes. For more information read about <a href="https://docs.airbyte.com/integrations/sources/postgres#publications-replication">publications and replication identities</a>.
+                        type: string
+                        order: 3
+                    replication_slot:
+                        title: Replication Slot
+                        description: A plug-in logical replication slot. For more information read about <a href="https://docs.airbyte.com/integrations/sources/postgres#replication-slot">replication slots</a>.
+                        type: string
+                        order: 2
+        schemas:
+            title: Schemas
+            description: The list of schemas to sync from. Defaults to user. Case sensitive.
+            type: array
+            order: 3
+            default:
+                - public
         ssl:
+            title: Connect using SSL
             description: Encrypt client/server communications for increased security.
             type: boolean
+            order: 7
             default: false
+        tunnel_method:
+            title: SSH Tunnel Method
+            description: Whether to initiate an SSH tunnel before connecting to the database, and if so, which kind of authentication to use.
+            type: object
+            oneOf:
+                - title: No Tunnel
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - tunnel_method
+                  properties:
+                    tunnel_method:
+                        const: NO_TUNNEL
+                        description: No ssh tunnel needed to connect to database
+                        type: string
+                        order: 0
+                - title: SSH Key Authentication
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - tunnel_method
+                    - tunnel_host
+                    - tunnel_port
+                    - tunnel_user
+                    - ssh_key
+                  properties:
+                    ssh_key:
+                        title: SSH Private Key
+                        description: OS-level user account ssh key credentials in RSA PEM format ( created with ssh-keygen -t rsa -m PEM -f myuser_rsa )
+                        airbyte_secret: true
+                        type: string
+                        order: 4
+                    tunnel_host:
+                        title: SSH Tunnel Jump Server Host
+                        description: Hostname of the jump server host that allows inbound ssh tunnel.
+                        type: string
+                        order: 1
+                    tunnel_method:
+                        const: SSH_KEY_AUTH
+                        description: Connect through a jump server tunnel host using username and ssh key
+                        type: string
+                        order: 0
+                    tunnel_port:
+                        title: SSH Connection Port
+                        description: Port on the proxy/jump server that accepts inbound ssh connections.
+                        type: integer
+                        order: 2
+                        minimum: 0
+                        maximum: 65536
+                        default: 22
+                        examples:
+                            - "22"
+                    tunnel_user:
+                        title: SSH Login Username
+                        description: OS-level username for logging into the jump server host.
+                        type: string
+                        order: 3
+                - title: Password Authentication
+                  type: ""
+                  additionalProperties: false
+                  required:
+                    - tunnel_method
+                    - tunnel_host
+                    - tunnel_port
+                    - tunnel_user
+                    - tunnel_user_password
+                  properties:
+                    tunnel_host:
+                        title: SSH Tunnel Jump Server Host
+                        description: Hostname of the jump server host that allows inbound ssh tunnel.
+                        type: string
+                        order: 1
+                    tunnel_method:
+                        const: SSH_PASSWORD_AUTH
+                        description: Connect through a jump server tunnel host using username and password authentication
+                        type: string
+                        order: 0
+                    tunnel_port:
+                        title: SSH Connection Port
+                        description: Port on the proxy/jump server that accepts inbound ssh connections.
+                        type: integer
+                        order: 2
+                        minimum: 0
+                        maximum: 65536
+                        default: 22
+                        examples:
+                            - "22"
+                    tunnel_user:
+                        title: SSH Login Username
+                        description: OS-level username for logging into the jump server host
+                        type: string
+                        order: 3
+                    tunnel_user_password:
+                        title: Password
+                        description: OS-level password for logging into the jump server host
+                        airbyte_secret: true
+                        type: string
+                        order: 4
         username:
+            title: User
             description: Username to use to access the database.
             type: string
+            order: 4
 supportsIncremental: false
 supported_destination_sync_modes: []

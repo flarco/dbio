@@ -1,0 +1,58 @@
+documentationUrl: https://docsurl.com
+changelogUrl: ""
+connectionSpecification:
+    title: Retently Api Spec
+    type: object
+    additionalProperties: true
+    required: []
+    properties:
+        credentials:
+            title: Authentication Mechanism
+            description: Choose how to authenticate to Retently
+            type: object
+            oneOf:
+                - title: Authenticate via Retently (OAuth)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    auth_type:
+                        const: Client
+                        type: string
+                        order: 0
+                        default: Client
+                    client_id:
+                        title: Client ID
+                        description: The Client ID of your Retently developer application.
+                        type: string
+                    client_secret:
+                        title: Client Secret
+                        description: The Client Secret of your Retently developer application.
+                        airbyte_secret: true
+                        type: string
+                    refresh_token:
+                        title: Refresh Token
+                        description: Retently Refresh Token which can be used to fetch new Bearer Tokens when the current one expires.
+                        airbyte_secret: true
+                        type: string
+                - title: Authenticate with API Token
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - api_key
+                  properties:
+                    api_key:
+                        title: API Token
+                        description: Retently API Token. See the <a href="https://app.retently.com/settings/api/tokens">docs</a> for more information on how to obtain this key.
+                        airbyte_secret: true
+                        type: string
+                    auth_type:
+                        const: Token
+                        type: string
+                        order: 0
+                        default: Token
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -1,0 +1,75 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/amazon-sqs
+changelogUrl: ""
+connectionSpecification:
+    title: Amazon SQS Source Spec
+    type: object
+    additionalProperties: false
+    required:
+        - queue_url
+        - region
+        - delete_messages
+    properties:
+        access_key:
+            title: AWS IAM Access Key ID
+            description: The Access Key ID of the AWS IAM Role to use for pulling messages
+            airbyte_secret: true
+            type: string
+            order: 7
+            examples:
+                - xxxxxHRNxxx3TBxxxxxx
+        attributes_to_return:
+            title: Message Attributes To Return
+            description: Comma separated list of Mesage Attribute names to return
+            type: string
+            order: 5
+            examples:
+                - attr1,attr2
+        delete_messages:
+            title: Delete Messages After Read
+            description: 'If Enabled, messages will be deleted from the SQS Queue after being read. If Disabled, messages are left in the queue and can be read more than once. WARNING: Enabling this option can result in data loss in cases of failure, use with caution, see documentation for more detail. '
+            type: boolean
+            order: 2
+            default: false
+        max_batch_size:
+            title: Max Batch Size
+            description: Max amount of messages to get in one batch (10 max)
+            type: integer
+            order: 3
+            examples:
+                - "5"
+        max_wait_time:
+            title: Max Wait Time
+            description: Max amount of time in seconds to wait for messages in a single poll (20 max)
+            type: integer
+            order: 4
+            examples:
+                - "5"
+        queue_url:
+            title: Queue URL
+            description: URL of the SQS Queue
+            type: string
+            order: 0
+            examples:
+                - https://sqs.eu-west-1.amazonaws.com/1234567890/my-example-queue
+        region:
+            title: AWS Region
+            description: AWS Region of the SQS Queue
+            type: string
+            order: 1
+        secret_key:
+            title: AWS IAM Secret Key
+            description: The Secret Key of the AWS IAM Role to use for pulling messages
+            airbyte_secret: true
+            type: string
+            order: 8
+            examples:
+                - hu+qE5exxxxT6o/ZrKsxxxxxxBhxxXLexxxxxVKz
+        visibility_timeout:
+            title: Message Visibility Timeout
+            description: Modify the Visibility Timeout of the individual message from the Queue's default (seconds).
+            type: integer
+            order: 6
+            examples:
+                - "15"
+supportsIncremental: false
+supported_destination_sync_modes: []

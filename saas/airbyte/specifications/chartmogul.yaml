@@ -1,0 +1,29 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/chartmogul
+changelogUrl: ""
+connectionSpecification:
+    title: Chartmogul Spec
+    type: object
+    additionalProperties: false
+    required:
+        - api_key
+        - start_date
+        - interval
+    properties:
+        api_key:
+            description: Chartmogul API key
+            airbyte_secret: true
+            type: string
+            order: 0
+        interval:
+            description: Some APIs such as <a href="https://dev.chartmogul.com/reference/endpoint-overview-metrics-api">Metrics</a> require intervals to cluster data.
+            type: string
+            order: 2
+            default: month
+        start_date:
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. When feasible, any data before this date will not be replicated.
+            type: string
+            order: 1
+            examples:
+                - "2017-01-25T00:00:00Z"
+supportsIncremental: false
+supported_destination_sync_modes: []

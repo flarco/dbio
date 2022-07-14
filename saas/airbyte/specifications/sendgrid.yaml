@@ -5,17 +5,19 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - apikey
+        - apikey
     properties:
         apikey:
-            description: API Key, use <a href="https://app.sendgrid.com/settings/api_keys/">admin</a>
-                to generate this key.
+            title: Sendgrid API key
+            description: API Key, use <a href="https://app.sendgrid.com/settings/api_keys/">admin</a> to generate this key.
             type: string
+            order: 0
         start_time:
-            description: Start time in timestamp integer format. Any data before this
-                timestamp will not be replicated.
+            title: Start time
+            description: Start time in timestamp integer format. Any data before this timestamp will not be replicated.
             type: integer
+            order: 1
             examples:
-              - 1.558359837e+09
+                - 1.558359837e+09
 supportsIncremental: false
 supported_destination_sync_modes: []

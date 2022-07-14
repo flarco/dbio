@@ -1,0 +1,33 @@
+documentationUrl: https://docs.airbyte.io/integrations/sources/trello
+changelogUrl: ""
+connectionSpecification:
+    title: Trello Spec
+    type: object
+    additionalProperties: true
+    required:
+        - token
+        - key
+        - start_date
+    properties:
+        board_ids:
+            title: Trello Board IDs
+            description: IDs of the boards to replicate data from. If left empty, data from all boards to which you have access will be replicated.
+            type: array
+        key:
+            title: API key
+            description: Trello API key. See the <a href="https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/#using-basic-oauth">docs</a> for instructions on how to generate it.
+            airbyte_secret: true
+            type: string
+        start_date:
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated.
+            type: string
+            examples:
+                - "2021-03-01T00:00:00.000Z"
+        token:
+            title: API token
+            description: Trello v API token. See the <a href="https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/#using-basic-oauth">docs</a> for instructions on how to generate it.
+            airbyte_secret: true
+            type: string
+supportsIncremental: false
+supported_destination_sync_modes: []

@@ -5,25 +5,25 @@ connectionSpecification:
     type: object
     additionalProperties: false
     required:
-      - api_key
-      - secret_key
-      - start_date
+        - api_key
+        - secret_key
+        - start_date
     properties:
         api_key:
-            description: This is the project’s API key, used for calling Amplitude’s
-                APIs
+            title: API Key
+            description: Amplitude API Key. See the <a href="https://docs.airbyte.io/integrations/sources/amplitude#setup-guide">setup guide</a> for more information on how to obtain this key.
             airbyte_secret: true
             type: string
         secret_key:
-            description: This is the project's secret key, which is also used for
-                calling Amplitude’s APIs
+            title: Secret Key
+            description: Amplitude Secret Key. See the <a href="https://docs.airbyte.io/integrations/sources/amplitude#setup-guide">setup guide</a> for more information on how to obtain this key.
             airbyte_secret: true
             type: string
         start_date:
-            description: UTC date and time in the format 2021-01-25T00:00:00Z. Any
-                data before this date will not be replicated.
+            title: Replication Start Date
+            description: UTC date and time in the format 2021-01-25T00:00:00Z. Any data before this date will not be replicated.
             type: string
             examples:
-              - "2021-01-25T00:00:00Z"
+                - "2021-01-25T00:00:00Z"
 supportsIncremental: false
 supported_destination_sync_modes: []

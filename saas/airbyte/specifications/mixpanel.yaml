@@ -1,49 +1,64 @@
 documentationUrl: https://docs.airbyte.io/integrations/sources/mixpanel
 changelogUrl: ""
 connectionSpecification:
-    title: Source Mixpanel Singer Spec
+    title: Source Mixpanel Spec
     type: object
-    additionalProperties: false
+    additionalProperties: true
     required:
-      - api_secret
+        - api_secret
     properties:
         api_secret:
-            description: Mixpanel API Secret. See the <a href="https://docs.airbyte.io/integrations/sources/mixpanel">docs</a>
-                for more information on how to obtain this key.
+            title: Project Token
+            description: Mixpanel project token. See the <a href="https://help.mixpanel.com/hc/en-us/articles/115004502806-Find-Project-Token-">docs</a> for more information on how to obtain this.
             airbyte_secret: true
             type: string
+            order: 0
         attribution_window:
-            description: Latency minimum number of days to look-back to account for
-                delays in attributing accurate results. Default attribution window
-                is 5 days.
+            title: Attribution Window
+            description: ' A period of time for attributing results to ads and the lookback period after those actions occur during which ad results are counted. Default attribution window is 5 days.'
             type: integer
+            order: 1
             default: 5
         date_window_size:
-            description: Number of days for date window looping through transactional
-                endpoints with from_date and to_date. Default date_window_size is
-                30 days. Clients with large volumes of events may want to decrease
-                this to 14, 7, or even down to 1-2 days.
+            title: Date slicing window
+            description: Defines window size in days, that used to slice through data. You can reduce it, if amount of data in each window is too big for your environment.
             type: integer
+            order: 7
             default: 30
-        project_timezone:
-            description: Time zone in which integer date times are stored. The project
-                timezone may be found in the project settings in the Mixpanel console.
+        end_date:
+            title: End Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data after this date will not be replicated. Left empty to always sync to most recent date
             type: string
+            order: 5
+            examples:
+                - "2021-11-16"
+        project_timezone:
+            title: Project Timezone
+            description: Time zone in which integer date times are stored. The project timezone may be found in the project settings in the <a href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel">Mixpanel console</a>.
+            type: string
+            order: 2
             default: US/Pacific
             examples:
-              - US/Pacific
-              - UTC
+                - US/Pacific
+                - UTC
+        region:
+            title: Region
+            description: The region of mixpanel domain instance either US or EU.
+            type: string
+            order: 6
+            default: US
         select_properties_by_default:
-            description: Setting this config parameter to true ensures that new properties
-                on events and engage records are captured. Otherwise new properties
-                will be ignored
+            title: Select Properties By Default
+            description: Setting this config parameter to TRUE ensures that new properties on events and engage records are captured. Otherwise new properties will be ignored.
             type: boolean
+            order: 3
             default: true
         start_date:
-            description: The default value to use if no bookmark exists for an endpoint.
-                Default is 1 year ago.
+            title: Start Date
+            description: UTC date and time in the format 2017-01-25T00:00:00Z. Any data before this date will not be replicated. If this option is not set, the connector will replicate data from up to one year ago by default.
             type: string
+            order: 4
             examples:
-              - "2020-11-16T00:00:00Z"
+                - "2021-11-16"
 supportsIncremental: false
 supported_destination_sync_modes: []

@@ -3,13 +3,51 @@ changelogUrl: ""
 connectionSpecification:
     title: Asana Spec
     type: object
-    additionalProperties: false
-    required:
-      - access_token
+    additionalProperties: true
+    required: []
     properties:
-        access_token:
-            description: Asana Personal Access Token (generate yours <a href="https://app.asana.com/0/developer-console">here</a>).
-            airbyte_secret: true
-            type: string
+        credentials:
+            title: Authentication mechanism
+            description: Choose how to authenticate to Github
+            type: object
+            oneOf:
+                - title: Authenticate with Personal Access Token
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - personal_access_token
+                  properties:
+                    option_title:
+                        title: Credentials title
+                        const: PAT Credentials
+                        description: PAT Credentials
+                        type: string
+                    personal_access_token:
+                        title: Personal Access Token
+                        description: Asana Personal Access Token (generate yours <a href="https://app.asana.com/0/developer-console">here</a>).
+                        airbyte_secret: true
+                        type: string
+                - title: Authenticate via Asana (Oauth)
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - client_id
+                    - client_secret
+                    - refresh_token
+                  properties:
+                    client_id:
+                        airbyte_secret: true
+                        type: string
+                    client_secret:
+                        airbyte_secret: true
+                        type: string
+                    option_title:
+                        title: Credentials title
+                        const: OAuth Credentials
+                        description: OAuth Credentials
+                        type: string
+                    refresh_token:
+                        airbyte_secret: true
+                        type: string
 supportsIncremental: false
 supported_destination_sync_modes: []
