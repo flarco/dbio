@@ -8,8 +8,6 @@ import (
 	"path"
 	"runtime"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -110,98 +108,6 @@ func (c *Connector) Key() string {
 	return key
 }
 
-// DockerRun runs a docker command and waits for the end
-func (c *Connector) DockerRun(args ...string) (messages AirbyteMessages, err error) {
-	msgChan, err := c.DockerStart(args...)
-	if err != nil {
-		return messages, g.Error(err, "could not start process")
-	}
-
-	for msg := range msgChan {
-		messages = append(messages, msg)
-	}
-
-	return
-}
-
-// DockerStart starts the process and returns the channel of messages
-func (c *Connector) DockerStart(args ...string) (msgChan chan AirbyteMessage, err error) {
-	msgChan = make(chan AirbyteMessage)
-	p, err := process.NewProc("docker")
-	if err != nil {
-		return msgChan, g.Error(err, "could not create process")
-	}
-
-	p.SetScanner(func(stderr bool, text string) {
-		// g.Debug("(stderr: %t)\n%s", stderr, text)
-		g.Debug(text)
-
-		if stderr || !strings.HasPrefix(strings.TrimSpace(text), "{") {
-			// g.Debug(text)
-			return
-		}
-		msg := AirbyteMessage{}
-		err = g.Unmarshal(text, &msg)
-		g.LogError(err, "could not unmarshall airbyte message for %s", c.Key())
-		if err == nil {
-			if g.In(msg.Type, TypeState) {
-				c.State = msg.State.Data
-			} else {
-				msgChan <- msg
-			}
-		}
-	})
-
-	defArgs := []string{
-		"run", "--rm",
-		"-v", c.tempFolder + ":/work",
-		"-w", "/work",
-		"-i", c.Definition.Image(),
-	}
-	args = append(defArgs, args...)
-
-	p.Workdir = c.tempFolder
-	err = p.Start(args...)
-	if err != nil {
-		return msgChan, g.Error(err, "error getting spec for "+c.Definition.Name)
-	}
-
-	g.Debug(p.CmdStr())
-	g.Debug("started sub-process %d", p.Cmd.Process.Pid)
-
-	go func() {
-		defer close(msgChan)
-		err = p.Wait()
-		g.LogError(err)
-		// g.Info(p.Combined.String())
-		// g.Info(p.Stdout.String())
-		// println(p.Stderr.String())
-	}()
-
-	// listen for context cancel
-	go func() {
-		select {
-		case <-p.Done:
-			return
-		case <-c.ctx.Ctx.Done():
-		}
-
-		g.Debug("interrupting sub-process %d", p.Cmd.Process.Pid)
-		p.Cmd.Process.Signal(syscall.SIGINT)
-		t := time.NewTimer(5 * time.Second)
-		select {
-		case <-p.Done:
-			return
-		case <-t.C:
-			g.Debug("killing sub-process %d", p.Cmd.Process.Pid)
-			// g.LogError(exec.Command("pkill", "-P", cast.ToString(p.Cmd.Process.Pid)).Run())
-			// g.LogError(p.Cmd.Process.Kill())
-		}
-	}()
-
-	return
-}
-
 // GetSpec retrieve spec from docker command
 func (c *Connector) GetSpec() (err error) {
 	err = c.InitTempDir()
@@ -216,6 +122,10 @@ func (c *Connector) GetSpec() (err error) {
 		return g.Error(err, "error getting spec for "+c.Definition.Name)
 	} else if len(messages) == 0 {
 		return g.Error("no messages received")
+	}
+
+	if err := messages.CheckError(); err != nil {
+		return g.Error(err)
 	}
 
 	if messages[0].Spec != nil {
@@ -272,8 +182,8 @@ func (c *Connector) Check(config map[string]interface{}) (s AirbyteConnectionSta
 		return s, g.Error("no messages received")
 	}
 
-	if msg := messages.First(TypeLog); msg.Log != nil && g.In(msg.Log.Level, LevelFatal, LevelError) {
-		return s, g.Error(msg.Log.Message)
+	if err := messages.CheckError(); err != nil {
+		return s, g.Error(err)
 	}
 
 	if msg := messages.First(TypeConnectionStatus); msg.ConnectionStatus != nil {
@@ -305,6 +215,10 @@ func (c *Connector) Discover(config map[string]interface{}) (ac AirbyteCatalog, 
 		return ac, g.Error(err, "error discovering "+c.Definition.Name)
 	} else if len(messages) == 0 {
 		return ac, g.Error("no messages received")
+	}
+
+	if err := messages.CheckError(); err != nil {
+		return ac, g.Error(err)
 	}
 
 	if msg := messages.First(TypeCatalog); msg.Catalog != nil {
@@ -353,10 +267,13 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	nextFunc := func(it *iop.Iterator) bool {
 		for msg := range msgChan {
-			// g.PP(msg)
-			if msg.Record == nil {
+			if err := msg.CheckError(); err != nil {
+				ds.Context.CaptureErr(err)
+				return false
+			} else if msg.Record == nil {
 				continue
 			}
+
 			it.Row = make([]interface{}, len(fm))
 			for k, i := range fm {
 				it.Row[i] = msg.Record.Data[k]

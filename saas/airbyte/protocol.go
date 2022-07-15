@@ -38,6 +38,31 @@ func (msgs AirbyteMessages) First(t Type) (msg AirbyteMessage) {
 	return AirbyteMessage{}
 }
 
+// First returns the first message of specified kind
+func (msgs AirbyteMessages) CheckError() (err error) {
+
+	for _, msg := range msgs {
+		if err := msg.CheckError(); err != nil {
+			return g.Error(err)
+		}
+	}
+
+	return nil
+}
+
+// First returns the first message of specified kind
+func (msg AirbyteMessage) CheckError() (err error) {
+
+	if msg.Log != nil && g.In(msg.Log.Level, LevelFatal, LevelError) {
+		return g.Error(msg.Log.Message)
+	}
+
+	if msg.Trace != nil && g.In(msg.Trace.Type, LevelFatal, LevelError) {
+		return g.Error(g.Marshal(msg.Trace.Error))
+	}
+	return nil
+}
+
 // Type is for AirbyteMessage
 type Type string
 
@@ -268,12 +293,8 @@ func (cs Connectors) Get(name string) (c Connector, err error) {
 	for _, c = range cs {
 		if strings.EqualFold(name, c.Definition.Name) {
 
-			// pull image if needed
 			err = c.Pull()
-			if err != nil {
-				err = g.Error(err, "error pulling image for "+c.Definition.Name)
-				return
-			}
+			g.LogError(err, "could not pull image: "+c.Definition.Image())
 
 			err = c.GetSpec()
 			if err != nil {

@@ -51,7 +51,7 @@ func getSpecification(c airbyte.Connector, force bool) (err error) {
 	}
 
 	// pull image
-	err = p.Run("pull", c.Definition.Image())
+	err = c.Pull()
 	g.LogError(err, "could not pull image: "+c.Definition.Image())
 	if err != nil {
 		time.Sleep(5 * time.Second)
