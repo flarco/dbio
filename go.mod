@@ -27,7 +27,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.5
 	github.com/nqd/flat v0.1.1
 	github.com/pkg/sftp v1.12.0
-	github.com/samber/lo v1.10.1
+	github.com/samber/lo v1.25.0
 	github.com/snowflakedb/gosnowflake v1.6.10
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.5

@@ -292,13 +292,21 @@ func TestSurveyMonkey(t *testing.T) {
 	}
 }
 
-func TestAirbyte(t *testing.T) {
+func TestAirbyteGithub(t *testing.T) {
+	token := os.Getenv("GITHUB_PAT")
+	if token == "" {
+		token = os.Getenv("ACCESS_TOKEN")
+	}
+
 	config := g.M(
-		"access_token", os.Getenv("ACCESS_TOKEN"),
+		"access_token", token,
+		"start_date", "2022-03-01T00:00:00Z",
 		"repository", "flarco/dbio",
 	)
 	conn, err := airbyte.NewAirbyteConnection("github", config)
-	g.AssertNoError(t, err)
+	if !g.AssertNoError(t, err) {
+		return
+	}
 
 	err = conn.Init()
 	g.AssertNoError(t, err)
@@ -312,4 +320,20 @@ func TestAirbyte(t *testing.T) {
 		g.P(data.Columns.Names())
 		g.P(len(data.Rows))
 	}
+}
+
+func TestAirbyteNotion(t *testing.T) {
+	config := g.M(
+		"access_token", os.Getenv("NOTION_TOKEN"),
+		"start_date", "2022-03-01T00:00:00.000Z",
+	)
+	conn, err := airbyte.NewAirbyteConnection("notion", config)
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	err = conn.Init()
+	g.AssertNoError(t, err)
+
+	g.P(conn.Catalog.Streams.Names())
 }

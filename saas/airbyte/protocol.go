@@ -168,8 +168,8 @@ var typeMap = map[string]string{
 	"integer": "integer",
 	"number":  "decimal",
 	"boolean": "bool",
-	// "object":  "json",
-	// "array":   "json",
+	"object":  "json",
+	"array":   "json",
 }
 
 // Columns returns the properties as columns
@@ -289,21 +289,21 @@ func (cs Connectors) Names() (n []string) {
 }
 
 // Get returns the Connector with the spec
-func (cs Connectors) Get(name string) (c Connector, err error) {
+func (cs Connectors) Get(key string) (c Connector, err error) {
 	for _, c = range cs {
-		if strings.EqualFold(name, c.Definition.Name) {
+		if strings.EqualFold(key, c.Key()) {
 
 			err = c.Pull()
 			g.LogError(err, "could not pull image: "+c.Definition.Image())
 
 			err = c.GetSpec()
 			if err != nil {
-				err = g.Error(err, "could not get spec for %s", name)
+				err = g.Error(err, "could not get spec for %s", key)
 			}
 			return c, err
 		}
 	}
-	return c, g.Error("could not find connector: %s", name)
+	return c, g.Error("could not find connector: %s", key)
 }
 
 // ConnectorDefinition is a connector information

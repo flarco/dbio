@@ -34,8 +34,10 @@ func NewAirbyteConnection(name string, config map[string]interface{}) (a *Airbyt
 
 	context := g.NewContext(context.Background())
 	a = &Airbyte{
-		Connector: &c, config: config,
-		Context: &context, properties: map[string]string{},
+		Connector:  &c,
+		config:     config,
+		Context:    &context,
+		properties: map[string]string{},
 	}
 	return
 }
@@ -44,10 +46,9 @@ func NewAirbyteConnection(name string, config map[string]interface{}) (a *Airbyt
 func (a *Airbyte) Init() (err error) {
 	status, err := a.Connector.Check(a.config)
 	if err != nil {
-		err = g.Error(err, "could not check credentials")
-		return
+		return g.Error(err, "could not check credentials")
 	} else if status.Status == StatusFailed {
-		err = g.Error("failed credentials check: %s", status.Message)
+		return g.Error("failed credentials check: %s", status.Message)
 	}
 	_, err = a.ListObjects()
 	if err != nil {

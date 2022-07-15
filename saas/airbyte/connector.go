@@ -13,6 +13,7 @@ import (
 	"github.com/flarco/g"
 	"github.com/flarco/g/net"
 	"github.com/flarco/g/process"
+	"github.com/spf13/cast"
 	"gopkg.in/yaml.v2"
 )
 
@@ -65,10 +66,11 @@ func GetSourceConnectors(fetch bool) (connectors Connectors, err error) {
 
 	connectors = make(Connectors, len(cds))
 	for i, cd := range cds {
+		ctx := g.NewContext(context.Background())
 		connectors[i] = Connector{
 			Definition: cd,
 			State:      g.M(),
-			ctx:        g.NewContext(context.Background()),
+			ctx:        &ctx,
 		}
 	}
 
@@ -81,7 +83,7 @@ type Connector struct {
 	Specification ConnectorSpecification
 	State         map[string]interface{}
 	tempFolder    string
-	ctx           g.Context
+	ctx           *g.Context
 }
 
 // InitTempDir initalize temp directory
@@ -271,6 +273,9 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 				ds.Context.CaptureErr(err)
 				return false
 			} else if msg.Record == nil {
+				if msg.Log != nil {
+					g.Debug(cast.ToString(msg.Log.Message))
+				}
 				continue
 			}
 
@@ -285,7 +290,6 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	cont := g.NewContext(context.Background())
 	ds = iop.NewDatastreamIt(cont.Ctx, columns, nextFunc)
-	// ds.Inferred = true
 	ds.Defer(func() { os.RemoveAll(c.tempFolder) })
 
 	err = ds.Start()
