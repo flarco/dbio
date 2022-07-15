@@ -336,4 +336,15 @@ func TestAirbyteNotion(t *testing.T) {
 	g.AssertNoError(t, err)
 
 	g.P(conn.Catalog.Streams.Names())
+
+	ds, err := conn.Stream("users", time.Time{})
+	if g.AssertNoError(t, err) {
+		data, err := ds.Collect(0)
+		g.AssertNoError(t, err)
+		assert.Greater(t, len(data.Columns), 0)
+		assert.Greater(t, len(data.Rows), 0)
+		g.P(data.Columns.Names())
+		g.P(len(data.Rows))
+		g.PP(data.Rows)
+	}
 }

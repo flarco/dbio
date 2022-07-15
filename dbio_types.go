@@ -169,7 +169,6 @@ func (t Type) NameLong() string {
 		// TypeAPIGithub:   "API - Github",
 	}
 
-	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
 	for k, spec := range AirbyteSpecs {
 		t := Type(k)
 		if _, ok := mapping[t]; !ok {
@@ -203,7 +202,6 @@ func (t Type) Name() string {
 		// TypeAPIGithub:   "Github",
 	}
 
-	AirbyteSpecs, _ := airbyte.GetAirbyteSpecs()
 	for k, spec := range AirbyteSpecs {
 		t := Type(k)
 		if _, ok := mapping[t]; !ok {

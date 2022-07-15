@@ -111,7 +111,6 @@ func (c *Connector) startUsingShell(args ...string) (msgChan chan AirbyteMessage
 	}
 
 	g.Debug(p.CmdStr())
-	g.Debug("started sub-process %d", p.Cmd.Process.Pid)
 
 	dockerClient, _ := client.NewClientWithOpts()
 
@@ -129,7 +128,6 @@ func (c *Connector) startUsingShell(args ...string) (msgChan chan AirbyteMessage
 			for _, cont := range containers {
 				if len(cont.Names) > 0 && strings.HasSuffix(cont.Names[0], contName) {
 					contID = cont.ID
-					g.Info("got contID %s", contID)
 					return
 				}
 			}
