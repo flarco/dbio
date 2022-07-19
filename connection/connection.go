@@ -216,9 +216,21 @@ func (c *Connection) AsFile() (filesys.FileSysClient, error) {
 
 func (c *Connection) AsAirbyte() (*airbyte.Airbyte, error) {
 	tempFolder := cast.ToString(c.Data["airbyte_temp_folder"])
-	delete(c.Data, "airbyte_temp_folder") // some connections don't like extra keys
-	delete(c.Data, "type")                // some connections don't like extra keys
-	options := airbyte.AirbyteOptions{Config: c.Data, TempFolder: tempFolder}
+	dateLayout := cast.ToString(c.Data["airbyte_date_layout"])
+	dateField := cast.ToString(c.Data["airbyte_date_field"])
+
+	// some connections don't like extra keys
+	delete(c.Data, "airbyte_temp_folder")
+	delete(c.Data, "airbyte_date_layout")
+	delete(c.Data, "airbyte_date_field")
+	delete(c.Data, "type")
+
+	options := airbyte.AirbyteOptions{
+		Config:     c.Data,
+		TempFolder: tempFolder,
+		DateLayout: dateLayout,
+		DateField:  dateField,
+	}
 	return airbyte.NewAirbyteConnection(c.Type.String(), options)
 }
 

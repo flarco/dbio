@@ -13,7 +13,6 @@ type Airbyte struct {
 	Context    *g.Context
 	Connector  *Connector
 	Catalog    AirbyteCatalog
-	tempFolder string
 	discovered bool
 	properties map[string]string
 	config     map[string]interface{}
@@ -22,6 +21,8 @@ type Airbyte struct {
 type AirbyteOptions struct {
 	Config     map[string]interface{}
 	TempFolder string
+	DateLayout string
+	DateField  string
 }
 
 // NewAirbyteConnection creates a new airbyte connection object
@@ -45,9 +46,20 @@ func NewAirbyteConnection(name string, opts AirbyteOptions) (a *Airbyte, err err
 		Connector:  &c,
 		config:     opts.Config,
 		Context:    &context,
-		tempFolder: opts.TempFolder,
 		properties: map[string]string{},
 	}
+
+	if opts.DateLayout == "" {
+		opts.DateLayout = "YYYY-MM-DD"
+	}
+	if opts.DateField == "" {
+		opts.DateField = "start_date"
+	}
+
+	a.SetProp("date_layout", opts.DateLayout)
+	a.SetProp("date_field", opts.DateField)
+	a.SetProp("temp_folder", opts.TempFolder)
+
 	return
 }
 
@@ -145,7 +157,7 @@ func (a *Airbyte) Stream(name string, sc StreamConfig) (ds *iop.Datastream, err 
 	}
 
 	if sc.StartDate != "" {
-		a.config["start_date"] = sc.StartDate
+		a.config[a.GetProp("date_field")] = sc.StartDate
 	}
 
 	state := g.M() // TODO: how to store and retrieve / reconstruct state?
