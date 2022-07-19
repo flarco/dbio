@@ -41,7 +41,7 @@ type FileSysClient interface {
 	ListRecursive(path string) (paths []string, err error)
 	Write(path string, reader io.Reader) (bw int64, err error)
 
-	ReadDataflow(url string, limit ...int) (df *iop.Dataflow, err error)
+	ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
 	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error)
 	GetProp(key string) (val string)
@@ -375,10 +375,10 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 }
 
 // ReadDataflow read
-func (fs *BaseFileSysClient) ReadDataflow(url string, limit ...int) (df *iop.Dataflow, err error) {
-	Limit := 0 // infinite
-	if len(limit) > 0 && limit[0] != 0 {
-		Limit = limit[0]
+func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error) {
+	Cfg := FileStreamConfig{} // infinite
+	if len(cfg) > 0 {
+		Cfg = cfg[0]
 	}
 
 	if strings.HasSuffix(strings.ToLower(url), ".zip") {
@@ -411,7 +411,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, limit ...int) (df *iop.Dat
 		os.RemoveAll(zipPath)
 
 		// TODO: handle multiple files, yielding multiple schemas
-		df, err = GetDataflow(localFs.Self(), paths, Limit)
+		df, err = GetDataflow(localFs.Self(), paths, Cfg)
 		if err != nil {
 			return df, g.Error(err, "Error making dataflow")
 		}
@@ -427,7 +427,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, limit ...int) (df *iop.Dat
 		err = g.Error(err, "Error getting paths")
 		return
 	}
-	df, err = GetDataflow(fs.Self(), paths, Limit)
+	df, err = GetDataflow(fs.Self(), paths, Cfg)
 	if err != nil {
 		err = g.Error(err, "Error getting dataflow")
 		return
@@ -661,15 +661,20 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	return
 }
 
+type FileStreamConfig struct {
+	Limit   int
+	Columns []string
+}
+
 // GetDataflow returns a dataflow from specified paths in specified FileSysClient
-func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow, err error) {
+func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *iop.Dataflow, err error) {
 
 	if len(paths) == 0 {
 		err = g.Error("Provided 0 files for: %#v", paths)
 		return
 	}
 
-	df = iop.NewDataflow(limit)
+	df = iop.NewDataflow(cfg.Limit)
 	df.Context = g.NewContext(fs.Context().Ctx)
 	go func() {
 		defer df.Close()
@@ -686,7 +691,23 @@ func GetDataflow(fs FileSysClient, paths []string, limit int) (df *iop.Dataflow,
 				fs.Context().CaptureErr(g.Error(err, "Unable to process "+path))
 				return
 			}
-			dss = append(dss, ds)
+			if len(cfg.Columns) > 1 {
+				cols := iop.NewColumnsFromFields(cfg.Columns...)
+				fm := ds.Columns.FieldMap(true)
+				transf := func(in []interface{}) (out []interface{}) {
+					for _, col := range cols {
+						if i, ok := fm[strings.ToLower(col.Name)]; ok {
+							out = append(out, in[i])
+						} else {
+							ds.Context.CaptureErr(g.Error("column %s not found", col.Name))
+						}
+					}
+					return
+				}
+				dss = append(dss, ds.Map(cols, transf))
+			} else {
+				dss = append(dss, ds)
+			}
 		}
 
 		// split if 1 stream

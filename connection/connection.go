@@ -190,6 +190,8 @@ func (c *Connection) URL() string {
 	if c.Type.IsFile() && url == "" {
 		url = c.Type.String() + "://"
 		switch c.Type {
+		case dbio.TypeFileLocal:
+			url = "file://"
 		case dbio.TypeFileS3:
 			url = g.F("%s://%s", c.Type.String(), cast.ToString(c.Data["aws_bucket"]))
 		case dbio.TypeFileGoogle:
@@ -213,7 +215,11 @@ func (c *Connection) AsFile() (filesys.FileSysClient, error) {
 }
 
 func (c *Connection) AsAirbyte() (*airbyte.Airbyte, error) {
-	return airbyte.NewAirbyteConnection(c.Type.String(), c.Data)
+	tempFolder := cast.ToString(c.Data["airbyte_temp_folder"])
+	delete(c.Data, "airbyte_temp_folder") // some connections don't like extra keys
+	delete(c.Data, "type")                // some connections don't like extra keys
+	options := airbyte.AirbyteOptions{Config: c.Data, TempFolder: tempFolder}
+	return airbyte.NewAirbyteConnection(c.Type.String(), options)
 }
 
 func (c *Connection) setFromEnv() {
@@ -309,9 +315,9 @@ func (c *Connection) setURL() (err error) {
 		return nil
 	}
 
-	setIfMissing("username", c.Data["user"])
 	switch c.Type {
 	case dbio.TypeDbOracle:
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("sid", c.Data["database"])
 		setIfMissing("port", c.Type.DefPort())
@@ -324,18 +330,21 @@ func (c *Connection) setURL() (err error) {
 			template = "oracle://{username}:{password}@{host}:{port}/{sid}"
 		}
 	case dbio.TypeDbPostgres:
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("sslmode", "disable")
 		setIfMissing("port", c.Type.DefPort())
 		setIfMissing("database", c.Data["dbname"])
 		template = "postgresql://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbRedshift:
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("sslmode", "disable")
 		setIfMissing("port", c.Type.DefPort())
 		setIfMissing("database", c.Data["dbname"])
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
 	case dbio.TypeDbMySQL:
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
@@ -347,6 +356,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbSnowflake:
 		// setIfMissing("schema", "public")
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("host", c.Data["account"])
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?warehouse={warehouse}"
 		if _, ok := c.Data["role"]; ok {
@@ -361,6 +371,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
 		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"

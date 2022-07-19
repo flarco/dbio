@@ -531,7 +531,7 @@ func detectDelimiter(testBytes []byte) (bestDeli rune, numCols int) {
 func GetISO8601DateMap(t time.Time) map[string]interface{} {
 	m := map[string]interface{}{}
 	for _, v := range []string{"YYYY", "YY", "MMM", "MM", "DD", "HH", "hh", "mm", "ss"} {
-		m[v] = t.Format(iso8601ToGoLayout(v))
+		m[v] = t.Format(Iso8601ToGoLayout(v))
 	}
 	return m
 }
@@ -539,7 +539,7 @@ func GetISO8601DateMap(t time.Time) map[string]interface{} {
 // https://www.w3.org/QA/Tips/iso-date
 // https://www.w3.org/TR/NOTE-datetime
 // https://www.iso.org/iso-8601-date-and-time-format.html
-func iso8601ToGoLayout(dateFormat string) (goDateFormat string) {
+func Iso8601ToGoLayout(dateFormat string) (goDateFormat string) {
 	goDateFormat = strings.TrimSpace(dateFormat)
 	goDateFormat = strings.ReplaceAll(goDateFormat, "YYYY", "2006")
 	goDateFormat = strings.ReplaceAll(goDateFormat, "YY", "06")

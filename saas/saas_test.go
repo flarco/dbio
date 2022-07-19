@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/flarco/dbio/saas/airbyte"
 	"github.com/flarco/g"
@@ -303,15 +302,15 @@ func TestAirbyteGithub(t *testing.T) {
 		"start_date", "2022-03-01T00:00:00Z",
 		"repository", "flarco/dbio",
 	)
-	conn, err := airbyte.NewAirbyteConnection("github", config)
+	conn, err := airbyte.NewAirbyteConnection("github", airbyte.AirbyteOptions{Config: config})
 	if !g.AssertNoError(t, err) {
 		return
 	}
 
-	err = conn.Init()
+	err = conn.Init(true)
 	g.AssertNoError(t, err)
 
-	ds, err := conn.Stream("commits", time.Time{})
+	ds, err := conn.Stream("commits", airbyte.StreamConfig{})
 	if g.AssertNoError(t, err) {
 		data, err := ds.Collect(0)
 		g.AssertNoError(t, err)
@@ -327,17 +326,20 @@ func TestAirbyteNotion(t *testing.T) {
 		"access_token", os.Getenv("NOTION_TOKEN"),
 		"start_date", "2022-03-01T00:00:00.000Z",
 	)
-	conn, err := airbyte.NewAirbyteConnection("notion", config)
+	conn, err := airbyte.NewAirbyteConnection("notion", airbyte.AirbyteOptions{Config: config})
 	if !g.AssertNoError(t, err) {
 		return
 	}
 
-	err = conn.Init()
+	err = conn.Init(true)
 	g.AssertNoError(t, err)
 
-	g.P(conn.Catalog.Streams.Names())
+	streams, err := conn.Discover()
+	g.AssertNoError(t, err)
 
-	ds, err := conn.Stream("users", time.Time{})
+	g.P(streams.Names())
+
+	ds, err := conn.Stream("users", airbyte.StreamConfig{})
 	if g.AssertNoError(t, err) {
 		data, err := ds.Collect(0)
 		g.AssertNoError(t, err)

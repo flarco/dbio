@@ -89,7 +89,11 @@ type Connector struct {
 // InitTempDir initalize temp directory
 func (c *Connector) InitTempDir() (err error) {
 	if c.tempFolder == "" || !g.PathExists(c.tempFolder) {
-		c.tempFolder, err = os.MkdirTemp("", c.Definition.Name)
+		if c.tempFolder == "" {
+			c.tempFolder, err = os.MkdirTemp("", c.Definition.Name)
+		} else {
+			err = os.MkdirAll(c.tempFolder, 0700)
+		}
 		if err != nil {
 			return g.Error(err, "could not make temp dir")
 		}
@@ -184,15 +188,16 @@ func (c *Connector) Check(config map[string]interface{}) (s AirbyteConnectionSta
 		return s, g.Error("no messages received")
 	}
 
-	if err := messages.CheckError(); err != nil {
-		return s, g.Error(err)
-	}
-
 	if msg := messages.First(TypeConnectionStatus); msg.ConnectionStatus != nil {
 		s = *msg.ConnectionStatus
 		if s.Status == StatusFailed {
 			err = g.Error(s.Message)
+			return
 		}
+	}
+
+	if err := messages.CheckError(); err != nil {
+		return s, g.Error(err)
 	}
 	return
 }

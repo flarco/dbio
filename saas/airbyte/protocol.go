@@ -1,8 +1,10 @@
 package airbyte
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
@@ -158,6 +160,29 @@ type AirbyteStream struct {
 	SourceDefinedPrimaryKey [][]string       `json:"source_defined_primary_key"`
 }
 
+// Columns returns the stream columns
+func (as AirbyteStream) Columns() iop.Columns {
+	return as.JsonSchema.Columns()
+}
+
+// Select returns the stream with columns selected
+func (as AirbyteStream) Select(columns []string) (nas AirbyteStream) {
+	nas = as
+	nas.JsonSchema.Properties = map[string]interface{}{}
+
+	columnsMap := lo.KeyBy(columns, func(c string) string {
+		return strings.ToLower(c)
+	})
+
+	for k, v := range as.JsonSchema.Properties {
+		if _, ok := columnsMap[strings.ToLower(k)]; ok {
+			nas.JsonSchema.Properties[k] = v
+		}
+	}
+
+	return nas
+}
+
 type StreamJsonSchema struct {
 	AdditionalProperties bool                   `json:"additionalProperties"`
 	Properties           map[string]interface{} `json:"properties"`
@@ -212,6 +237,8 @@ func (sjs StreamJsonSchema) Columns() (cols iop.Columns) {
 		}
 		i++
 	}
+
+	sort.Slice(cols, func(i, j int) bool { return cols[i].Name < cols[j].Name })
 	return
 }
 

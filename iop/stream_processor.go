@@ -79,7 +79,7 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	sp.config.compression = configMap["compression"]
 
 	if configMap["datetime_format"] != "" {
-		sp.config.datetimeFormat = iso8601ToGoLayout(configMap["datetime_format"])
+		sp.config.datetimeFormat = Iso8601ToGoLayout(configMap["datetime_format"])
 		// put in first
 		sp.dateLayouts = append(
 			[]string{sp.config.datetimeFormat},

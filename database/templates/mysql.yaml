@@ -7,7 +7,9 @@ core:
   update: update {table} set {set_fields} where {pk_fields_equal}
 
 metadata:
-  current_database: select database() from dual
+  current_database: select database() as name from dual
+  
+  databases: select database() as name from dual
     
   schemas: |
     select schema_name

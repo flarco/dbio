@@ -14,9 +14,10 @@ require (
 	github.com/aws/aws-sdk-go v1.35.22
 	github.com/denisenkom/go-mssqldb v0.9.0
 	github.com/digitalocean/godo v1.59.0
+	github.com/docker/docker v20.10.17+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.27
+	github.com/flarco/g v0.1.31
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/jmespath/go-jmespath v0.4.0
@@ -77,7 +78,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dnaeon/go-vcr v1.1.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.17+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect

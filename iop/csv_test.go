@@ -134,22 +134,22 @@ func TestSplitCarrRet2(t *testing.T) {
 
 func TestISO8601(t *testing.T) {
 	s := "YYYY-MM-DDTHH:mm:ss.sZ"
-	assert.Equal(t, "2006-01-02T15:04:05.000Z", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01-02T15:04:05.000Z", Iso8601ToGoLayout(s), s)
 
 	s = "YYYY-MM"
-	assert.Equal(t, "2006-01", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01", Iso8601ToGoLayout(s), s)
 
 	s = "YYYY-MM-DDTHH:mm:ss.sZ09:00"
-	assert.Equal(t, "2006-01-02T15:04:05.000Z0700", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01-02T15:04:05.000Z0700", Iso8601ToGoLayout(s), s)
 
 	s = "YYYY-MM-DDTHH:mm:ss.s Z09:00"
-	assert.Equal(t, "2006-01-02T15:04:05.000 Z0700", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01-02T15:04:05.000 Z0700", Iso8601ToGoLayout(s), s)
 
 	s = "YYYY-MM-DDTHH:mm:ss.s -04:00"
-	assert.Equal(t, "2006-01-02T15:04:05.000 -0700", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01-02T15:04:05.000 -0700", Iso8601ToGoLayout(s), s)
 
 	s = "YYYY-MM-DDTHH:mm:ss.s+14:00"
-	assert.Equal(t, "2006-01-02T15:04:05.000+0700", iso8601ToGoLayout(s), s)
+	assert.Equal(t, "2006-01-02T15:04:05.000+0700", Iso8601ToGoLayout(s), s)
 
 	dateMap := GetISO8601DateMap(time.Unix(1494505756, 0))
 	str := "/path/{YYYY}/{MM}/{DD}/{HH}:{mm}:{ss}"
