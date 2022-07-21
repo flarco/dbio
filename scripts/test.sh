@@ -18,3 +18,7 @@ cd -
 cd filesys
 go test -run 'TestFileSysLocal|TestFileSysGoogle|TestFileSysS3|TestFileSysAzure|TestFileSysSftp|TestExcel'
 cd -
+
+cd saas
+go test -run 'TestAirbyteGithub|TestAirbyteNotion'
+cd -

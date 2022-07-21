@@ -298,7 +298,9 @@ func TestAirbyteGithub(t *testing.T) {
 	}
 
 	config := g.M(
-		"access_token", token,
+		"credentials", g.M(
+			"personal_access_token", token,
+		),
 		"start_date", "2022-03-01T00:00:00Z",
 		"repository", "flarco/dbio",
 	)
@@ -310,7 +312,7 @@ func TestAirbyteGithub(t *testing.T) {
 	err = conn.Init(true)
 	g.AssertNoError(t, err)
 
-	ds, err := conn.Stream("commits", airbyte.StreamConfig{})
+	ds, err := conn.Stream("commits", airbyte.StreamConfig{SyncMode: airbyte.SyncModeIncremental})
 	if g.AssertNoError(t, err) {
 		data, err := ds.Collect(0)
 		g.AssertNoError(t, err)

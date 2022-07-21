@@ -6,6 +6,7 @@ import (
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 )
 
 // Airbyte is for connections for Airbyte
@@ -113,17 +114,16 @@ func (a *Airbyte) Discover() (streams AirbyteStreams, err error) {
 }
 
 type StreamConfig struct {
-	Columns   []string
-	StartDate string
+	Columns    []string
+	PrimaryKey []string
+	SyncMode   SyncMode
+	StartDate  string
+
+	// TODO: how to store and retrieve / reconstruct state?
+	State map[string]interface{}
 }
 
-// Stream stream the object data
-// needs work to provide the `state` for incremental reading
-// there are 2 ways it seems
-// - providing the `start_date` as part of the config
-// - or providing the `state` object when reading.
-// it doesn't look to be consistent. Github uses `state`, salesforce uses `start_date`
-func (a *Airbyte) Stream(name string, sc StreamConfig) (ds *iop.Datastream, err error) {
+func (a *Airbyte) GetConfiguredStream(name string, sc StreamConfig) (cas ConfiguredAirbyteStream, err error) {
 	if !a.discovered {
 		_, err = a.Discover()
 		if err != nil {
@@ -137,31 +137,56 @@ func (a *Airbyte) Stream(name string, sc StreamConfig) (ds *iop.Datastream, err 
 		err = g.Error("no stream returned for " + name)
 		return
 	}
-	syncMode := SyncModeIncremental
-	if len(stream.SupportedSyncModes) > 0 {
-		syncMode = stream.SupportedSyncModes[0]
-	}
 
 	if len(sc.Columns) > 0 {
 		stream = stream.Select(sc.Columns)
 	}
 
+	primaryKey := []string{}
+	if len(stream.SourceDefinedPrimaryKey) > 0 {
+		primaryKey = stream.SourceDefinedPrimaryKey[0]
+	}
+	_ = primaryKey
+
+	syncMode := SyncModeFullRefresh
+	if lo.Contains(stream.SupportedSyncModes, sc.SyncMode) {
+		syncMode = sc.SyncMode
+	}
+
+	cas = ConfiguredAirbyteStream{
+		Stream:              stream,
+		SyncMode:            syncMode,
+		DestinationSyncMode: DestinationSyncModeOverwrite,
+		// PrimaryKey:          primaryKey, // only use as destination
+		// CursorField:         stream.DefaultCursorField, // only use as destination
+	}
+
+	return
+}
+
+// Stream stream the object data
+// needs work to provide the `state` for incremental reading
+// there are 2 ways it seems
+// - providing the `start_date` as part of the config
+// - or providing the `state` object when reading.
+// it doesn't look to be consistent. Github uses `state`, salesforce uses `start_date`
+func (a *Airbyte) Stream(name string, sc StreamConfig) (ds *iop.Datastream, err error) {
+	cas, err := a.GetConfiguredStream(name, sc)
+	if err != nil {
+		err = g.Error(err, "could not get configured stream for "+name)
+		return
+	}
+
 	catalog := ConfiguredAirbyteCatalog{
-		Streams: []ConfiguredAirbyteStream{
-			{
-				Stream:              stream,
-				SyncMode:            syncMode,
-				DestinationSyncMode: DestinationSyncModeOverwrite,
-			},
-		},
+		Streams: []ConfiguredAirbyteStream{cas},
 	}
 
+	config := a.config
 	if sc.StartDate != "" {
-		a.config[a.GetProp("date_field")] = sc.StartDate
+		config[a.GetProp("date_field")] = sc.StartDate
 	}
 
-	state := g.M() // TODO: how to store and retrieve / reconstruct state?
-	ds, err = a.Connector.Read(a.config, catalog, state)
+	ds, err = a.Connector.Read(config, catalog, sc.State)
 	if err != nil {
 		err = g.Error(err, "could not read stream for "+name)
 		return

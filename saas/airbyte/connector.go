@@ -254,6 +254,9 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 		return
 	}
 
+	if state == nil {
+		state = map[string]interface{}{}
+	}
 	err = ioutil.WriteFile(c.file("state.json"), []byte(g.Marshal(state)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to state file")
