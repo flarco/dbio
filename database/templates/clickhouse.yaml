@@ -253,7 +253,8 @@ function:
   truncate_datef: CONVERT(DATETIME, CONVERT(DATE, {field}))
   sleep: waitfor delay '00:00:{seconds}.000'
   checksum_string: datalength({field})
-  checksum_datetime: CAST(DATEDIFF(ss, '01-01-1970 00:00:00', {field}) as bigint)
+  checksum_datetime: toUnixTimestamp64(toDateTime64({field}))
+  # checksum_datetime: toUnixTimestamp64Micro(toDateTime64({field}))
   checksum_decimal: ABS(CAST({field} as bigint))
 
 

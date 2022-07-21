@@ -387,21 +387,6 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	return nVal
 }
 
-// CastToString to string
-func (sp *StreamProcessor) oldCastToString(i int, val interface{}, valType ...string) string {
-	switch v := val.(type) {
-	case time.Time:
-		tVal, _ := sp.CastToTime(val)
-		if tVal.IsZero() {
-			return ""
-		}
-		return tVal.Format("2006-01-02 15:04:05.000")
-	default:
-		_ = v
-		return cast.ToString(val)
-	}
-}
-
 // CastToString to string. used for csv writing
 func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...string) string {
 	typ := ""

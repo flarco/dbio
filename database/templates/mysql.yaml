@@ -377,7 +377,8 @@ function:
   fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
   sleep: select sleep({seconds})
   checksum_decimal: 'abs(truncate({field}, 0))'
-  checksum_datetime: UNIX_TIMESTAMP({field})
+  checksum_datetime: cast(UNIX_TIMESTAMP({field}) as UNSIGNED)
+  # checksum_datetime: cast(UNIX_TIMESTAMP({field}) * 1000000 as UNSIGNED)
 
 variable:
   bind_string: "?"

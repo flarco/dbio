@@ -539,4 +539,5 @@ function:
   truncate_datef: trunc({field})
   date_to_int: trunc(extract(epoch from {field})/(60*60*24))::int
   number_to_int: round({field}, 0)
-  checksum_datetime: date_part('epoch', {field})
+  checksum_datetime: date_part('epoch', {field})::bigint
+  # checksum_datetime: (date_part('epoch', {field}) * 1000000)::bigint

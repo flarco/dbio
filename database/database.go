@@ -2730,6 +2730,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 
 	exprs := []string{}
 	colChecksum := map[string]uint64{}
+	exprMap := map[string]string{}
 	for _, col := range columns {
 		colChecksum[strings.ToLower(col.Name)] = col.Stats.Checksum
 		if _, ok := fieldsMap[strings.ToLower(col.Name)]; !ok {
@@ -2754,6 +2755,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 		colName := fieldsMap[strings.ToLower(col.Name)]
 		expr = g.R(expr, "field", conn.Self().Quote(cast.ToString(colName)))
 		exprs = append(exprs, g.F("sum(%s) as %s", expr, col.Name))
+		exprMap[strings.ToLower(col.Name)] = g.F("sum(%s)", expr)
 	}
 
 	sql := g.F(
@@ -2773,7 +2775,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 		checksum1 := colChecksum[strings.ToLower(col.Name)]
 		checksum2 := cast.ToUint64(data.Rows[0][i])
 		if checksum1 != checksum2 {
-			eg.Add(g.Error("checksum failure for %s: %d != %d", col.Name, checksum1, checksum2))
+			eg.Add(g.Error("checksum failure for %s: %d != %d -- (%s) ", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
 		}
 	}
 
