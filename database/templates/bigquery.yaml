@@ -24,11 +24,13 @@ metadata:
   tables: |
     select table_name
     from {schema}.INFORMATION_SCHEMA.TABLES
+    where table_type = 'BASE TABLE'
     order by table_name
     
   views: |
     select table_name
-    from {schema}.INFORMATION_SCHEMA.VIEWS
+    from {schema}.INFORMATION_SCHEMA.TABLES
+    where table_type = 'VIEW'
     order by table_name
 
   columns: |
