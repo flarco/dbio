@@ -40,6 +40,11 @@ const (
 	ZStandardCompressorType CompressorType = "ZSTD"
 )
 
+// CompressorTypePtr returns a pointer to the CompressorType value passed in.
+func CompressorTypePtr(v CompressorType) *CompressorType {
+	return &v
+}
+
 // Unzip will decompress a zip archive, moving all files and folders
 // within the zip file (parameter 1) to an output directory (parameter 2).
 func Unzip(src string, dest string) ([]string, error) {
