@@ -788,7 +788,6 @@ func (conn *BaseConn) Close() error {
 	var err error
 	if conn.db != nil {
 		err = conn.db.Close()
-		g.LogError(err)
 		conn.db = nil
 	}
 	if conn.sshClient != nil {

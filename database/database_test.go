@@ -522,7 +522,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, sData.Tables, "place_vw")
 	personTable := sData.Tables["person"]
 	assert.Len(t, personTable.Columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING"}, personTable.ColumnsMap()["email"].Type)
+	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING", "character varying(255)"}, personTable.ColumnsMap()["email"].Type)
 	g.P(sData.Tables["place_vw"])
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
