@@ -354,7 +354,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if strings.HasSuffix(urlStr, ".json") || strings.HasSuffix(urlStr, ".jsonlines") {
+		if strings.Contains(urlStr, ".json") {
 			err = ds.ConsumeJsonReader(reader)
 		} else if strings.HasSuffix(urlStr, ".xml") {
 			err = ds.ConsumeXmlReader(reader)
@@ -521,7 +521,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 	if fileExt == "" {
 		switch {
-		case strings.Contains(url, ".jsonlines"):
+		case strings.Contains(url, ".jsonl"):
 			fileExt = "jsonlines"
 		case strings.Contains(url, ".json"):
 			fileExt = "json"

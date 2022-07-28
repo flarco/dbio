@@ -47,11 +47,19 @@ metadata:
     order by table_name
 
   views: |
-    select table_name
-    from information_schema.tables
-    where table_type = 'VIEW'
-      and table_catalog = ( select current_catalog )
-      and table_schema = '{schema}'
+    select * from (
+      select table_name
+      from information_schema.tables
+      where table_type = 'VIEW'
+        and table_catalog = ( select current_catalog )
+        and table_schema = '{schema}'
+      
+      union
+
+      select matviewname as table_name
+      from pg_catalog.pg_matviews
+      where schemaname = '{schema}'
+    ) t
     order by table_name
 
   columns: |
@@ -125,33 +133,38 @@ metadata:
     order by cols.table_catalog, cols.table_schema, cols.table_name, cols.ordinal_position
 
   schemata: |
-    with tables as (
-      select
-        table_catalog,
-        table_schema,
-        table_name,
-        case table_type
-          when 'VIEW' then true
-          else false
-        end as is_view
-      from information_schema.tables
-      where 1=1
-        {{if .schema -}} and table_schema = '{schema}' {{- end}}
-        {{if .table -}} and table_name = '{table}' {{- end}}
-    )
     select
-      cols.table_schema as schema_name,
-      cols.table_name as table_name,
-      tables.is_view as is_view,
-      cols.column_name as column_name,
-      cols.data_type as data_type,
-      cols.ordinal_position as position
-    from information_schema.columns cols
-    join tables
-      on tables.table_catalog = cols.table_catalog
-      and tables.table_schema = cols.table_schema
-      and tables.table_name = cols.table_name
-    order by cols.table_catalog, cols.table_schema, cols.table_name, cols.ordinal_position
+      s.nspname as schema_name,
+      t.relname as table_name,
+      case t.relkind
+        when 'r' then false
+        else true
+      end as is_view,
+      a.attname as column_name,
+      pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type,
+      a.attnum as position
+    from pg_attribute a
+      join pg_class t on a.attrelid = t.oid
+      join pg_namespace s on t.relnamespace = s.oid
+    where a.attnum > 0 
+      and not a.attisdropped
+      and t.relkind in ('r', 'v', 'm')
+      {{if .schema -}} and s.nspname = '{schema}' {{- end}}
+      {{if .table -}} and t.relnam = '{table}' {{- end}}
+    order by s.nspname, t.relname, a.attnum
+  
+  row_count_estimates: |
+    select 
+      nspname as schema_name,
+      relname as table_name,
+      reltuples as count
+    from pg_class c
+    left join pg_namespace n on (n.oid = c.relnamespace)
+    where nspname not in ('pg_catalog', 'information_schema', '_timescaledb_internal')
+      and relkind = 'r' 
+      {{if .schema -}} and nspname = '{schema}' {{- end}}
+      {{if .table -}} and relnam = '{table}' {{- end}}
+    order by reltuples desc
 
   ddl_table: "
     with tabledefinition as (
