@@ -26,7 +26,7 @@ type Type string
 const (
 	TypeUnknown Type = ""
 
-	TypeFileLocal  Type = "local"
+	TypeFileLocal  Type = "file"
 	TypeFileHDFS   Type = "hdfs"
 	TypeFileS3     Type = "s3"
 	TypeFileAzure  Type = "azure"

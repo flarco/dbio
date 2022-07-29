@@ -56,11 +56,21 @@ func (msgs AirbyteMessages) CheckError() (err error) {
 func (msg AirbyteMessage) CheckError() (err error) {
 
 	if msg.Log != nil && g.In(msg.Log.Level, LevelFatal, LevelError) {
-		return g.Error(msg.Log.Message)
+		// format message
+		errMsg := cast.ToString(msg.Log.Message)
+		g.Debug(errMsg) // put full error in log
+
+		errMsgLines := strings.Split(cast.ToString(msg.Log.Message), "\n")
+		if len(errMsgLines) > 1 {
+			errMsg = errMsgLines[len(errMsgLines)-1] // take last line
+		}
+		return g.Error(errMsg)
 	}
 
 	if msg.Trace != nil && g.In(msg.Trace.Type, LevelFatal, LevelError) {
-		return g.Error(g.Marshal(msg.Trace.Error))
+		errMsg := g.Marshal(msg.Trace.Error)
+		g.Debug(errMsg) // put full error in log
+		return g.Error(errMsg)
 	}
 	return nil
 }
