@@ -215,7 +215,7 @@ func InsertStream(conn Connection, tx *Transaction, tableFName string, ds *iop.D
 		err = g.Error(err, "could not get column list")
 		return
 	}
-	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(), true)
+	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(true, true), true)
 	if err != nil {
 		err = g.Error(err, "columns mismatch")
 		return
@@ -271,7 +271,7 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 		return
 	}
 
-	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(), true)
+	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(true, true), true)
 	if err != nil {
 		err = g.Error(err, "columns mismatch")
 		return

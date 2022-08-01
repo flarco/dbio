@@ -352,7 +352,7 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 
 	// header row to lower case
 	fields := []string{}
-	for _, field := range ds.GetFields() {
+	for _, field := range ds.GetFields(true, true) {
 		fields = append(fields, strings.ToLower(field))
 	}
 	_, err = w.Write(fields)
@@ -386,7 +386,7 @@ func (c *CSV) NewReader() (*io.PipeReader, error) {
 	go func() {
 		w := csv.NewWriter(pipeW)
 
-		_, err := w.Write(ds.GetFields())
+		_, err := w.Write(ds.GetFields(true, true))
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error writing ds.Fields"))
 			ds.Context.Cancel()

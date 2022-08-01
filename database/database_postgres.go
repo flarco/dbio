@@ -97,7 +97,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	schema, table := SplitTableFullName(tableFName)
 
-	columns, err := conn.GetColumns(tableFName, ds.GetFields()...)
+	columns, err := conn.GetColumns(tableFName, ds.GetFields(true, true)...)
 	if err != nil {
 		err = g.Error(err, "could not get list of columns from table")
 		return

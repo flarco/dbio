@@ -388,7 +388,7 @@ func (xls *Excel) WriteSheet(shtName string, ds *iop.Datastream, mode string) (e
 	cellRange := g.F("%s%d", col, i)
 	if mode != "append" {
 		header := []interface{}{}
-		for _, field := range ds.GetFields() {
+		for _, field := range ds.GetFields(false, true) {
 			header = append(header, field)
 		}
 		xls.File.SetSheetRow(shtName, cellRange, &header)

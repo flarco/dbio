@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -22,7 +23,8 @@ import (
 )
 
 var (
-	jsoniter = jit.ConfigCompatibleWithStandardLibrary
+	jsoniter       = jit.ConfigCompatibleWithStandardLibrary
+	replacePattern = regexp.MustCompile("[^_0-9a-zA-Z]+") // to clea header fields
 )
 
 // Datastream is a stream of rows
@@ -237,19 +239,28 @@ func (ds *Datastream) Close() {
 }
 
 // GetFields return the fields of the Data
-func (ds *Datastream) GetFields(toLower ...bool) []string {
+func (ds *Datastream) GetFields(args ...bool) []string {
 	lower := false
-	if len(toLower) > 0 {
-		lower = toLower[0]
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
 	}
 	fields := make([]string, len(ds.Columns))
 
 	for j, column := range ds.Columns {
+		field := column.Name
+
 		if lower {
-			fields[j] = strings.ToLower(column.Name)
-		} else {
-			fields[j] = column.Name
+			field = strings.ToLower(column.Name)
 		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = field
 	}
 
 	return fields
@@ -900,7 +911,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 		w.Comma = []rune(ds.config.delimiter)[0]
 
 		if ds.config.header {
-			bw, err := w.Write(ds.GetFields(true))
+			bw, err := w.Write(ds.GetFields(true, true))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
 				ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -937,7 +948,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				w = csv.NewWriter(pipeW)
 
 				if ds.config.header {
-					bw, err = w.Write(ds.GetFields(true))
+					bw, err = w.Write(ds.GetFields(true, true))
 					tbw = tbw + cast.ToInt64(bw)
 					if err != nil {
 						ds.Context.CaptureErr(g.Error(err, "error writing header"))
@@ -1092,10 +1103,7 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 		w.Comma = []rune(ds.config.delimiter)[0]
 
 		// header row to lower case
-		fields := []string{}
-		for _, field := range ds.GetFields(true) {
-			fields = append(fields, strings.ToLower(field))
-		}
+		fields := ds.GetFields(true, true)
 
 		if ds.config.header {
 			bw, err := w.Write(fields)
