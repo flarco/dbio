@@ -17,7 +17,7 @@ require (
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.33
+	github.com/flarco/g v0.1.36
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/jmespath/go-jmespath v0.4.0
@@ -31,7 +31,7 @@ require (
 	github.com/samber/lo v1.25.0
 	github.com/snowflakedb/gosnowflake v1.6.10
 	github.com/spf13/cast v1.4.1
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	github.com/xitongsys/parquet-go v1.5.4
 	github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e
 	github.com/xo/dburl v0.3.0
@@ -115,6 +115,7 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.1.17 // indirect
 	github.com/labstack/gommon v0.3.0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -128,9 +129,10 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/rs/zerolog v1.20.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
-	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/shirou/gopsutil/v3 v3.22.7 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
