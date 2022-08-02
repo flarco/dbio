@@ -41,7 +41,7 @@ type DataAnalyzer struct {
 	Conn        Connection
 	Schemata    Schemata
 	ColumnMap   map[string]Column
-	RelationMap map[string]map[string]Relation
+	RelationMap map[string]map[string]map[string]Relation // table > column A > column B > relation
 	Options     DataAnalyzerOptions
 }
 
@@ -68,7 +68,7 @@ func NewDataAnalyzer(conn Connection, opts DataAnalyzerOptions) (da *DataAnalyze
 		Conn:        conn,
 		Options:     opts,
 		ColumnMap:   map[string]Column{},
-		RelationMap: map[string]map[string]Relation{},
+		RelationMap: map[string]map[string]map[string]Relation{},
 	}
 
 	return
@@ -129,6 +129,7 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 		cols := lo.Filter(lo.Values(tableColMap), func(c Column, i int) bool {
 			t := strings.ToLower(c.Type)
 			isText := strings.Contains(t, "text") || strings.Contains(t, "char")
+			// isNumber := strings.Contains(t, "int") || strings.Contains(t, "double")
 			return isText
 			// TODO: should be string or number?
 			// skip date column for now
@@ -243,7 +244,7 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 		return g.Error(err, "could not marshal to yaml")
 	}
 
-	err = ioutil.WriteFile("output.yaml", out, 0755)
+	err = ioutil.WriteFile("relations.yaml", out, 0755)
 	if err != nil {
 		return g.Error(err, "could not write to yaml")
 	}
@@ -254,9 +255,10 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols []Column) (err error) {
 	// build all_non_unique_values
 	nonUniqueExpressions := lo.Map(nonUniqueCols, func(col Column, i int) string {
-		template := `select * from (select '{schema}.{table}.{field}' as non_unique_column_key, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
+		template := `select * from (select '{col_key}' as non_unique_column_key, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
 		return g.R(
 			template,
+			"col_key", col.Key(),
 			"field", col.Name,
 			"schema", col.Schema,
 			"table", col.Table,
@@ -266,10 +268,11 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols []Column) (err er
 
 	// get 1-N and N-1
 	matchingSQLs := lo.Map(uniqueCols, func(col Column, i int) string {
-		template := `select nuv.non_unique_column_key,	'{schema}.{table}.{field}' as unique_column_key	from all_non_unique_values nuv
+		template := `select nuv.non_unique_column_key,	'{col_key}' as unique_column_key	from all_non_unique_values nuv
 				inner join "{schema}"."{table}" t on t."{field}"::text = nuv.val`
 		return g.R(
 			template,
+			"col_key", col.Key(),
 			"field", col.Name,
 			"schema", col.Schema,
 			"table", col.Table,
@@ -299,18 +302,37 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols []Column) (err er
 	for _, rec := range data.Records() {
 		uniqueColumnKey := cast.ToString(rec["unique_column_key"])
 		nonUniqueColumnKey := cast.ToString(rec["non_unique_column_key"])
+
+		uniqueColumn := da.ColumnMap[uniqueColumnKey]
+		nonUniqueColumn := da.ColumnMap[nonUniqueColumnKey]
+
+		uniqueColumnTable := g.F("%s.%s", uniqueColumn.Schema, uniqueColumn.Table)
+		nonUniqueColumnTable := g.F("%s.%s", nonUniqueColumn.Schema, nonUniqueColumn.Table)
+
 		// one to many
-		if m, ok := da.RelationMap[uniqueColumnKey]; ok {
-			m[nonUniqueColumnKey] = RelationOneToMany
+		if mt, ok := da.RelationMap[uniqueColumnTable]; ok {
+			if m, ok := mt[uniqueColumnKey]; ok {
+				m[nonUniqueColumnKey] = RelationOneToMany
+			} else {
+				mt[uniqueColumnKey] = map[string]Relation{nonUniqueColumnKey: RelationOneToMany}
+			}
 		} else {
-			da.RelationMap[uniqueColumnKey] = map[string]Relation{nonUniqueColumnKey: RelationOneToMany}
+			da.RelationMap[uniqueColumnTable] = map[string]map[string]Relation{
+				uniqueColumnKey: {nonUniqueColumnKey: RelationOneToMany},
+			}
 		}
 
 		// many to one
-		if m, ok := da.RelationMap[nonUniqueColumnKey]; ok {
-			m[uniqueColumnKey] = RelationManyToOne
+		if mt, ok := da.RelationMap[nonUniqueColumnTable]; ok {
+			if m, ok := mt[nonUniqueColumnKey]; ok {
+				m[uniqueColumnKey] = RelationManyToOne
+			} else {
+				mt[nonUniqueColumnKey] = map[string]Relation{uniqueColumnKey: RelationManyToOne}
+			}
 		} else {
-			da.RelationMap[nonUniqueColumnKey] = map[string]Relation{uniqueColumnKey: RelationManyToOne}
+			da.RelationMap[nonUniqueColumnTable] = map[string]map[string]Relation{
+				nonUniqueColumnKey: {uniqueColumnKey: RelationManyToOne},
+			}
 		}
 	}
 	return
@@ -318,9 +340,10 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols []Column) (err er
 
 func (da *DataAnalyzer) GetOneToOne(uniqueCols []Column) (err error) {
 	uniqueExpressions := lo.Map(uniqueCols, func(col Column, i int) string {
-		template := `select * from (select '{schema}.{table}.{field}' as unique_column_key_1, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
+		template := `select * from (select '{col_key}' as unique_column_key_1, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
 		return g.R(
 			template,
+			"col_key", col.Key(),
 			"field", col.Name,
 			"schema", col.Schema,
 			"table", col.Table,
@@ -330,10 +353,11 @@ func (da *DataAnalyzer) GetOneToOne(uniqueCols []Column) (err error) {
 
 	// get 1-1
 	matchingSQLs := lo.Map(uniqueCols, func(col Column, i int) string {
-		template := `select uv.unique_column_key_1,	'{schema}.{table}.{field}' as unique_column_key_2	from unique_values uv
+		template := `select uv.unique_column_key_1,	'{col_key}' as unique_column_key_2	from unique_values uv
 				inner join "{schema}"."{table}" t on t."{field}"::text = uv.val`
 		return g.R(
 			template,
+			"col_key", col.Key(),
 			"field", col.Name,
 			"schema", col.Schema,
 			"table", col.Table,
@@ -364,18 +388,37 @@ func (da *DataAnalyzer) GetOneToOne(uniqueCols []Column) (err error) {
 	for _, rec := range data.Records() {
 		uniqueColumnKey1 := cast.ToString(rec["unique_column_key_1"])
 		uniqueColumnKey2 := cast.ToString(rec["unique_column_key_2"])
-		// one to many
-		if m, ok := da.RelationMap[uniqueColumnKey1]; ok {
-			m[uniqueColumnKey2] = RelationOneToOne
+
+		uniqueColumn1 := da.ColumnMap[uniqueColumnKey1]
+		uniqueColumn2 := da.ColumnMap[uniqueColumnKey2]
+
+		table1 := g.F("%s.%s", uniqueColumn1.Schema, uniqueColumn1.Table)
+		table2 := g.F("%s.%s", uniqueColumn2.Schema, uniqueColumn2.Table)
+
+		// one to one
+		if mt, ok := da.RelationMap[table1]; ok {
+			if m, ok := mt[uniqueColumnKey1]; ok {
+				m[uniqueColumnKey2] = RelationOneToOne
+			} else {
+				mt[uniqueColumnKey1] = map[string]Relation{uniqueColumnKey2: RelationOneToOne}
+			}
 		} else {
-			da.RelationMap[uniqueColumnKey1] = map[string]Relation{uniqueColumnKey2: RelationOneToOne}
+			da.RelationMap[table1] = map[string]map[string]Relation{
+				uniqueColumnKey1: {uniqueColumnKey2: RelationOneToOne},
+			}
 		}
 
-		// many to one
-		if m, ok := da.RelationMap[uniqueColumnKey2]; ok {
-			m[uniqueColumnKey1] = RelationOneToOne
+		// one to one
+		if mt, ok := da.RelationMap[table2]; ok {
+			if m, ok := mt[uniqueColumnKey2]; ok {
+				m[uniqueColumnKey1] = RelationOneToOne
+			} else {
+				mt[uniqueColumnKey2] = map[string]Relation{uniqueColumnKey1: RelationOneToOne}
+			}
 		} else {
-			da.RelationMap[uniqueColumnKey2] = map[string]Relation{uniqueColumnKey1: RelationOneToOne}
+			da.RelationMap[table2] = map[string]map[string]Relation{
+				uniqueColumnKey2: {uniqueColumnKey1: RelationOneToOne},
+			}
 		}
 	}
 	return
