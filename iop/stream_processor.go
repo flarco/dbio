@@ -254,8 +254,8 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 	}
 
-	switch col.Type {
-	case "string", "text", "json", "time", "bytes", "":
+	switch {
+	case col.Type.IsString():
 		if len(sVal) > cs.MaxLen {
 			cs.MaxLen = len(sVal)
 		}
@@ -281,7 +281,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			nVal = sVal
 		}
-	case "smallint":
+	case col.Type == SmallIntType:
 		iVal, err := cast.ToIntE(val)
 		if err != nil {
 			// is string
@@ -303,7 +303,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.Min = int64(iVal)
 		}
 		nVal = iVal
-	case "integer", "bigint":
+	case col.Type.IsInteger():
 		iVal, err := cast.ToInt64E(val)
 		if err != nil {
 			// is string
@@ -325,7 +325,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.Checksum = cs.Checksum + uint64(iVal)
 		}
 		nVal = iVal
-	case "decimal", "float":
+	case col.Type.IsNumber():
 		fVal, err := sp.toFloat64E(val)
 		if err != nil {
 			// is string
@@ -352,19 +352,23 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		} else {
 			nVal = val // use string to keep accuracy
 		}
-	case "bool":
+	case col.Type.IsBool():
 		var err error
-		nVal, err = cast.ToBoolE(val)
+		bVal, err := cast.ToBoolE(val)
 		if err != nil {
 			// is string
 			cs.StringCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			return cast.ToString(val)
+		} else {
+			nVal = bVal
 		}
 
+		if bVal {
+			cs.Checksum++ // add up true values
+		}
 		cs.BoolCnt++
-		cs.Checksum++
-	case "datetime", "date", "timestamp", "timestampz":
+	case col.Type.IsDatetime():
 		dVal, err := sp.CastToTime(val)
 		if err != nil {
 			// sp.unrecognizedDate = g.F(

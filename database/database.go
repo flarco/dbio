@@ -2680,7 +2680,7 @@ func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (
 		sql := g.R(
 			conn.Template().Core["add_column"],
 			"table", tableName,
-			"column", conn.Self().Quote(col.Name),
+			"column", conn.Self().Quote(col.Name, true),
 			"type", nativeType,
 		)
 		_, err = conn.Exec(sql)

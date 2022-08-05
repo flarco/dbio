@@ -341,7 +341,7 @@ function:
   checksum_integer: 'abs({field})'
   checksum_decimal: 'abs(trunc({field}))'
   checksum_datetime: '0'
-  checksum_boolean: '0'
+  checksum_boolean: 'case when {field} then 1 end'
 
 variable:
   tmp_folder: /tmp
