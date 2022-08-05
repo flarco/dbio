@@ -25,7 +25,7 @@ var (
 type Column struct {
 	Position    int             `json:"position"`
 	Name        string          `json:"name"`
-	Type        string          `json:"type"`
+	Type        ColumnType      `json:"type"`
 	DbType      string          `json:"-"`
 	DbPrecision int             `json:"-"`
 	DbScale     int             `json:"-"`
@@ -33,26 +33,66 @@ type Column struct {
 	Stats       ColumnStats     `json:"stats"`
 	ColType     *sql.ColumnType `json:"-"`
 	goType      reflect.Type    `json:"-"`
+
+	Table    string `json:"table,omitempty"`
+	Schema   string `json:"schema,omitempty"`
+	Database string `json:"database,omitempty"`
 }
 
 // Columns represent many columns
 type Columns []Column
 
+type ColumnType string
+
+const (
+	BigIntType     ColumnType = "bigint"
+	BinaryType     ColumnType = "binary"
+	BoolType       ColumnType = "bool"
+	DateType       ColumnType = "date"
+	DatetimeType   ColumnType = "datetime"
+	DecimalType    ColumnType = "decimal"
+	IntegerType    ColumnType = "integer"
+	JsonType       ColumnType = "json"
+	SmallIntType   ColumnType = "smallint"
+	StringType     ColumnType = "string"
+	TextType       ColumnType = "text"
+	TimestampType  ColumnType = "timestamp"
+	TimestampzType ColumnType = "timestampz"
+	FloatType      ColumnType = "float"
+	TimeType       ColumnType = "time"
+	TimezType      ColumnType = "timez"
+)
+
 // ColumnStats holds statistics for a column
 type ColumnStats struct {
-	MinLen    int
-	MaxLen    int
-	MaxDecLen int
-	Min       int64
-	Max       int64
-	NullCnt   int64
-	IntCnt    int64
-	DecCnt    int64
-	BoolCnt   int64
-	StringCnt int64
-	DateCnt   int64
-	TotalCnt  int64
-	Checksum  uint64
+	MinLen    int    `json:"min_len,omitempty"`
+	MaxLen    int    `json:"max_len,omitempty"`
+	MaxDecLen int    `json:"max_dec_len,omitempty"`
+	Min       int64  `json:"min"`
+	Max       int64  `json:"max"`
+	NullCnt   int64  `json:"null_cnt"`
+	IntCnt    int64  `json:"int_cnt,omitempty"`
+	DecCnt    int64  `json:"dec_cnt,omitempty"`
+	BoolCnt   int64  `json:"bool_cnt,omitempty"`
+	StringCnt int64  `json:"string_cnt,omitempty"`
+	DateCnt   int64  `json:"date_cnt,omitempty"`
+	TotalCnt  int64  `json:"total_cnt"`
+	UniqCnt   int64  `json:"uniq_cnt"`
+	Checksum  uint64 `json:"checksum"`
+}
+
+func (cs *ColumnStats) DistinctPercent() float64 {
+	val := (cs.UniqCnt) * 100 / cs.TotalCnt
+	return cast.ToFloat64(val) / 100
+}
+
+func (cs *ColumnStats) DuplicateCount() int64 {
+	return cs.TotalCnt - cs.UniqCnt
+}
+
+func (cs *ColumnStats) DuplicatePercent() float64 {
+	val := (cs.TotalCnt - cs.UniqCnt) * 100 / cs.TotalCnt
+	return cast.ToFloat64(val) / 100
 }
 
 func init() {
@@ -280,74 +320,17 @@ func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err er
 	return
 }
 
-// MakeColumns makes columns from a struct
-func MakeColumns(obj interface{}, useTag string, typeMap ...map[string]string) Columns {
-	TypeMap := map[string]string{
-		"string":                 "string",
-		"bool":                   "boolean",
-		"map[string]interface{}": "json",
-		"int":                    "integer",
-		"int64":                  "bigint",
-		"float32":                "float",
-		"float64":                "float",
-		"time.Time":              "datetime",
-	}
-	if len(typeMap) > 0 {
-		for k, v := range typeMap[0] {
-			TypeMap[k] = v
-		}
-	}
-
-	cols := Columns{}
-
-	var t reflect.Type
-	value := reflect.ValueOf(obj)
-	if value.Kind() == reflect.Ptr {
-		t = reflect.Indirect(value).Type()
-	} else {
-		t = reflect.TypeOf(obj)
-	}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fType := field.Type.String()
-		mappedType, ok := TypeMap[fType]
-		switch {
-		case ok:
-		case strings.HasPrefix(fType, "int"):
-			mappedType = "integer"
-		case strings.HasPrefix(fType, "map["):
-			mappedType = "json"
-		default:
-			g.Warn("could not map type '%s' using iop.MakeColumns", fType)
-			mappedType = "string"
-		}
-
-		col := Column{Name: field.Name, Type: mappedType}
-		if useTag != "" {
-			tagName := field.Tag.Get(useTag)
-			if tagName != "" && tagName != "-" {
-				col.Name = tagName
-				cols = append(cols, col)
-			}
-		} else {
-			cols = append(cols, col)
-		}
-	}
-
-	return cols
-}
-
 // InferFromStats using the stats to infer data types
 func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 	for j := range columns {
 		if columns[j].Stats.StringCnt > 0 || columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			if columns[j].Stats.MaxLen > 255 {
-				columns[j].Type = "text"
+				columns[j].Type = TextType
 			} else {
-				columns[j].Type = "string"
+				columns[j].Type = StringType
 			}
 			if safe {
-				columns[j].Type = "text" // max out
+				columns[j].Type = TextType // max out
 			}
 			columns[j].goType = reflect.TypeOf("string")
 
@@ -356,25 +339,25 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 				columns[j].Stats.MinLen = 0
 			}
 		} else if columns[j].Stats.BoolCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-			columns[j].Type = "bool"
+			columns[j].Type = BoolType
 			columns[j].goType = reflect.TypeOf(true)
 			columns[j].Stats.Min = 0
 		} else if columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			if columns[j].Stats.Min*10 < -2147483648 || columns[j].Stats.Max*10 > 2147483647 {
-				columns[j].Type = "bigint"
+				columns[j].Type = BigIntType
 			} else {
-				columns[j].Type = "integer"
+				columns[j].Type = IntegerType
 			}
 			if safe {
-				columns[j].Type = "bigint" // max out
+				columns[j].Type = BigIntType // max out
 			}
 			columns[j].goType = reflect.TypeOf(int64(0))
 		} else if columns[j].Stats.DateCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-			columns[j].Type = "datetime"
+			columns[j].Type = DatetimeType
 			columns[j].goType = reflect.TypeOf(time.Now())
 			columns[j].Stats.Min = 0
 		} else if columns[j].Stats.DecCnt+columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-			columns[j].Type = "decimal"
+			columns[j].Type = DecimalType
 			columns[j].goType = reflect.TypeOf(float64(0.0))
 		}
 		if !noTrace {
@@ -421,36 +404,85 @@ func MakeRowsChan() chan []interface{} {
 	return make(chan []interface{})
 }
 
+func (col *Column) Key() string {
+	return col.Schema + "." + col.Table + "." + col.Name
+}
+
+func (col *Column) IsUnique() bool {
+	if col.Stats.TotalCnt <= 0 {
+		return false
+	}
+	return col.Stats.TotalCnt == col.Stats.UniqCnt
+}
+
 // IsString returns whether the column is a string
 func (col *Column) IsString() bool {
-	switch col.Type {
-	case "string", "text", "json", "time", "bytes", "":
+	return col.Type.IsString()
+}
+
+// IsInteger returns whether the column is an integer
+func (col *Column) IsInteger() bool {
+	return col.Type.IsInteger()
+}
+
+// IsDecimal returns whether the column is a decimal
+func (col *Column) IsDecimal() bool {
+	return col.Type.IsDecimal()
+}
+
+// IsNumber returns whether the column is a decimal or an integer
+func (col *Column) IsNumber() bool {
+	return col.Type.IsNumber()
+}
+
+// IsBool returns whether the column is a boolean
+func (col *Column) IsBool() bool {
+	return col.Type.IsBool()
+}
+
+// IsDatetime returns whether the column is a datetime object
+func (col *Column) IsDatetime() bool {
+	return col.Type.IsDatetime()
+}
+
+// IsString returns whether the column is a string
+func (ct ColumnType) IsString() bool {
+	switch ct {
+	case StringType, TextType, JsonType, TimeType, BinaryType, "":
 		return true
 	}
 	return false
 }
 
 // IsInteger returns whether the column is an integer
-func (col *Column) IsInteger() bool {
-	return col.Type == "smallint" || col.Type == "bigint" || col.Type == "integer"
+func (ct ColumnType) IsInteger() bool {
+	switch ct {
+	case IntegerType, BigIntType, SmallIntType:
+		return true
+	}
+	return false
 }
 
 // IsDecimal returns whether the column is a decimal
-func (col *Column) IsDecimal() bool {
-	return col.Type == "float" || col.Type == "decimal"
+func (ct ColumnType) IsDecimal() bool {
+	return ct == FloatType || ct == DecimalType
 }
 
 // IsNumber returns whether the column is a decimal or an integer
-func (col *Column) IsNumber() bool {
-	return col.IsInteger() || col.IsDecimal()
+func (ct ColumnType) IsNumber() bool {
+	return ct.IsInteger() || ct.IsDecimal()
 }
 
 // IsBool returns whether the column is a boolean
-func (col *Column) IsBool() bool {
-	return col.Type == "bool"
+func (ct ColumnType) IsBool() bool {
+	return ct == BoolType
 }
 
 // IsDatetime returns whether the column is a datetime object
-func (col *Column) IsDatetime() bool {
-	return col.Type == "datetime" || col.Type == "date" || col.Type == "timestamp" || col.Type == "timestampz"
+func (ct ColumnType) IsDatetime() bool {
+	switch ct {
+	case DatetimeType, DateType, TimestampType, TimestampzType:
+		return true
+	}
+	return false
 }

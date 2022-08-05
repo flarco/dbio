@@ -159,23 +159,23 @@ func (sp *StreamProcessor) toFloat64E(i interface{}) (float64, error) {
 
 // CastType casts the type of an interface
 // CastType is used to cast the interface place holders?
-func (sp *StreamProcessor) CastType(val interface{}, typ string) interface{} {
+func (sp *StreamProcessor) CastType(val interface{}, typ ColumnType) interface{} {
 	var nVal interface{}
 
-	switch typ {
-	case "string", "text", "json", "time", "bytes":
+	switch {
+	case typ.IsString():
 		nVal = cast.ToString(val)
-	case "smallint":
+	case typ == SmallIntType:
 		nVal = cast.ToInt(val)
-	case "integer", "bigint":
+	case typ.IsInteger():
 		nVal = cast.ToInt64(val)
-	case "decimal", "float":
+	case typ.IsDecimal():
 		// nVal = cast.ToFloat64(val)
 		nVal = val
-	case "bool":
+	case typ.IsBool():
 		// nVal = cast.ToBool(val)
 		nVal = val
-	case "datetime", "date", "timestamp", "timestampz":
+	case typ.IsDatetime():
 		nVal = cast.ToTime(val)
 	default:
 		nVal = cast.ToString(val)
@@ -185,25 +185,25 @@ func (sp *StreamProcessor) CastType(val interface{}, typ string) interface{} {
 }
 
 // GetType returns the type of an interface
-func (sp *StreamProcessor) GetType(val interface{}) (typ string) {
+func (sp *StreamProcessor) GetType(val interface{}) (typ ColumnType) {
 
 	switch val.(type) {
 	case time.Time:
-		typ = "timestamp"
+		typ = TimestampType
 	case int8, int16, uint8, uint16:
-		typ = "smallint"
+		typ = SmallIntType
 	case int, int32, uint, uint32:
-		typ = "integer"
+		typ = IntegerType
 	case int64, uint64:
-		typ = "bigint"
+		typ = BigIntType
 	case float32, float64:
-		typ = "decimal"
+		typ = DecimalType
 	case bool:
-		typ = "bool"
+		typ = BoolType
 	case string, []uint8:
-		typ = "string"
+		typ = StringType
 	default:
-		typ = "string"
+		typ = StringType
 	}
 	return
 }
@@ -388,11 +388,11 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 }
 
 // CastToString to string. used for csv writing
-func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...string) string {
-	typ := ""
+func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...ColumnType) string {
+	typ := ColumnType("")
 	switch v := val.(type) {
 	case time.Time:
-		typ = "datetime"
+		typ = DatetimeType
 	default:
 		_ = v
 	}
@@ -401,8 +401,8 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 		typ = valType[0]
 	}
 
-	switch typ {
-	case "decimal", "float":
+	switch {
+	case typ.IsDecimal():
 		if RemoveTrailingDecZeros {
 			// attempt to remove trailing zeros, but is 10 times slower
 			return sp.decReplRegex.ReplaceAllString(cast.ToString(val), "$1")
@@ -411,7 +411,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 			val = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
 		}
 		return cast.ToString(val)
-	case "datetime", "date", "timestamp", "timestampz":
+	case typ.IsDatetime():
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
 			return ""
@@ -425,7 +425,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...strin
 }
 
 // CastValWithoutStats casts the value without counting stats
-func (sp *StreamProcessor) CastValWithoutStats(i int, val interface{}, typ string) interface{} {
+func (sp *StreamProcessor) CastValWithoutStats(i int, val interface{}, typ ColumnType) interface{} {
 	var nVal interface{}
 	if nil == val {
 		return nil

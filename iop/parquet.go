@@ -24,7 +24,7 @@ type Parquet struct {
 }
 
 func getParquetCsvSchema(columns []Column) []string {
-	typeMap := map[string]string{
+	typeMap := map[ColumnType]string{
 		"bool":    "BOOLEAN",
 		"int32":   "INT32",
 		"int64":   "INT64",

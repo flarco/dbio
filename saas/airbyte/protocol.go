@@ -243,7 +243,7 @@ func (sjs StreamJsonSchema) Columns() (cols iop.Columns) {
 		}
 		cols[i] = iop.Column{
 			Name: k,
-			Type: ct,
+			Type: iop.ColumnType(ct),
 		}
 		i++
 	}

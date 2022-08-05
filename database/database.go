@@ -15,6 +15,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/samber/lo"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -1228,9 +1229,9 @@ func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (co
 		dbType := strings.ToLower(colType.DatabaseTypeName())
 		dbType = strings.Split(dbType, "(")[0]
 
-		Type := dbType
+		Type := iop.ColumnType(dbType)
 		if matchedType, ok := NativeTypeMap[dbType]; ok {
-			Type = matchedType
+			Type = iop.ColumnType(matchedType)
 		} else {
 			if dbType != "" {
 				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name(), colType)
@@ -1376,7 +1377,7 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 		column := iop.Column{
 			Position:    i + 1,
 			Name:        cast.ToString(rec["column_name"]),
-			Type:        generalType,
+			Type:        iop.ColumnType(generalType),
 			DbType:      cast.ToString(rec["data_type"]),
 			DbPrecision: cast.ToInt(rec["precision"]),
 			DbScale:     cast.ToInt(rec["scale"]),
@@ -1625,7 +1626,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 			Schema:   schemaName,
 			Database: currDatabase,
 			IsView:   cast.ToBool(rec["is_view"]),
-			Columns:  []Column{},
+			Columns:  iop.Columns{},
 		}
 
 		if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
@@ -1636,13 +1637,13 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 			table = schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]
 		}
 
-		column := Column{
+		column := iop.Column{
 			Name:     columnName,
 			Table:    tableName,
 			Schema:   schemaName,
 			Database: currDatabase,
 			Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
-			Type:     cast.ToString(rec["data_type"]),
+			DbType:   cast.ToString(rec["data_type"]),
 		}
 
 		table.Columns = append(table.Columns, column)
@@ -1895,7 +1896,7 @@ func (conn *BaseConn) castDsBoolColumns(ds *iop.Datastream) *iop.Datastream {
 	if len(boolCols) > 0 && boolAs != "bool" {
 		newCols := ds.Columns
 		for _, i := range boolCols {
-			newCols[i].Type = boolAs // the data type for a bool
+			newCols[i].Type = iop.ColumnType(boolAs) // the data type for a bool
 		}
 
 		ds = ds.Map(newCols, func(row []interface{}) []interface{} {
@@ -2039,7 +2040,7 @@ func (conn *BaseConn) SwapTable(srcTable string, tgtTable string) (err error) {
 // GetNativeType returns the native column type from generic
 func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err error) {
 
-	nativeType, ok := conn.template.GeneralTypeMap[col.Type]
+	nativeType, ok := conn.template.GeneralTypeMap[string(col.Type)]
 	if !ok {
 		err = g.Error(
 			"No native type mapping defined for col '%s', with type '%s' ('%s') for '%s'",
@@ -2422,10 +2423,8 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 	generalTypes := map[string]string{}
 	statFields := []string{}
 	for _, col := range tableColumns {
-		generalType := col.Type
-		colName := col.Name
-		generalTypes[strings.ToLower(colName)] = generalType
-		statFields = append(statFields, colName)
+		generalTypes[strings.ToLower(col.Name)] = string(col.Type)
+		statFields = append(statFields, col.Name)
 	}
 
 	if len(fields) == 0 {
@@ -2445,7 +2444,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 		colName := cast.ToString(rec["field"])
 		column := iop.Column{
 			Name: colName,
-			Type: generalTypes[strings.ToLower(colName)],
+			Type: iop.ColumnType(generalTypes[strings.ToLower(colName)]),
 			Stats: iop.ColumnStats{
 				Min:       cast.ToInt64(rec["f_min"]),
 				Max:       cast.ToInt64(rec["f_max"]),
@@ -2496,8 +2495,8 @@ func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (
 			return g.Error(err, "no native mapping")
 		}
 
-		switch col.Type {
-		case "string", "text", "json", "bytes":
+		switch {
+		case col.Type.IsString():
 			// alter field to resize column
 			colDDL := g.R(
 				conn.GetTemplateValue("core.modify_column"),
@@ -2655,6 +2654,44 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	conn.SetProp("PARALLEL", "true")
 }
 
+func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (err error) {
+	cols, err := conn.GetSQLColumns("select * from " + tableName)
+	if err != nil {
+		err = g.Error(err, "could not obtain table columns")
+	}
+
+	colsMap := lo.KeyBy(cols, func(c iop.Column) string {
+		return strings.ToLower(c.Name)
+	})
+
+	missing := iop.Columns{}
+	for _, col := range newCols {
+		if _, ok := colsMap[strings.ToLower(col.Name)]; !ok {
+			missing = append(missing, col)
+		}
+	}
+
+	// generate alter commands
+	for _, col := range missing {
+		nativeType, err := conn.GetNativeType(col)
+		if err != nil {
+			return g.Error(err, "no native mapping")
+		}
+		sql := g.R(
+			conn.Template().Core["add_column"],
+			"table", tableName,
+			"column", conn.Self().Quote(col.Name),
+			"type", nativeType,
+		)
+		_, err = conn.Exec(sql)
+		if err != nil {
+			return g.Error(err, "could not add column %s to table %s", col.Name, tableName)
+		}
+	}
+
+	return
+}
+
 // TestPermissions tests the needed permissions in a given connection
 func TestPermissions(conn Connection, tableName string) (err error) {
 
@@ -2665,7 +2702,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 	}
 
 	col := iop.Column{Name: "col1", Type: "integer"}
-	nativeType := conn.Template().GeneralTypeMap[col.Type]
+	nativeType := conn.Template().GeneralTypeMap[string(col.Type)]
 
 	// drop table if exists
 	err = conn.DropTable(tableName)
@@ -2676,7 +2713,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 	tests := []testObj{
 
 		// Create table
-		testObj{
+		{
 			Title: "Create a test table",
 			SQL: g.R(
 				conn.GetTemplateValue("core.create_table"),
@@ -2686,7 +2723,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 		},
 
 		// Insert
-		testObj{
+		{
 			Title: "Insert into a test table",
 			SQL: g.R(
 				conn.GetTemplateValue("core.insert"),
@@ -2697,7 +2734,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 		},
 
 		// Update
-		testObj{
+		{
 			Title: "Update the test table",
 			SQL: g.R(
 				conn.GetTemplateValue("core.update"),
@@ -2708,7 +2745,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 		},
 
 		// Delete
-		testObj{
+		{
 			Title: "Delete from the test table",
 			SQL: g.R(
 				"delete from {table} where 1=0",
@@ -2717,7 +2754,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 		},
 
 		// Truncate
-		testObj{
+		{
 			Title: "Truncate the test table",
 			SQL: g.R(
 				conn.GetTemplateValue("core.truncate_table"),
@@ -2726,7 +2763,7 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 		},
 
 		// Drop table
-		testObj{
+		{
 			Title: "Drop the test table",
 			SQL: g.R(
 				conn.GetTemplateValue("core.drop_table"),

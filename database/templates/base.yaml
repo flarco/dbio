@@ -14,6 +14,7 @@ core:
   truncate_table: truncate table {table}
   alter_columns: alter table {table} {col_ddls}
   modify_column: '{column} {type}'
+  add_column: alter table {table} add column {column} {type}
   # column_names: select * from ({sql}) as t where 1=0
   column_names: '{sql}'
   enable_trigger: ALTER TABLE {table} ENABLE TRIGGER {trigger}

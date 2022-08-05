@@ -280,20 +280,3 @@ func TestParseDate(t *testing.T) {
 	val = `1/17/20`
 	g.P(sp.ParseString(val))
 }
-
-func TestMakeColumns(t *testing.T) {
-
-	type Rec struct {
-		LogID      int64                  `json:"log_id" db:"log_id"`
-		ObjectName string                 `json:"-" db:"object_name"`
-		Error      string                 `json:"error" db:"error"`
-		Present    bool                   `json:"present" db:"present"`
-		OldValue   map[string]interface{} `json:"old_value" db:"old_value"`
-		NewValue   map[string]interface{} `json:"new_value" db:"new_value"`
-		CreatedDt  time.Time              `json:"created_dt" db:"created_dt"`
-	}
-
-	typeMap := map[string]string{"map[string]interface{}": "json"}
-	cols := MakeColumns(Rec{}, "json", typeMap)
-	g.P(cols)
-}

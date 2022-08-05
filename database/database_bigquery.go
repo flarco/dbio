@@ -280,14 +280,14 @@ func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Colum
 	NativeTypeMap := conn.template.NativeTypeMap
 	for i, field := range itSchema {
 		dbType := strings.ToLower(string(field.Type))
-		Type := dbType
+		Type := iop.ColumnType(dbType)
 		if matchedType, ok := NativeTypeMap[dbType]; ok {
-			Type = matchedType
+			Type = iop.ColumnType(matchedType)
 		} else {
 			if dbType != "" {
 				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, field.Name, field.Type)
 			}
-			Type = "string" // default as string
+			Type = iop.StringType // default as string
 		}
 
 		cols[i] = iop.Column{
@@ -422,26 +422,25 @@ func (conn *BigQueryConn) InsertStream(tableFName string, ds *iop.Datastream) (c
 
 func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 	schema = make([]*bigquery.FieldSchema, len(columns))
-	mapping := map[string]bigquery.FieldType{
-		"":         bigquery.StringFieldType,
-		"string":   bigquery.StringFieldType,
-		"text":     bigquery.StringFieldType,
-		"json":     bigquery.StringFieldType,
-		"bool":     bigquery.BooleanFieldType,
-		"bytes":    bigquery.BytesFieldType,
-		"binary":   bigquery.BytesFieldType,
-		"date":     bigquery.TimestampFieldType,
-		"datetime": bigquery.TimestampFieldType,
-		"float":    bigquery.FloatFieldType,
-		"smallint": bigquery.IntegerFieldType,
-		"integer":  bigquery.IntegerFieldType,
-		"bigint":   bigquery.IntegerFieldType,
+	mapping := map[iop.ColumnType]bigquery.FieldType{
+		iop.ColumnType(""): bigquery.StringFieldType,
+		iop.StringType:     bigquery.StringFieldType,
+		iop.TextType:       bigquery.StringFieldType,
+		iop.JsonType:       bigquery.StringFieldType,
+		iop.BoolType:       bigquery.BooleanFieldType,
+		iop.BinaryType:     bigquery.BytesFieldType,
+		iop.DateType:       bigquery.TimestampFieldType,
+		iop.DatetimeType:   bigquery.TimestampFieldType,
+		iop.FloatType:      bigquery.FloatFieldType,
+		iop.SmallIntType:   bigquery.IntegerFieldType,
+		iop.IntegerType:    bigquery.IntegerFieldType,
+		iop.BigIntType:     bigquery.IntegerFieldType,
 		// https://stackoverflow.com/questions/55904464/big-query-does-now-cast-automatically-long-decimal-values-to-numeric-when-runni
-		"decimal": bigquery.NumericFieldType,
+		iop.DecimalType: bigquery.NumericFieldType,
 		// "decimal":   bigquery.FloatFieldType,
-		"time":       bigquery.TimeFieldType,
-		"timestamp":  bigquery.TimestampFieldType,
-		"timestampz": bigquery.TimestampFieldType,
+		iop.TimeType:       bigquery.TimeFieldType,
+		iop.TimestampType:  bigquery.TimestampFieldType,
+		iop.TimestampzType: bigquery.TimestampFieldType,
 	}
 
 	for i, col := range columns {
@@ -870,7 +869,7 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 				Schema:   schemaName,
 				Database: currDatabase,
 				IsView:   cast.ToBool(rec["is_view"]),
-				Columns:  []Column{},
+				Columns:  iop.Columns{},
 			}
 
 			if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
@@ -881,10 +880,10 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 				table = schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]
 			}
 
-			column := Column{
+			column := iop.Column{
 				Name:     columnName,
 				Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
-				Type:     cast.ToString(rec["data_type"]),
+				DbType:   cast.ToString(rec["data_type"]),
 			}
 
 			table.Columns = append(table.Columns, column)
