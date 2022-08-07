@@ -49,6 +49,7 @@ type Datastream struct {
 	df            *Dataflow
 	bwRows        chan []interface{} // for correct byte written
 	bwCsv         *csv.Writer        // for correct byte written
+	id            string
 }
 
 // Iterator is the row provider for a datastream
@@ -82,6 +83,7 @@ func NewDatastreamIt(ctx context.Context, columns Columns, nextFunc func(it *Ite
 // NewDatastreamContext return a new datastream
 func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream) {
 	ds = &Datastream{
+		id:         g.NewTsID("ds"),
 		Rows:       MakeRowsChan(),
 		Columns:    columns,
 		Context:    g.NewContext(ctx),
@@ -569,6 +571,7 @@ func (ds *Datastream) ResetStats() {
 		ds.Columns[i].Stats.TotalCnt = 0
 		ds.Columns[i].Stats.NullCnt = 0
 		ds.Columns[i].Stats.StringCnt = 0
+		ds.Columns[i].Stats.JsonCnt = 0
 		ds.Columns[i].Stats.IntCnt = 0
 		ds.Columns[i].Stats.DecCnt = 0
 		ds.Columns[i].Stats.BoolCnt = 0
@@ -729,7 +732,7 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 	nDs.Inferred = ds.Inferred
 	nDs.config = ds.config
 	nDs.Sp.config = ds.Sp.config
-	nDs.df = ds.df
+	ds.df.ReplaceStream(ds, nDs)
 
 	mapRowCol := func(row []interface{}) []interface{} {
 		newRow := make([]interface{}, len(row))
@@ -767,6 +770,7 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 func (ds *Datastream) Map(newColumns Columns, transf func([]interface{}) []interface{}) (nDs *Datastream) {
 
 	nDs = NewDatastreamContext(ds.Context.Ctx, newColumns)
+	ds.df.ReplaceStream(ds, nDs)
 
 	go func() {
 		defer nDs.Close()

@@ -338,10 +338,11 @@ function:
   fill_cnt_field: count({field}) as cnt_{field}
   fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
   checksum_string: length({field})
+  checksum_json: length(replace({field}, ' ', ''))
   checksum_integer: 'abs({field})'
   checksum_decimal: 'abs(trunc({field}))'
   checksum_datetime: '0'
-  checksum_boolean: 'case when {field} then 1 end'
+  checksum_boolean: 'length({field})'
 
 variable:
   tmp_folder: /tmp

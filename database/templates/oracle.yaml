@@ -70,6 +70,7 @@ core:
     (
       {columns}
     )
+  add_column: alter table {table} add {column} {type}
 
 metadata:
   current_database: select name from V$database
@@ -254,7 +255,7 @@ function:
   str_utf8: convert({field},'US7ASCII','WE8ISO8859P1')
   date_to_int: to_number(to_char({field}, 'j'))
   number_to_int: round({field}, 0)
-  checksum_datetime: (CAST({field} as DATE) - to_date('01-JAN-1970','DD-MON-YYYY')) * (86400)
+  checksum_datetime: cast(((CAST({field} as DATE) - to_date('01-JAN-1970','DD-MON-YYYY')) * 86400 * 1000000) + cast(TO_CHAR({field}, 'FF6') as int) as number(25,6))
   sleep: |
     BEGIN
       sys.DBMS_LOCK.sleep({seconds});
@@ -269,4 +270,4 @@ variable:
   bind_string: ":{field}{n}"
   batch_rows: 20
   date_layout_str: TO_DATE('{value}', 'YYYY-MM-DD HH24:MI:SS')
-  timestamp_layout_str: TO_TIMESTAMP('{value}', 'YYYY-MM-DD HH24:MI:SS.FF3')
+  timestamp_layout_str: TO_TIMESTAMP('{value}', 'YYYY-MM-DD HH24:MI:SS.FF6')

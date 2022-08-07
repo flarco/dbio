@@ -48,9 +48,12 @@ core:
       )
     )
   column_names: '{sql}'
+  add_column: alter table {table} add {column} {type}
 
 
 metadata:
+  databases: select db_name() as name
+  
   current_database: select db_name() 
     
   schemas: |
@@ -305,7 +308,9 @@ function:
   truncate_datef: CONVERT(DATETIME, CONVERT(DATE, {field}))
   sleep: waitfor delay '00:00:{seconds}.000'
   checksum_string: datalength({field})
-  checksum_datetime: CAST(DATEDIFF(ss, '01-01-1970 00:00:00', {field}) as bigint)
+  checksum_boolean: datalength({field})
+  checksum_json: datalength(replace({field}, ' ', ''))
+  checksum_datetime: (CAST(DATEDIFF(ss, '01-01-1970 00:00:00', {field}) as bigint) * 1000000) + DATEPART(microsecond, {field})
   checksum_decimal: ABS(CAST({field} as bigint))
 
 

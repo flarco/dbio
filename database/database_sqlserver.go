@@ -133,6 +133,7 @@ func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow)
 
 // BulkImportStream bulk import stream
 func (conn *MsSQLServerConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	// return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	_, err = exec.LookPath("bcp")
 	if err != nil {
 		g.Trace("bcp not found in path. Using cursor...")
@@ -203,6 +204,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 	delimiterRep := `$~d$~`
 	quoteRep := `$~q$~`
 	newlRep := `$~n$~`
+	carrRep := `$~r$~`
 	postUpdateCol := map[int]uint64{}
 
 	// transformation to correctly post process quotes, newlines, and delimiter afterwards
@@ -220,6 +222,9 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 				)
 				nRow[i] = strings.ReplaceAll(
 					nRow[i].(string), `"`, quoteRep,
+				)
+				nRow[i] = strings.ReplaceAll(
+					nRow[i].(string), "\r", carrRep,
 				)
 				nRow[i] = strings.ReplaceAll(
 					nRow[i].(string), "\n", newlRep,
@@ -240,9 +245,11 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 
 	var csvRowCnt uint64
 	if conn.GetProp("use_bcp_map_parallel") == "true" {
-		csvRowCnt, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
+		// csvRowCnt, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
+		csvRowCnt, err = writeCsvWithoutQuotes(filePath, ds.MapParallel(transf, 20))
 	} else {
-		csvRowCnt, err = csv.WriteStream(ds.Map(ds.Columns, transf))
+		// csvRowCnt, err = csv.WriteStream(ds.Map(ds.Columns, transf))
+		csvRowCnt, err = writeCsvWithoutQuotes(filePath, ds.Map(ds.Columns, transf))
 	}
 
 	// delete csv
@@ -333,11 +340,17 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 			replExpr3 := g.R(
 				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
 				"replExpr2", replExpr2,
+				"newlRep", carrRep,
+				"newl", `CHAR(13)`,
+			)
+			replExpr4 := g.R(
+				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
+				"replExpr2", replExpr3,
 				"newlRep", newlRep,
 				"newl", `CHAR(10)`,
 			)
 			setCols = append(
-				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr3),
+				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr4),
 			)
 		}
 
@@ -507,4 +520,35 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 	}
 
 	return 0, nil
+}
+
+func writeCsvWithoutQuotes(path string, ds *iop.Datastream) (cnt uint64, err error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return cnt, err
+	}
+	fields := ds.GetFields(true, true)
+
+	_, err = file.Write([]byte(strings.Join(fields, ",") + "\n"))
+	if err != nil {
+		return cnt, g.Error(err, "could not write header to file")
+	}
+
+	for row0 := range ds.Rows {
+		cnt++
+		row := make([]string, len(row0))
+		for i, val := range row0 {
+			row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
+		}
+		_, err = file.Write([]byte(strings.Join(row, ",") + "\n"))
+		if err != nil {
+			return cnt, g.Error(err, "could not write row to file")
+		}
+	}
+	err = file.Close()
+	if err != nil {
+		return cnt, g.Error(err, "could not close file")
+	}
+
+	return cnt, nil
 }

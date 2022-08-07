@@ -8,6 +8,8 @@ core:
 
 
 metadata:
+  databases: PRAGMA database_list
+  
   current_database: PRAGMA database_list
 
   schemas: |

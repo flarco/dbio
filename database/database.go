@@ -866,7 +866,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = !strings.Contains(sql, noTraceKey)
+	ds.NoTrace = strings.Contains(sql, noTraceKey)
 	// ds.Inferred = true // since precision and scale is not guaranteed
 
 	err = ds.Start()
@@ -1902,10 +1902,10 @@ func (conn *BaseConn) castDsBoolColumns(ds *iop.Datastream) *iop.Datastream {
 		ds = ds.Map(newCols, func(row []interface{}) []interface{} {
 			for _, i := range boolCols {
 				switch boolAs {
-				case "integer":
-					row[i] = cast.ToInt(row[i])
+				case "integer", "smallint":
+					row[i] = cast.ToInt(cast.ToBool(row[i]))
 				default:
-					row[i] = cast.ToString(row[i])
+					row[i] = cast.ToString(cast.ToBool(row[i]))
 				}
 			}
 			return row
@@ -1917,7 +1917,6 @@ func (conn *BaseConn) castDsBoolColumns(ds *iop.Datastream) *iop.Datastream {
 
 // InsertBatchStream inserts a stream into a table in batch
 func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	ds = conn.castDsBoolColumns(ds)
 	count, err = InsertBatchStream(conn.Self(), nil, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not batch insert into %s", tableFName)
@@ -2143,14 +2142,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		}
 
 		if !data.NoTrace {
-			g.Trace(
-				"%s - %s (maxLen: %d, nullCnt: %d, totCnt: %d, strCnt: %d, dtCnt: %d, intCnt: %d, decCnt: %d)",
-				col.Name, col.Type,
-				col.Stats.MaxLen, col.Stats.NullCnt,
-				col.Stats.TotalCnt, col.Stats.StringCnt,
-				col.Stats.DateCnt, col.Stats.IntCnt,
-				col.Stats.DecCnt,
-			)
+			g.Trace("%s - %s %s", col.Name, col.Type, g.Marshal(col.Stats))
 		}
 
 		// normalize column name uppercase/lowercase
@@ -2182,6 +2174,9 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 
 	doImport := func(tableFName string, ds *iop.Datastream) {
 		defer df.Context.Wg.Write.Done()
+
+		// cast bool columns (mysql, sqlite)
+		// ds = conn.castDsBoolColumns(ds)
 
 		var cnt uint64
 		if conn.GetProp("use_bulk") == "false" {
@@ -2548,6 +2543,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 	g.Debug("comparing checksums %#v vs %#v: %#v", tColumns.Names(), columns.Names(), fields)
 
 	exprs := []string{}
+	colMap := lo.KeyBy(columns, func(c iop.Column) string { return strings.ToLower(c.Name) })
 	colChecksum := map[string]uint64{}
 	exprMap := map[string]string{}
 	for _, col := range columns {
@@ -2558,6 +2554,8 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 
 		expr := ""
 		switch {
+		case col.Type == iop.JsonType:
+			expr = conn.GetTemplateValue("function.checksum_json")
 		case col.IsString():
 			expr = conn.GetTemplateValue("function.checksum_string")
 		case col.IsInteger():
@@ -2591,10 +2589,15 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 
 	eg := g.ErrorGroup{}
 	for i, col := range data.Columns {
+		refCol := colMap[strings.ToLower(col.Name)]
 		checksum1 := colChecksum[strings.ToLower(col.Name)]
 		checksum2 := cast.ToUint64(data.Rows[0][i])
 		if checksum1 != checksum2 {
-			eg.Add(g.Error("checksum failure for %s: %d != %d -- (%s) ", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
+			if refCol.IsString() && conn.GetType() == dbio.TypeDbSQLServer && checksum2 >= checksum1 {
+				// datalength can return higher counts since it counts bytes
+			} else {
+				eg.Add(g.Error("checksum failure for %s: %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
+			}
 		}
 	}
 

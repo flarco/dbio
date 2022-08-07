@@ -211,7 +211,7 @@ func (data *Dataset) InferColumnTypes() {
 	}
 
 	for i, column := range data.Columns {
-		column.Type = lo.Ternary(column.Type == "", "string", column.Type)
+		column.Type = lo.Ternary(column.Type == "", StringType, column.Type)
 		column.Stats = ColumnStats{
 			Min:    math.MaxInt64,
 			MinLen: math.MaxInt32,
@@ -230,7 +230,8 @@ func (data *Dataset) InferColumnTypes() {
 			val = data.Sp.ParseString(strings.TrimSpace(cast.ToString(val)), j)
 			columns[j].Stats.TotalCnt++
 
-			l := len(cast.ToString(val))
+			valStr := cast.ToString(val)
+			l := len(valStr)
 			if val == nil || l == 0 {
 				columns[j].Stats.NullCnt++
 				continue
@@ -267,7 +268,6 @@ func (data *Dataset) InferColumnTypes() {
 					columns[j].Stats.Min = val0
 				}
 
-				valStr := cast.ToString(val)
 				if strings.Contains(valStr, ".") {
 					decLen := len(strings.Split(cast.ToString(val), ".")[1])
 					if decLen > columns[j].Stats.MaxDecLen {
@@ -278,7 +278,16 @@ func (data *Dataset) InferColumnTypes() {
 			case bool:
 				columns[j].Stats.BoolCnt++
 			case string, []uint8:
-				columns[j].Stats.StringCnt++
+				if looksLikeJson(valStr) {
+					var v interface{}
+					if err := g.Unmarshal(valStr, &v); err == nil {
+						columns[j].Stats.JsonCnt++
+					} else {
+						columns[j].Stats.StringCnt++
+					}
+				} else {
+					columns[j].Stats.StringCnt++
+				}
 
 			default:
 				_ = v
@@ -288,4 +297,8 @@ func (data *Dataset) InferColumnTypes() {
 
 	data.Columns = InferFromStats(columns, data.SafeInference, data.NoTrace)
 	data.Inferred = true
+}
+
+func looksLikeJson(s string) bool {
+	return (strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) || (strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"))
 }

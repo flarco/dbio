@@ -490,9 +490,10 @@ function:
   fill_cnt_field: count({field}) as cnt_{field}
   fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
   sleep: call SYSTEM$WAIT({seconds})
-  checksum_datetime: DATE_PART('epoch_second', {field})
-  # checksum_datetime: DATE_PART('epoch_microsecond', {field})
+  checksum_datetime: DATE_PART('epoch_microsecond', {field})
   checksum_string: length({field}::string)
+  checksum_boolean: length({field}::string)
+  checksum_json: length(replace({field}::string, ' ', ''))
 
 variable:
   bind_string: "?"

@@ -12,7 +12,7 @@ import (
 
 // Dataflow is a collection of concurrent Datastreams
 type Dataflow struct {
-	Columns    []Column
+	Columns    Columns
 	Buffer     [][]interface{}
 	StreamCh   chan *Datastream
 	Streams    []*Datastream
@@ -24,6 +24,7 @@ type Dataflow struct {
 	Ready      bool
 	Inferred   bool
 	FsURL      string
+	streamMap  map[string]*Datastream
 	closed     bool
 	mux        sync.Mutex
 }
@@ -41,6 +42,7 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 		Streams:    []*Datastream{},
 		Context:    g.NewContext(context.Background()),
 		Limit:      Limit,
+		streamMap:  map[string]*Datastream{},
 		deferFuncs: []func(){},
 	}
 
@@ -124,11 +126,35 @@ func (df *Dataflow) ResetStats() {
 		df.Columns[i].Stats.TotalCnt = 0
 		df.Columns[i].Stats.NullCnt = 0
 		df.Columns[i].Stats.StringCnt = 0
+		df.Columns[i].Stats.JsonCnt = 0
 		df.Columns[i].Stats.IntCnt = 0
 		df.Columns[i].Stats.DecCnt = 0
 		df.Columns[i].Stats.BoolCnt = 0
 		df.Columns[i].Stats.DateCnt = 0
 		df.Columns[i].Stats.Checksum = 0
+	}
+}
+
+// ReplaceStream adds to stream map for downstream ds (mapped or shaped)
+func (df *Dataflow) ReplaceStream(old, new *Datastream) {
+	new.df = old.df
+	if df != nil {
+		df.streamMap[old.id] = new
+		if old.id != new.id {
+			g.Trace("datastream `%s` replaced by `%s`", old.id, new.id)
+		}
+	}
+}
+
+// GetFinal returns the final downstream ds (mapped or shaped)
+func (df *Dataflow) GetFinal(dsID string) (ds *Datastream) {
+	for {
+		mDs, ok := df.streamMap[dsID]
+		if !ok || (ds != nil && mDs.id == ds.id) {
+			return
+		}
+		dsID = mDs.id
+		ds = mDs
 	}
 }
 
@@ -145,6 +171,7 @@ func (df *Dataflow) SyncStats() {
 			df.Columns[i].Stats.TotalCnt = df.Columns[i].Stats.TotalCnt + colStat.TotalCnt
 			df.Columns[i].Stats.NullCnt = df.Columns[i].Stats.NullCnt + colStat.NullCnt
 			df.Columns[i].Stats.StringCnt = df.Columns[i].Stats.StringCnt + colStat.StringCnt
+			df.Columns[i].Stats.JsonCnt = df.Columns[i].Stats.JsonCnt + colStat.JsonCnt
 			df.Columns[i].Stats.IntCnt = df.Columns[i].Stats.IntCnt + colStat.IntCnt
 			df.Columns[i].Stats.DecCnt = df.Columns[i].Stats.DecCnt + colStat.DecCnt
 			df.Columns[i].Stats.BoolCnt = df.Columns[i].Stats.BoolCnt + colStat.BoolCnt
@@ -286,6 +313,7 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 
 					select {
 					case df.StreamCh <- ds:
+						df.ReplaceStream(ds, ds)
 						pushed[i] = true
 						pushCnt++
 						g.Trace("pushed dss %d", i)
@@ -337,6 +365,7 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 
 	loop:
 		for ds0 := range df.StreamCh {
+			df.ReplaceStream(ds0, ds)
 			for row := range ds0.Rows {
 				select {
 				case <-df.Context.Ctx.Done():
@@ -344,6 +373,7 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 				case <-ds.Context.Ctx.Done():
 					break loop
 				default:
+					row = ds.Sp.CastRow(row, ds.Columns)
 					ds.Push(row)
 				}
 			}

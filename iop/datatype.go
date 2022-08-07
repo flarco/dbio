@@ -74,6 +74,7 @@ type ColumnStats struct {
 	IntCnt    int64  `json:"int_cnt,omitempty"`
 	DecCnt    int64  `json:"dec_cnt,omitempty"`
 	BoolCnt   int64  `json:"bool_cnt,omitempty"`
+	JsonCnt   int64  `json:"json_cnt,omitempty"`
 	StringCnt int64  `json:"string_cnt,omitempty"`
 	DateCnt   int64  `json:"date_cnt,omitempty"`
 	TotalCnt  int64  `json:"total_cnt"`
@@ -115,7 +116,7 @@ func NewStreamProcessor() *StreamProcessor {
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{delimiter: ",", emptyAsNull: true, maxDecimals: -1},
+		config:          &streamConfig{delimiter: ",", emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -213,6 +214,29 @@ func (cols Columns) IsDummy() bool {
 }
 
 // Names return the column names
+func (cols Columns) Clone() (newCols Columns) {
+	newCols = make(Columns, len(cols))
+	for j, col := range cols {
+		newCols[j] = Column{
+			Position:    col.Position,
+			Name:        col.Name,
+			Type:        col.Type,
+			DbType:      col.DbType,
+			DbPrecision: col.DbPrecision,
+			DbScale:     col.DbScale,
+			Sourced:     col.Sourced,
+			Stats:       col.Stats,
+			ColType:     col.ColType,
+			goType:      col.goType,
+			Table:       col.Table,
+			Schema:      col.Schema,
+			Database:    col.Database,
+		}
+	}
+	return newCols
+}
+
+// Names return the column names
 func (cols Columns) Names() []string {
 	fields := make([]string, len(cols))
 	for j, column := range cols {
@@ -299,6 +323,7 @@ func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err er
 		columns[i].Stats.TotalCnt += columns2[i].Stats.TotalCnt
 		columns[i].Stats.NullCnt += columns2[i].Stats.NullCnt
 		columns[i].Stats.StringCnt += columns2[i].Stats.StringCnt
+		columns[i].Stats.JsonCnt += columns2[i].Stats.JsonCnt
 		columns[i].Stats.IntCnt += columns2[i].Stats.IntCnt
 		columns[i].Stats.DecCnt += columns2[i].Stats.DecCnt
 		columns[i].Stats.BoolCnt += columns2[i].Stats.BoolCnt
@@ -338,6 +363,9 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 			if columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 				columns[j].Stats.MinLen = 0
 			}
+		} else if columns[j].Stats.JsonCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+			columns[j].Type = JsonType
+			columns[j].goType = reflect.TypeOf("json")
 		} else if columns[j].Stats.BoolCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			columns[j].Type = BoolType
 			columns[j].goType = reflect.TypeOf(true)
@@ -361,14 +389,7 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 			columns[j].goType = reflect.TypeOf(float64(0.0))
 		}
 		if !noTrace {
-			g.Trace(
-				"%s - %s (maxLen: %d, nullCnt: %d, totCnt: %d, strCnt: %d, dtCnt: %d, intCnt: %d, decCnt: %d)",
-				columns[j].Name, columns[j].Type,
-				columns[j].Stats.MaxLen, columns[j].Stats.NullCnt,
-				columns[j].Stats.TotalCnt, columns[j].Stats.StringCnt,
-				columns[j].Stats.DateCnt, columns[j].Stats.IntCnt,
-				columns[j].Stats.DecCnt,
-			)
+			g.Trace("%s - %s %s", columns[j].Name, columns[j].Type, g.Marshal(columns[j].Stats))
 		}
 	}
 	return columns

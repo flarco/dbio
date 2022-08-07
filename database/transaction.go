@@ -341,7 +341,6 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 		batchRows = append(batchRows, row)
 		count++
 		if len(batchRows) == batchSize {
-			g.Trace("batchSize %d", len(batchRows))
 			select {
 			case <-context.Ctx.Done():
 				return count, context.Err()

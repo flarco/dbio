@@ -260,6 +260,13 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.MaxLen = len(sVal)
 		}
 
+		if col.Type == JsonType && looksLikeJson(sVal) {
+			cs.JsonCnt++
+			cs.Checksum = cs.Checksum + uint64(len(strings.ReplaceAll(sVal, " ", "")))
+			cs.TotalCnt++
+			return sVal
+		}
+
 		cond1 := cs.TotalCnt > 0 && cs.NullCnt == cs.TotalCnt
 		cond2 := !isString
 
@@ -286,6 +293,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if err != nil {
 			// is string
 			cs.StringCnt++
+			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			return cast.ToString(val)
 		}
@@ -308,6 +316,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if err != nil {
 			// is string
 			cs.StringCnt++
+			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			return cast.ToString(val)
 		}
@@ -330,6 +339,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if err != nil {
 			// is string
 			cs.StringCnt++
+			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			return cast.ToString(val)
 		}
@@ -358,15 +368,14 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if err != nil {
 			// is string
 			cs.StringCnt++
+			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
 			return cast.ToString(val)
 		} else {
-			nVal = bVal
+			nVal = strconv.FormatBool(bVal)
+			cs.Checksum = cs.Checksum + uint64(len(nVal.(string)))
 		}
 
-		if bVal {
-			cs.Checksum++ // add up true values
-		}
 		cs.BoolCnt++
 	case col.Type.IsDatetime():
 		dVal, err := sp.CastToTime(val)
@@ -384,7 +393,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		} else {
 			nVal = dVal
 			cs.DateCnt++
-			cs.Checksum = cs.Checksum + uint64(dVal.Unix())
+			cs.Checksum = cs.Checksum + uint64(dVal.UnixMicro())
 		}
 	}
 	cs.TotalCnt++
