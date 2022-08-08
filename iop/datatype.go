@@ -348,7 +348,9 @@ func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err er
 // InferFromStats using the stats to infer data types
 func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 	for j := range columns {
-		if columns[j].Stats.StringCnt > 0 || columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+		if columns[j].Stats.TotalCnt == 0 {
+			// do nothing
+		} else if columns[j].Stats.StringCnt > 0 || columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
 			if columns[j].Stats.MaxLen > 255 {
 				columns[j].Type = TextType
 			} else {
