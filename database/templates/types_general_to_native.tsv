@@ -3,15 +3,15 @@ bigint	number(19)	bigint	bigint	bigint	bigint	bigint	bigint	bigint	integer	int64
 binary	varbinary()	bytes	varbinary	varbinary	varbinary	varbinary	varchar(65535)	binary	blob	bytes	string
 bool	varchar(5)	bool	char(5)	varchar(5)	varchar(5)	varchar(5)	bool	boolean	text	bool	FixedString(5)
 date	timestamp	date	datetime	datetime2	datetime2	datetime2	date	date	text	date	Date
-datetime	timestamp	timestamp	datetime	datetime2	datetime2	datetime2	timestamp	datetime	text	timestamp	DateTime
+datetime	timestamp	timestamp	datetime(6)	datetime2	datetime2	datetime2	timestamp	datetime	text	timestamp	DateTime
 decimal	number(,)	numeric	decimal(,)	decimal(,)	decimal(,)	decimal(,)	decimal(,)	decimal(,)	real	numeric	decimal(,)
 integer	number(10)	integer	integer	integer	integer	integer	integer	integer	integer	int64	int
 json	clob	jsonb	json	text	varchar(65535)	varchar(max)	varchar(65535)	variant	text	string	string
 smallint	number(5)	smallint	smallint	smallint	smallint	smallint	smallint	smallint	integer	int64	smallint
 string	varchar()	varchar()	varchar()	varchar()	varchar()	varchar()	varchar(65535)	varchar	text	string	string
 text	clob	text	mediumtext	text	text	varchar(max)	varchar(65535)	text	text	string	string
-timestamp	timestamp(9)	timestamp	datetime	datetime2	datetime2	datetime2	timestamp	timestamp	text	timestamp	DateTime64(6)
-timestampz	timestamp(9)	timestamptz	datetime	datetime2	datetime2	datetime2	timestamptz	timestamp_tz	text	timestamp	DateTime64(6)
+timestamp	timestamp(9)	timestamp	datetime(6)	datetime2	datetime2	datetime2	timestamp	timestamp	text	timestamp	DateTime64(6)
+timestampz	timestamp(9)	timestamptz	datetime(6)	datetime2	datetime2	datetime2	timestamptz	timestamp_tz	text	timestamp	DateTime64(6)
 float	float	double precision	double	float	float	float	double precision	float	real	float64	float64
 time	timestamp	time	time	time	time	time	timestamp	time	text	time	string
 timez	timestamp	timetz	time	time	time	time	timetz	time	text	time	string
