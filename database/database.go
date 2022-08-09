@@ -820,6 +820,9 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	}
 	if err != nil {
 		queryContext.Cancel()
+		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+			return ds, g.Error(err, "SQL Error")
+		}
 		return ds, g.Error(err, "SQL Error for:\n"+sql)
 	}
 
@@ -1035,7 +1038,11 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 		result, err = conn.db.ExecContext(ctx, q, args...)
 	}
 	if err != nil {
-		err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+		if strings.Contains(q, noTraceKey) && !g.IsDebugLow() {
+			err = g.Error(err, "Error executing query")
+		} else {
+			err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+		}
 	}
 	return
 }

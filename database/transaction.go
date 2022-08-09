@@ -107,7 +107,11 @@ func (t *Transaction) ExecContext(ctx context.Context, q string, args ...interfa
 	t.log = append(t.log, q)
 	result, err = t.Tx.ExecContext(ctx, q, args...)
 	if err != nil {
-		err = g.Error(err, "Error executing "+CleanSQL(t.Conn, q))
+		if strings.Contains(q, noTraceKey) && !g.IsDebugLow() {
+			err = g.Error(err, "Error executing query")
+		} else {
+			err = g.Error(err, "Error executing "+CleanSQL(t.Conn, q))
+		}
 	}
 
 	return

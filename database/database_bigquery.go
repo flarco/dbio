@@ -201,11 +201,18 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 		}
 		it, err := q.Read(ctx)
 		if err != nil {
+			if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+				return g.Error(err, "SQL Error")
+			}
 			return g.Error(err, "SQL Error for:\n"+sql)
 		}
 
 		if err != nil {
-			err = g.Error(err, "Error executing "+CleanSQL(conn, sql))
+			if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+				return g.Error(err, "Error executing query")
+			} else {
+				return g.Error(err, "Error executing "+CleanSQL(conn, sql))
+			}
 		} else {
 			res.TotalRows = it.TotalRows + res.TotalRows
 		}
@@ -335,7 +342,11 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 
 	it, err := q.Read(queryContext.Ctx)
 	if err != nil {
-		err = g.Error(err, "SQL Error for:\n"+sql)
+		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+			err = g.Error(err, "SQL Error")
+		} else {
+			err = g.Error(err, "SQL Error for:\n"+sql)
+		}
 		return
 	}
 

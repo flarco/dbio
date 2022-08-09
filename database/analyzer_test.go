@@ -14,7 +14,7 @@ func TestDataAnalyzer(t *testing.T) {
 		return
 	}
 
-	schemas := []string{"public"}
+	schemas := []string{"product_transactional", "stripe", "salesforce_raw", "hubspot_raw"}
 	da, err := NewDataAnalyzer(conn, DataAnalyzerOptions{SchemaNames: schemas})
 	if !g.AssertNoError(t, err) {
 		return
