@@ -1386,7 +1386,7 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 			Position:    i + 1,
 			Name:        cast.ToString(rec["column_name"]),
 			Type:        iop.ColumnType(generalType),
-			DbType:      cast.ToString(rec["data_type"]),
+			DbType:      dType,
 			DbPrecision: cast.ToInt(rec["precision"]),
 			DbScale:     cast.ToInt(rec["scale"]),
 		}

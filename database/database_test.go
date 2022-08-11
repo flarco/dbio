@@ -439,7 +439,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	columns, err := conn.GetColumns(db.schema + ".person")
 	g.AssertNoError(t, err)
 	assert.Len(t, columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING", "string"}, columns[0].DbType)
+	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "string"}, columns[0].DbType)
 
 	// GetPrimaryKeys
 	if !strings.Contains("redshift,bigquery,snowflake,clickhouse", db.name) {
@@ -522,7 +522,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, sData.Tables, "place_vw")
 	personTable := sData.Tables["person"]
 	assert.Len(t, personTable.Columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "VARCHAR2", "character varying", "varchar", "TEXT", "STRING", "character varying(255)", "string"}, personTable.ColumnsMap()["email"].DbType)
+	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "character varying(255)", "string"}, personTable.ColumnsMap()["email"].DbType)
 	g.P(sData.Tables["place_vw"])
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
