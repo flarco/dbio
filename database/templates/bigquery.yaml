@@ -366,16 +366,18 @@ routine:
 function:
   replace: replace({string_expr}, {to_replace}, {replacement})
   str_utf8: '{ field }'
+  string_type: string
+  cast_to_string: cast({field} as string)
   fill_cnt_field: count({field}) as cnt_{field}
   fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
-  checksum_datetime: UNIX_MICROS({field})
+  checksum_datetime: unix_micros({field})
   checksum_boolean: 'length(cast({field} as string))'
   checksum_json: "length(replace(cast({field} as string), ' ', ''))"
 
 variable:
   tmp_folder: /tmp
   bind_string: "?"
-  quote_char: ''
+  quote_char: '`'
   error_filter_table_exists: duplicate
 
 error_filter:

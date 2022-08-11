@@ -6,7 +6,7 @@ azuresql	char	string	col_char char	TRUE	TRUE
 azuresql	date	date	col_date date	TRUE	TRUE	
 azuresql	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 azuresql	datetime2	datetime	col_datetime2 datetime2	TRUE	TRUE	
-azuresql	datetimeoffset	datetime	col_datetimeoffset datetimeoffset	TRUE	TRUE	
+azuresql	datetimeoffset	timestampz	col_datetimeoffset datetimeoffset	TRUE	TRUE	
 azuresql	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 azuresql	float	float	col_float float	TRUE	TRUE	
 azuresql	image	binary	col_image image	TRUE	TRUE	
@@ -24,7 +24,7 @@ azuresql	time	time	col_time time	TRUE	TRUE
 azuresql	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	
 azuresql	varbinary	binary	col_varbinary varbinary(100)	TRUE	TRUE	
 azuresql	varchar	string	col_varchar varchar	TRUE	TRUE	
-bigquery	array	string		FALSE	FALSE	
+bigquery	array	json		FALSE	FALSE	
 bigquery	record	json		FALSE	FALSE	
 bigquery	geography	json		FALSE	FALSE	
 bigquery	bool	bool	col_bool bool	FALSE	FALSE	
@@ -41,7 +41,8 @@ bigquery	int64	bigint	col_int64 int64	TRUE	TRUE
 bigquery	numeric	decimal	col_numeric numeric	TRUE	TRUE	
 bigquery	bignumeric	decimal	col_numeric numeric	TRUE	TRUE	
 bigquery	string	string	col_string string	TRUE	TRUE	
-bigquery	struct	string		FALSE	FALSE	
+bigquery	json	json		FALSE	FALSE	
+bigquery	struct	json		FALSE	FALSE	
 bigquery	time	time	col_time time	FALSE	FALSE	
 bigquery	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	
 mysql	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
@@ -234,7 +235,7 @@ sqlserver	char	string	col_char char(17)	TRUE	TRUE
 sqlserver	date	date	col_date date	TRUE	TRUE	
 sqlserver	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 sqlserver	datetime2	datetime	col_datetime2 datetime2	TRUE	TRUE	
-sqlserver	datetimeoffset	datetime	col_datetimeoffset datetimeoffset	FALSE	FALSE	
+sqlserver	datetimeoffset	timestampz	col_datetimeoffset datetimeoffset	FALSE	FALSE	
 sqlserver	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 sqlserver	float	float	col_float float	TRUE	TRUE	
 sqlserver	image	binary	col_image image	FALSE	FALSE	
@@ -260,7 +261,7 @@ azuredwh	char	string	col_char char	TRUE	TRUE
 azuredwh	date	date	col_date date	TRUE	TRUE	
 azuredwh	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 azuredwh	datetime2	datetime	col_datetime2 datetime2	TRUE	TRUE	
-azuredwh	datetimeoffset	datetime	col_datetimeoffset datetimeoffset	TRUE	TRUE	
+azuredwh	datetimeoffset	timestampz	col_datetimeoffset datetimeoffset	TRUE	TRUE	
 azuredwh	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 azuredwh	float	float	col_float float	TRUE	TRUE	
 azuredwh	image	binary	col_image image	FALSE	FALSE	

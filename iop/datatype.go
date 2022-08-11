@@ -26,11 +26,11 @@ type Column struct {
 	Position    int             `json:"position"`
 	Name        string          `json:"name"`
 	Type        ColumnType      `json:"type"`
-	DbType      string          `json:"-"`
+	DbType      string          `json:"db_type,omitempty"`
 	DbPrecision int             `json:"-"`
 	DbScale     int             `json:"-"`
 	Sourced     bool            `json:"-"` // whether is was sourced from a typed source
-	Stats       ColumnStats     `json:"stats"`
+	Stats       ColumnStats     `json:"stats,omitempty"`
 	ColType     *sql.ColumnType `json:"-"`
 	goType      reflect.Type    `json:"-"`
 

@@ -186,6 +186,7 @@ func (s *Schemata) Columns() map[string]iop.Column {
 							s.conn.GetType(),
 						)
 						column.Type = "string"
+						generalType = "string"
 					}
 
 					column.Type = iop.ColumnType(generalType)

@@ -287,7 +287,10 @@ func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Colum
 	NativeTypeMap := conn.template.NativeTypeMap
 	for i, field := range itSchema {
 		dbType := strings.ToLower(string(field.Type))
-		Type := iop.ColumnType(dbType)
+		dbType = strings.Split(dbType, "<")[0]
+		dbType = strings.Split(dbType, "(")[0]
+
+		var Type iop.ColumnType
 		if matchedType, ok := NativeTypeMap[dbType]; ok {
 			Type = iop.ColumnType(matchedType)
 		} else {
@@ -843,6 +846,9 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 			schemaName = cast.ToString(rec["schema_name"])
 			tableName := cast.ToString(rec["table_name"])
 			columnName := cast.ToString(rec["column_name"])
+			dataType := strings.ToLower(cast.ToString(rec["data_type"]))
+			dataType = strings.Split(dataType, "(")[0]
+			dataType = strings.Split(dataType, "<")[0]
 
 			// if any of the names contains a period, skip. This messes with the keys
 			if strings.Contains(tableName, ".") ||
@@ -893,8 +899,12 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 
 			column := iop.Column{
 				Name:     columnName,
+				Type:     iop.ColumnType(conn.template.NativeTypeMap[dataType]),
+				Table:    tableName,
+				Schema:   schemaName,
+				Database: currDatabase,
 				Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
-				DbType:   cast.ToString(rec["data_type"]),
+				DbType:   dataType,
 			}
 
 			table.Columns = append(table.Columns, column)

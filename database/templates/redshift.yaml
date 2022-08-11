@@ -537,6 +537,8 @@ analysis:
 function:
   truncate_f: trunc({field})
   truncate_datef: trunc({field})
+  string_type: text
+  cast_to_string: '{field}::text'
   date_to_int: trunc(extract(epoch from {field})/(60*60*24))::int
   number_to_int: round({field}, 0)
   checksum_datetime: date_part('epoch', {field})::bigint

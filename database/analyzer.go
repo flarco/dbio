@@ -105,7 +105,7 @@ func (da *DataAnalyzer) GetSchemata(force bool) (err error) {
 
 var sqlAnalyzeColumns = `
 	select {cols_sql}
-	from ( select * from "{schema}"."{table}" limit {limit} ) t
+	from ( select * from {schema}.{table} limit {limit} ) t
 `
 
 type StatFieldSQL struct {
@@ -113,22 +113,22 @@ type StatFieldSQL struct {
 	TemplateSQL string
 }
 
-// TODO: templatize to other databases: Snowflake, BigQuery
-var statsFields = []StatFieldSQL{
-	{"total_cnt", `count(1)`},
-	{"null_cnt", `count(1) - count("{field}")`},
-	{"uniq_cnt", `count(distinct "{field}")`},
-	{"min_len", `min(length("{field}"::text))`},
-	{"max_len", `max(length("{field}"::text))`},
-	// {"value_minimun", "min({field}::text)"}, // pulls customer data
-	// {"value_maximum", "max({field}::text)"}, // pulls customer data
-}
-
 func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 	err = da.GetSchemata(false)
 	if err != nil {
 		err = g.Error(err, "could not get schemata")
 		return
+	}
+
+	fieldAsString := da.Conn.Template().Function["cast_to_string"]
+	var statsFields = []StatFieldSQL{
+		{"total_cnt", `count(1)`},
+		{"null_cnt", `count(1) - count({field})`},
+		{"uniq_cnt", `count(distinct {field})`},
+		{"min_len", g.F(`min(length(%s))`, fieldAsString)},
+		{"max_len", g.F(`max(length(%s))`, fieldAsString)},
+		// {"value_minimun", "min({field}::text)"}, // pulls customer data
+		// {"value_maximum", "max({field}::text)"}, // pulls customer data
 	}
 
 	for _, table := range da.Schemata.Tables() {
@@ -139,8 +139,8 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 
 		// need order to retrieve values
 		colsAll := lo.Filter(lo.Values(tableColMap), func(c iop.Column, i int) bool {
-			t := strings.ToLower(c.DbType)
-			isText := strings.Contains(t, "text") || strings.Contains(t, "char")
+			// t := strings.ToLower(c.DbType)
+			isText := c.IsString() && c.Type != iop.JsonType
 			// isNumber := strings.Contains(t, "int") || strings.Contains(t, "double")
 			return isText
 			// TODO: should be string or number?
@@ -148,6 +148,7 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 			return !(strings.Contains(c.Name, "time") || strings.Contains(c.Name, "date"))
 		})
 
+		g.Debug("getting stats for %d columns", len(colsAll))
 		// chunk to not submit too many
 		for _, cols := range lo.Chunk(colsAll, 100) {
 
@@ -156,7 +157,7 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 				for _, sf := range statsFields {
 					colSQL := g.R(
 						g.F("%s as {alias}_%s", sf.TemplateSQL, sf.Name),
-						"field", col.Name,
+						"field", da.Conn.Quote(col.Name),
 						"alias", strings.ReplaceAll(col.Name, "-", "_"),
 					)
 					colsSQL = append(colsSQL, colSQL)
@@ -166,8 +167,8 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 			sql := g.R(
 				sqlAnalyzeColumns,
 				"cols_sql", strings.Join(colsSQL, ", "),
-				"schema", table.Schema,
-				"table", table.Name,
+				"schema", da.Conn.Quote(table.Schema),
+				"table", da.Conn.Quote(table.Name),
 				"limit", cast.ToString(sampleSize),
 			)
 			data, err := da.Conn.Query(sql)
@@ -209,9 +210,9 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 	// same length text fields, uuid
 	lenColMap := map[int]iop.Columns{}
 	for _, col := range da.ColumnMap {
-		t := strings.ToLower(col.DbType)
-		isText := strings.Contains(t, "text") || strings.Contains(t, "char")
-		if isText && col.Stats.MinLen == col.Stats.MaxLen && col.Stats.MinLen > 0 {
+		if col.IsString() && col.Type != iop.JsonType &&
+			col.Stats.MaxLen-col.Stats.MinLen <= 2 && // min/max len are about the same
+			col.Stats.MinLen > 0 {
 			if arr, ok := lenColMap[col.Stats.MinLen]; ok {
 				lenColMap[col.Stats.MinLen] = append(arr, col)
 			} else {
@@ -225,7 +226,9 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 	nonUniqueCols := iop.Columns{}
 	for lenI, cols := range lenColMap {
 		g.Info("%d | %d cols", lenI, len(cols))
-		if !g.In(lenI, 36, 18, 19, 28, 27) {
+		if lenI > 4 && len(cols) > 1 {
+			// do process
+		} else if !g.In(lenI, 36, 18, 19, 28, 27) {
 			// only UUID (36), sfdc id (18), stripe (18, 19, 28, 27) for now
 			continue
 		}
@@ -270,32 +273,38 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 }
 
 func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns) (err error) {
+	if len(uniqueCols) == 0 || len(nonUniqueCols) == 0 {
+		return g.Error("len(uniqueCols) == %d || len(nonUniqueCols) == %d", len(uniqueCols), len(nonUniqueCols))
+	}
 	// build all_non_unique_values
+	stringType := da.Conn.Template().Function["string_type"]
 	nonUniqueExpressions := lo.Map(nonUniqueCols, func(col iop.Column, i int) string {
-		template := `select * from (select '{col_key}' as non_unique_column_key, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
+		template := `select * from (select '{col_key}' as non_unique_column_key, cast({field} as {string_type}) as val from {schema}.{table} where {field} is not null limit 1) t`
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", col.Name,
-			"schema", col.Schema,
-			"table", col.Table,
+			"field", da.Conn.Quote(col.Name),
+			"string_type", stringType,
+			"schema", da.Conn.Quote(col.Schema),
+			"table", da.Conn.Quote(col.Table),
 		)
 	})
-	nonUniqueSQL := strings.Join(nonUniqueExpressions, " union\n    ")
+	nonUniqueSQL := strings.Join(nonUniqueExpressions, " union all\n    ")
 
 	// get 1-N and N-1
 	matchingSQLs := lo.Map(uniqueCols, func(col iop.Column, i int) string {
 		template := `select nuv.non_unique_column_key,	'{col_key}' as unique_column_key	from all_non_unique_values nuv
-				inner join "{schema}"."{table}" t on t."{field}"::text = nuv.val`
+				inner join {schema}.{table} t on cast(t.{field} as {string_type}) = nuv.val`
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", col.Name,
-			"schema", col.Schema,
-			"table", col.Table,
+			"field", da.Conn.Quote(col.Name),
+			"string_type", stringType,
+			"schema", da.Conn.Quote(col.Schema),
+			"table", da.Conn.Quote(col.Table),
 		)
 	})
-	matchingSQL := strings.Join(matchingSQLs, "    union\n    ")
+	matchingSQL := strings.Join(matchingSQLs, "    union all\n    ")
 
 	// run
 	sql := g.R(`with all_non_unique_values as (
@@ -356,31 +365,34 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns) (err
 }
 
 func (da *DataAnalyzer) GetOneToOne(uniqueCols iop.Columns) (err error) {
+	stringType := da.Conn.Template().Function["string_type"]
 	uniqueExpressions := lo.Map(uniqueCols, func(col iop.Column, i int) string {
-		template := `select * from (select '{col_key}' as unique_column_key_1, "{field}"::text as val from "{schema}"."{table}" where "{field}" is not null limit 1) t`
+		template := `select * from (select '{col_key}' as unique_column_key_1, cast({field} as {string_type}) as val from {schema}.{table} where {field} is not null limit 1) t`
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", col.Name,
-			"schema", col.Schema,
-			"table", col.Table,
+			"field", da.Conn.Quote(col.Name),
+			"string_type", stringType,
+			"schema", da.Conn.Quote(col.Schema),
+			"table", da.Conn.Quote(col.Table),
 		)
 	})
-	nonUniqueSQL := strings.Join(uniqueExpressions, " union\n    ")
+	nonUniqueSQL := strings.Join(uniqueExpressions, " union all\n    ")
 
 	// get 1-1
 	matchingSQLs := lo.Map(uniqueCols, func(col iop.Column, i int) string {
 		template := `select uv.unique_column_key_1,	'{col_key}' as unique_column_key_2	from unique_values uv
-				inner join "{schema}"."{table}" t on t."{field}"::text = uv.val`
+				inner join {schema}.{table} t on cast(t.{field} as {string_type}) = uv.val`
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", col.Name,
-			"schema", col.Schema,
-			"table", col.Table,
+			"field", da.Conn.Quote(col.Name),
+			"string_type", stringType,
+			"schema", da.Conn.Quote(col.Schema),
+			"table", da.Conn.Quote(col.Table),
 		)
 	})
-	matchingSQL := strings.Join(matchingSQLs, "    union\n    ")
+	matchingSQL := strings.Join(matchingSQLs, "    union all\n    ")
 
 	// run
 	sql := g.R(`with unique_values as (

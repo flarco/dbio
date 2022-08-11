@@ -1370,6 +1370,7 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 	for i, rec := range colData.Records() {
 		dType := cast.ToString(rec["data_type"])
 		dType = strings.Split(strings.ToLower(dType), "(")[0]
+		dType = strings.Split(dType, "<")[0]
 		generalType, ok := conn.Template().NativeTypeMap[dType]
 		if !ok {
 			err = g.Error(
@@ -1596,6 +1597,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		schemaName = cast.ToString(rec["schema_name"])
 		tableName := cast.ToString(rec["table_name"])
 		columnName := cast.ToString(rec["column_name"])
+		dataType := strings.ToLower(cast.ToString(rec["data_type"]))
 
 		// if any of the names contains a period, skip. This messes with the keys
 		if strings.Contains(tableName, ".") ||
@@ -1646,11 +1648,12 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 
 		column := iop.Column{
 			Name:     columnName,
+			Type:     iop.ColumnType(conn.template.NativeTypeMap[dataType]),
 			Table:    tableName,
 			Schema:   schemaName,
 			Database: currDatabase,
 			Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
-			DbType:   cast.ToString(rec["data_type"]),
+			DbType:   dataType,
 		}
 
 		table.Columns = append(table.Columns, column)
