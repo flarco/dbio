@@ -109,9 +109,11 @@ func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 	if fs.bucket == "" {
 		return fs.session
 	} else if strings.HasSuffix(endpoint, ".digitaloceanspaces.com") {
-		region := strings.TrimRight(endpoint, ".digitaloceanspaces.com")
-		region = strings.TrimLeft(endpoint, "https://")
+		region := strings.TrimSuffix(endpoint, ".digitaloceanspaces.com")
+		region = strings.TrimPrefix(region, "https://")
 		fs.RegionMap[fs.bucket] = region
+	} else if strings.HasSuffix(endpoint, ".cloudflarestorage.com") {
+		fs.RegionMap[fs.bucket] = "auto"
 	} else if fs.RegionMap[fs.bucket] == "" {
 		region, err := s3manager.GetBucketRegion(fs.Context().Ctx, fs.session, fs.bucket, defaultRegion)
 		if err != nil {
