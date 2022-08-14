@@ -562,9 +562,17 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileExt)
 			if singleFile {
 				subPartURL = partURL
-				if strings.HasSuffix(partURL, ".gz") {
-					compression = iop.GzipCompressorType
-					partURL = strings.TrimSuffix(partURL, ".gz")
+				for _, comp := range []iop.CompressorType{
+					iop.GzipCompressorType,
+					iop.SnappyCompressorType,
+					iop.ZStandardCompressorType,
+				} {
+					compressor := iop.NewCompressor(comp)
+					if strings.HasSuffix(subPartURL, compressor.Suffix()) {
+						compression = comp
+						subPartURL = strings.TrimSuffix(subPartURL, compressor.Suffix())
+						break
+					}
 				}
 			}
 
