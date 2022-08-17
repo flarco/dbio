@@ -228,6 +228,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	case []uint8:
 		sVal = string(v)
 		val = sVal
+		isString = true
 	case nil:
 		cs.TotalCnt++
 		cs.NullCnt++
