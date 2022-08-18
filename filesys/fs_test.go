@@ -81,10 +81,10 @@ func TestFileSysLocal(t *testing.T) {
 func TestFileSysDOSpaces(t *testing.T) {
 	fs, err := NewFileSysClient(
 		dbio.TypeFileS3,
-		// "AWS_ENDPOINT=https://nyc3.digitaloceanspaces.com",
-		"AWS_ENDPOINT=nyc3.digitaloceanspaces.com",
-		"AWS_ACCESS_KEY_ID="+os.Getenv("DOS_ACCESS_KEY_ID"),
-		"AWS_SECRET_ACCESS_KEY="+os.Getenv("DOS_SECRET_ACCESS_KEY"),
+		// "ENDPOINT=https://nyc3.digitaloceanspaces.com",
+		"ENDPOINT=nyc3.digitaloceanspaces.com",
+		"ACCESS_KEY_ID="+os.Getenv("DOS_ACCESS_KEY_ID"),
+		"SECRET_ACCESS_KEY="+os.Getenv("DOS_SECRET_ACCESS_KEY"),
 	)
 	assert.NoError(t, err)
 
@@ -195,7 +195,7 @@ func TestFileSysLarge(t *testing.T) {
 func TestFileSysS3(t *testing.T) {
 	t.Parallel()
 	fs, err := NewFileSysClient(dbio.TypeFileS3)
-	// fs, err := NewFileSysClient(S3cFileSys, "AWS_ENDPOINT=s3.amazonaws.com")
+	// fs, err := NewFileSysClient(S3cFileSys, "ENDPOINT=s3.amazonaws.com")
 	assert.NoError(t, err)
 
 	buckets, err := fs.Buckets()
@@ -268,10 +268,14 @@ func TestFileSysAzure(t *testing.T) {
 	t.Parallel()
 
 	fs, err := NewFileSysClient(dbio.TypeFileAzure)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	buckets, err := fs.Buckets()
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 	assert.NotEmpty(t, buckets)
 
 	testString := "abcde"
@@ -326,7 +330,7 @@ func TestFileSysAzure(t *testing.T) {
 func TestFileSysGoogle(t *testing.T) {
 	t.Parallel()
 
-	fs, err := NewFileSysClient(dbio.TypeFileGoogle, "GC_BUCKET=flarco_us_bucket")
+	fs, err := NewFileSysClient(dbio.TypeFileGoogle, "BUCKET=flarco_us_bucket")
 	assert.NoError(t, err)
 
 	buckets, err := fs.Buckets()

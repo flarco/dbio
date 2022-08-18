@@ -71,6 +71,10 @@ func (conn *BigQueryConn) Init() error {
 	conn.Context().SetConcurencyLimit(5)
 	conn.SetProp("FILE_MAX_ROWS", "1000000") // hard code?
 
+	if conn.GetProp("GC_KEY_FILE") == "" {
+		conn.SetProp("GC_KEY_FILE", conn.GetProp("keyfile")) // dbt style
+	}
+
 	// set MAX_DECIMALS to fix bigquery import for numeric types
 	os.Setenv("MAX_DECIMALS", "9")
 
@@ -86,18 +90,24 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		to = timeOut[0]
 	}
 
-	if val := conn.GetProp("GC_CRED_JSON_BODY"); val != "" {
+	if val := conn.GetProp("GC_KEY_BODY"); val != "" {
 		credJsonBody = val
 		authOption = option.WithCredentialsJSON([]byte(val))
+	} else if val := conn.GetProp("GC_KEY_FILE"); val != "" {
+		authOption = option.WithCredentialsFile(val)
+		b, err := ioutil.ReadFile(val)
+		if err != nil {
+			return client, g.Error(err, "could not read google cloud key file")
+		}
+		credJsonBody = string(b)
 	} else if val := conn.GetProp("GC_CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, _ := ioutil.ReadFile(val)
-		credJsonBody = string(b)
-	} else if val := conn.GetProp("keyfile"); val != "" {
-		authOption = option.WithCredentialsFile(val)
-		b, _ := ioutil.ReadFile(val)
+		b, err := ioutil.ReadFile(val)
+		if err != nil {
+			return client, g.Error(err, "could not read google cloud key file")
+		}
 		credJsonBody = string(b)
 	} else {
 		err = g.Error("no Google credentials provided")

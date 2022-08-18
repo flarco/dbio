@@ -132,7 +132,7 @@ func NewFileSysClientFromURL(url string, props ...string) (fsClient FileSysClien
 func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...string) (fsClient FileSysClient, err error) {
 	switch {
 	case strings.HasPrefix(url, "s3://"):
-		if v, ok := g.KVArrToMap(props...)["AWS_ENDPOINT"]; ok && v != "" {
+		if v, ok := g.KVArrToMap(props...)["ENDPOINT"]; ok && v != "" {
 			return NewFileSysClientContext(ctx, dbio.TypeFileS3, props...)
 		}
 		return NewFileSysClientContext(ctx, dbio.TypeFileS3, props...)

@@ -7,13 +7,19 @@ import (
 var envVars = []string{
 	"PARALLEL", "CONCURRENCY", "USE_BUFFERED_STREAM", "CONCURENCY_LIMIT",
 
+	"BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN", "ENDPOINT", "REGION",
+
 	"AWS_BUCKET", "AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_ENDPOINT", "AWS_REGION",
 
 	"COMPRESSION", "FILE_MAX_ROWS", "SAMPLE_SIZE",
 
+	"KEY_FILE", "KEY_BODY", "CRED_API_KEY",
+
 	"GC_BUCKET", "GOOGLE_APPLICATION_CREDENTIALS", "GSHEETS_CRED_FILE",
-	"GC_CRED_JSON_BODY", "GC_CRED_API_KEY",
+	"GC_KEY_BODY", "GC_CRED_API_KEY",
+
+	"ACCOUNT", "CONTAINER", "SAS_SVC_URL", "CONN_STR",
 
 	"AZURE_ACCOUNT", "AZURE_KEY", "AZURE_CONTAINER", "AZURE_SAS_SVC_URL",
 	"AZURE_CONN_STR",
@@ -38,8 +44,9 @@ func Vars() (vars map[string]string) {
 	vars = map[string]string{}
 	// get default from environment
 	for _, k := range envVars {
-		if vars[k] == "" {
-			vars[k] = os.Getenv(k)
+		val := os.Getenv(k)
+		if vars[k] == "" && val != "" {
+			vars[k] = val
 		}
 	}
 

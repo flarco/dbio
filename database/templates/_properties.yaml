@@ -264,27 +264,27 @@ azuresql:
 s3:
   title: 'AWS S3'
   kind: file
-  required: ["aws_bucket", "aws_access_key_id", "aws_secret_access_key"]
-  url_template: 's3://{aws_bucket}'
+  required: ["bucket", "access_key_id", "secret_access_key"]
+  url_template: 's3://{bucket}'
   properties:
     name:
       type: text
       title: Connection Name
       description: 'The name of the S3 connection. No spaces are allowed, will be all caps. Example: S3_MAIN'
-    aws_bucket:
+    bucket:
       type: text
       title: Bucket name
       description: The name of the S3 Bucket
-    aws_access_key_id:
+    access_key_id:
       type: text
       title: AWS Access Key
       description: The AWS Access Key ID to access the bucket
-    aws_secret_access_key:
+    secret_access_key:
       type: text
       title: AWS Secret Key
       description: The AWS Secret Key to access the bucket
       secret: true
-    aws_endpoint:
+    endpoint:
       type: text
       title: Endpoint Hostname
       description: The hostname of the endpoint (e.g. nyc3.digitaloceanspaces.com)
@@ -292,18 +292,18 @@ s3:
 azure:
   title: 'Azure Storage'
   kind: file
-  required: ["azure_account", "azure_sas_svc_url"]
-  url_template: 'azure://{azure_account}'
+  required: ["account", "sas_svc_url"]
+  url_template: 'azure://{account}'
   properties:
     name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: AZ_CSV_ARCHIVE'
-    azure_account:
+    account:
       type: text
       title: Storage Account Name
       description: The name of the Azure Storage Account
-    azure_sas_svc_url: 
+    sas_svc_url: 
       title: Azure Shared access signature
       type: text
       description: The Shared access signature to access the storage account
@@ -311,14 +311,14 @@ azure:
 gs:
   title: 'Google Storage'
   kind: file
-  required: ["gc_bucket", "credentials_json"]
-  url_template: 'gs://{gc_bucket}'
+  required: ["bucket", "credentials_json"]
+  url_template: 'gs://{bucket}'
   properties:
     name:
       type: text
       title: Connection Name
       description: 'The name of the connection. No spaces are allowed, will be all caps. Example: GS_ARCHIVE'
-    gc_bucket:
+    bucket:
       type: text
       title: Google Cloud Bucket
       description: The name of the Google Cloud Storage Bucket

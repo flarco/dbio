@@ -26,25 +26,30 @@ func (fs *AzureFileSysClient) Init(ctx context.Context) (err error) {
 	instance = fs
 	fs.BaseFileSysClient.instance = &instance
 	fs.BaseFileSysClient.context = g.NewContext(ctx)
+	for _, key := range g.ArrStr("ACCOUNT", "CONN_STR", "SAS_SVC_URL") {
+		if fs.GetProp(key) == "" {
+			fs.SetProp(key, fs.GetProp("AZURE_"+key))
+		}
+	}
 	return fs.Connect()
 }
 
 // Connect initiates the fs client connection
 func (fs *AzureFileSysClient) Connect() (err error) {
 
-	if cs := fs.GetProp("AZURE_CONN_STR"); cs != "" {
+	if cs := fs.GetProp("CONN_STR"); cs != "" {
 		connProps := g.KVArrToMap(strings.Split(cs, ";")...)
 		fs.account = connProps["AccountName"]
 		fs.key = connProps["AccountKey"]
 		fs.client, err = azstorage.NewClientFromConnectionString(cs)
 		if err != nil {
-			err = g.Error(err, "Could not connect using provided AZURE_CONN_STR")
+			err = g.Error(err, "Could not connect to Azure using provided CONN_STR")
 			return
 		}
-	} else if cs := fs.GetProp("AZURE_SAS_SVC_URL"); cs != "" {
+	} else if cs := fs.GetProp("SAS_SVC_URL"); cs != "" {
 		csArr := strings.Split(cs, "?")
 		if len(csArr) != 2 {
-			err = g.Error("Invalid provided AZURE_SAS_SVC_URL")
+			err = g.Error("Invalid provided SAS_SVC_URL")
 			return
 		}
 
@@ -52,9 +57,11 @@ func (fs *AzureFileSysClient) Connect() (err error) {
 		fs.account = strings.TrimRight(host, ".blob.core.windows.net")
 		fs.client, err = azstorage.NewAccountSASClientFromEndpointToken(csArr[0], csArr[1])
 		if err != nil {
-			err = g.Error(err, "Could not connect using provided AZURE_SAS_SVC_URL")
+			err = g.Error(err, "Could not connect to Azure using provided SAS_SVC_URL")
 			return
 		}
+	} else {
+		return g.Error("No Azure credentials preovided")
 	}
 	return
 }
@@ -82,22 +89,22 @@ func (fs *AzureFileSysClient) getBlobs(container *azstorage.Container, params az
 
 func (fs *AzureFileSysClient) getAuthContainerURL(container *azstorage.Container) (containerURL azblob.ContainerURL, err error) {
 
-	if fs.GetProp("AZURE_CONN_STR") != "" {
+	if fs.GetProp("CONN_STR") != "" {
 		credential, err := azblob.NewSharedKeyCredential(fs.account, fs.key)
 		if err != nil {
-			err = g.Error(err, "Unable to Authenticate")
+			err = g.Error(err, "Unable to Authenticate Azure")
 			return containerURL, err
 		}
 		pipeline := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 		contURL, _ := url.Parse(container.GetURL())
 		containerURL = azblob.NewContainerURL(*contURL, pipeline)
-	} else if fs.GetProp("AZURE_SAS_SVC_URL") != "" {
-		sasSvcURL, _ := url.Parse(fs.GetProp("AZURE_SAS_SVC_URL"))
+	} else if fs.GetProp("SAS_SVC_URL") != "" {
+		sasSvcURL, _ := url.Parse(fs.GetProp("SAS_SVC_URL"))
 		serviceURL := azblob.NewServiceURL(*sasSvcURL, azblob.NewPipeline(azblob.NewAnonymousCredential(), azblob.PipelineOptions{}))
 		containerURL = serviceURL.NewContainerURL(container.Name)
 	} else {
 		err = g.Error(
-			g.Error("Need to provide credentials AZURE_CONN_STR or AZURE_SAS_SVC_URL"),
+			g.Error("Need to provide Azure credentials CONN_STR or SAS_SVC_URL"),
 			"",
 		)
 		return

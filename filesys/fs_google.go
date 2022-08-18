@@ -29,6 +29,15 @@ func (fs *GoogleFileSysClient) Init(ctx context.Context) (err error) {
 	fs.BaseFileSysClient.instance = &instance
 	fs.BaseFileSysClient.context = g.NewContext(ctx)
 
+	for _, key := range g.ArrStr("BUCKET", "KEY_FILE", "KEY_BODY", "CRED_API_KEY") {
+		if fs.GetProp(key) == "" {
+			fs.SetProp(key, fs.GetProp("GC_"+key))
+		}
+	}
+	if fs.GetProp("KEY_FILE") == "" {
+		fs.SetProp("KEY_FILE", fs.GetProp("KEYFILE")) // dbt style
+	}
+
 	return fs.Connect()
 }
 
@@ -37,24 +46,30 @@ func (fs *GoogleFileSysClient) Connect() (err error) {
 	var authOption option.ClientOption
 	var credJsonBody string
 
-	if val := fs.GetProp("GC_CRED_JSON_BODY"); val != "" {
+	if val := fs.GetProp("KEY_BODY"); val != "" {
 		credJsonBody = val
 		authOption = option.WithCredentialsJSON([]byte(val))
-	} else if val := fs.GetProp("GC_CRED_API_KEY"); val != "" {
+	} else if val := fs.GetProp("KEY_FILE"); val != "" {
+		authOption = option.WithCredentialsFile(val)
+		b, err := ioutil.ReadFile(val)
+		if err != nil {
+			return g.Error(err, "could not read google cloud key file")
+		}
+		credJsonBody = string(b)
+	} else if val := fs.GetProp("CRED_API_KEY"); val != "" {
 		authOption = option.WithAPIKey(val)
 	} else if val := fs.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, _ := ioutil.ReadFile(val)
-		credJsonBody = string(b)
-	} else if val := fs.GetProp("keyfile"); val != "" {
-		authOption = option.WithCredentialsFile(val)
-		b, _ := ioutil.ReadFile(val)
+		b, err := ioutil.ReadFile(val)
+		if err != nil {
+			return g.Error(err, "could not read google cloud key file")
+		}
 		credJsonBody = string(b)
 	} else {
 		return g.Error("Could not connect. Did not provide Google credentials")
 	}
 
-	fs.bucket = fs.GetProp("GC_BUCKET")
+	fs.bucket = fs.GetProp("BUCKET")
 	if credJsonBody != "" {
 		m := g.M()
 		g.Unmarshal(credJsonBody, &m)

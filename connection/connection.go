@@ -193,10 +193,11 @@ func (c *Connection) URL() string {
 		case dbio.TypeFileLocal:
 			url = "file://"
 		case dbio.TypeFileS3:
-			url = g.F("%s://%s", c.Type.String(), cast.ToString(c.Data["aws_bucket"]))
+			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileGoogle:
-			url = g.F("%s://%s", c.Type.String(), cast.ToString(c.Data["gc_bucket"]))
+			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileAzure:
+			url = g.F("%s://%s.blob.core.windows.net/%s", c.Type.String(), c.Data["account"], c.Data["container"])
 		}
 	}
 	return url

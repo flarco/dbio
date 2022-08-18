@@ -37,10 +37,13 @@ func (fs *S3FileSysClient) Init(ctx context.Context) (err error) {
 	fs.BaseFileSysClient.instance = &instance
 	fs.BaseFileSysClient.context = g.NewContext(ctx)
 
-	fs.bucket = fs.GetProp("AWS_BUCKET")
-	if fs.bucket == "" {
-		fs.bucket = os.Getenv("AWS_BUCKET")
+	for _, key := range g.ArrStr("BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "REGION", "SESSION_TOKEN", "ENDPOINT") {
+		if fs.GetProp(key) == "" {
+			fs.SetProp(key, fs.GetProp("AWS_"+key))
+		}
 	}
+
+	fs.bucket = fs.GetProp("BUCKET")
 	fs.RegionMap = map[string]string{}
 
 	return fs.Connect()
@@ -70,12 +73,12 @@ func cleanKey(key string) string {
 // Connect initiates the Google Cloud Storage client
 func (fs *S3FileSysClient) Connect() (err error) {
 
-	if fs.GetProp("AWS_ACCESS_KEY_ID") == "" || fs.GetProp("AWS_SECRET_ACCESS_KEY") == "" {
-		return g.Error("Need to set 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY' to interact with S3")
+	if fs.GetProp("ACCESS_KEY_ID") == "" || fs.GetProp("SECRET_ACCESS_KEY") == "" {
+		return g.Error("Need to set 'ACCESS_KEY_ID' and 'SECRET_ACCESS_KEY' to interact with S3")
 	}
 
-	region := fs.GetProp("AWS_REGION")
-	endpoint := fs.GetProp("AWS_ENDPOINT")
+	region := fs.GetProp("REGION")
+	endpoint := fs.GetProp("ENDPOINT")
 	if region == "" {
 		region = defaultRegion
 	}
@@ -83,9 +86,9 @@ func (fs *S3FileSysClient) Connect() (err error) {
 	// https://docs.aws.amazon.com/sdk-for-go/api/service/s3/
 	fs.session, err = session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(
-			fs.GetProp("AWS_ACCESS_KEY_ID"),
-			fs.GetProp("AWS_SECRET_ACCESS_KEY"),
-			fs.GetProp("AWS_SESSION_TOKEN"),
+			fs.GetProp("ACCESS_KEY_ID"),
+			fs.GetProp("SECRET_ACCESS_KEY"),
+			fs.GetProp("SESSION_TOKEN"),
 		),
 		Region:                         aws.String(region),
 		S3ForcePathStyle:               aws.Bool(true),
@@ -105,7 +108,7 @@ func (fs *S3FileSysClient) Connect() (err error) {
 func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 	fs.mux.Lock()
 	defer fs.mux.Unlock()
-	endpoint := fs.GetProp("AWS_ENDPOINT")
+	endpoint := fs.GetProp("ENDPOINT")
 	if fs.bucket == "" {
 		return fs.session
 	} else if strings.HasSuffix(endpoint, ".digitaloceanspaces.com") {

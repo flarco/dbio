@@ -1,15 +1,10 @@
 package iop
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"github.com/flarco/g"
-)
-
-var (
-	AWS_BUCKET = os.Getenv("AWS_BUCKET")
 )
 
 func bParseString(sp *StreamProcessor, val string, b *testing.B) {
