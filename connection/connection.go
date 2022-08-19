@@ -93,7 +93,10 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 	)
 
 	if c.Type == "" {
-		U, _ := net.NewURL(c.URL())
+		U, err := net.NewURL(c.URL())
+		if err != nil {
+			return c, g.Error(err, "invalid url")
+		}
 		c.Type, _ = dbio.ValidateType(U.U.Scheme)
 	}
 
