@@ -228,6 +228,7 @@ func (c *Connection) AsAirbyte() (*airbyte.Airbyte, error) {
 	delete(c.Data, "airbyte_date_layout")
 	delete(c.Data, "airbyte_date_field")
 	delete(c.Data, "type")
+	delete(c.Data, "url")
 
 	options := airbyte.AirbyteOptions{
 		Config:     c.Data,
