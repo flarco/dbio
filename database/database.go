@@ -22,7 +22,7 @@ import (
 	"github.com/flarco/dbio/env"
 	"github.com/flarco/g"
 
-	_ "github.com/ClickHouse/clickhouse-go"
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/flarco/dbio/iop"
 	_ "github.com/go-sql-driver/mysql"
@@ -794,54 +794,85 @@ func (conn *BaseConn) StreamRows(sql string, limit ...int) (ds *iop.Datastream, 
 }
 
 // StreamRowsContext streams the rows of a sql query with context, returns `result`, `error`
-func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error) {
+func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, limit ...int) (ds *iop.Datastream, err error) {
 	Limit := uint64(0) // infinite
 	if len(limit) > 0 && limit[0] != 0 {
 		Limit = cast.ToUint64(limit[0])
 	}
 
 	start := time.Now()
-	if strings.TrimSpace(sql) == "" {
+	if strings.TrimSpace(query) == "" {
 		return ds, g.Error("Empty Query")
 	}
 
 	queryContext := g.NewContext(ctx)
 
-	conn.AddLog(sql)
+	conn.AddLog(query)
 	var result *sqlx.Rows
 	if conn.tx != nil {
-		result, err = conn.tx.QueryContext(queryContext.Ctx, sql)
+		result, err = conn.tx.QueryContext(queryContext.Ctx, query)
 	} else {
-		if !strings.Contains(sql, noTraceKey) {
-			g.Debug(sql)
+		if !strings.Contains(query, noTraceKey) {
+			g.Debug(query)
 		}
-		result, err = conn.db.QueryxContext(queryContext.Ctx, sql)
-	}
-	if err != nil {
-		queryContext.Cancel()
-		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
-			return ds, g.Error(err, "SQL Error")
-		}
-		return ds, g.Error(err, "SQL Error for:\n"+sql)
+		result, err = conn.db.QueryxContext(queryContext.Ctx, query)
 	}
 
-	colTypes, err := result.ColumnTypes()
-	if err != nil {
+	if err != nil && err.Error() == "EOF" {
+		// for clickhouse
+		err = nil
+	} else if err != nil {
 		queryContext.Cancel()
-		return ds, g.Error(err, "could not get column types")
+		if strings.Contains(query, noTraceKey) && !g.IsDebugLow() {
+			return ds, g.Error(err, "SQL Error")
+		}
+		return ds, g.Error(err, "SQL Error for:\n"+query)
+	}
+
+	var colTypes []ColumnType
+	if result != nil {
+		dbColTypes, err := result.ColumnTypes()
+		if err != nil {
+			queryContext.Cancel()
+			return ds, g.Error(err, "could not get column types")
+		}
+
+		colTypes = lo.Map(dbColTypes, func(ct *sql.ColumnType, i int) ColumnType {
+			var precision, scale, length int64
+			nullable, _ := ct.Nullable()
+			length, ok := ct.Length()
+			if !ok {
+				precision, scale, ok = ct.DecimalSize()
+			}
+			if length == math.MaxInt64 {
+				length = math.MaxInt32
+			}
+
+			return ColumnType{
+				Name:             ct.Name(),
+				DatabaseTypeName: ct.DatabaseTypeName(),
+				Length:           cast.ToInt(length),
+				Precision:        cast.ToInt(precision),
+				Scale:            cast.ToInt(scale),
+				Nullable:         nullable,
+				Sourced:          ok,
+			}
+		})
 	}
 
 	conn.Data.Result = result
-	conn.Data.SQL = sql
+	conn.Data.SQL = query
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
-	conn.Data.Columns = SQLColumns(colTypes, conn.template.NativeTypeMap)
-	conn.Data.NoTrace = !strings.Contains(sql, noTraceKey)
+	conn.Data.Columns = SQLColumns(colTypes, conn)
+	conn.Data.NoTrace = !strings.Contains(query, noTraceKey)
 
 	g.Trace("query responded in %f secs", conn.Data.Duration)
 
 	nextFunc := func(it *iop.Iterator) bool {
-		if Limit > 0 && it.Counter >= Limit {
+		if result == nil {
+			return false
+		} else if Limit > 0 && it.Counter >= Limit {
 			result.Next()
 			result.Close()
 			return false
@@ -868,7 +899,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = strings.Contains(sql, noTraceKey)
+	ds.NoTrace = strings.Contains(query, noTraceKey)
 	// ds.Inferred = true // since precision and scale is not guaranteed
 
 	err = ds.Start()
@@ -927,8 +958,9 @@ func (conn *BaseConn) BeginContext(ctx context.Context, options ...*sql.TxOption
 	if err != nil {
 		return g.Error(err, "could not create transaction")
 	}
-
-	conn.tx = tx
+	if tx != nil {
+		conn.tx = tx
+	}
 	return
 }
 
@@ -1223,45 +1255,42 @@ func CommonColumns(colNames1 []string, colNames2 []string) (commCols []string) {
 }
 
 // SQLColumns returns the columns from database ColumnType
-func SQLColumns(colTypes []*sql.ColumnType, NativeTypeMap map[string]string) (columns iop.Columns) {
+func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 	columns = make(iop.Columns, len(colTypes))
 
 	for i, colType := range colTypes {
-		dbType := strings.ToLower(colType.DatabaseTypeName())
-		dbType = strings.Split(dbType, "(")[0]
+		dbType := strings.ToLower(colType.DatabaseTypeName)
 
-		Type := iop.ColumnType(dbType)
-		if matchedType, ok := NativeTypeMap[dbType]; ok {
+		if conn.GetType() == dbio.TypeDbClickhouse {
+			if strings.HasPrefix(dbType, "nullable(") {
+				dbType = strings.ReplaceAll(dbType, "nullable(", "")
+				dbType = strings.TrimSuffix(dbType, ")")
+			}
+		}
+
+		dbType = strings.Split(strings.ToLower(dbType), "(")[0]
+		dbType = strings.Split(dbType, "<")[0]
+
+		var Type iop.ColumnType
+		if matchedType, ok := conn.Template().NativeTypeMap[dbType]; ok {
 			Type = iop.ColumnType(matchedType)
 		} else {
 			if dbType != "" {
-				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name(), colType)
+				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name, colType)
 			}
 			Type = "string" // default as string
 		}
 
 		col := iop.Column{
-			Name:     colType.Name(),
+			Name:     colType.Name,
 			Position: i + 1,
 			Type:     Type,
 			DbType:   dbType,
-			ColType:  colType,
 		}
 
-		length, scale, ok := int64(0), int64(0), false
-		if col.IsString() {
-			length, ok = colType.Length()
-		} else if col.IsNumber() {
-			length, scale, ok = colType.DecimalSize()
-		}
-
-		if length == math.MaxInt64 {
-			length = math.MaxInt32
-		}
-
-		col.Stats.MaxLen = cast.ToInt(length)
-		col.Stats.MaxDecLen = cast.ToInt(scale)
-		col.Sourced = ok
+		col.Stats.MaxLen = colType.Length
+		col.Stats.MaxDecLen = colType.Scale
+		col.Sourced = colType.Sourced
 		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
 
 		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
@@ -1349,6 +1378,7 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 		colName := cast.ToString(rec["column_name"])
 		colMap[strings.ToLower(colName)] = colName
 	}
+
 	for _, field := range fields {
 		_, ok := colMap[strings.ToLower(field)]
 		if !ok {
@@ -1361,37 +1391,25 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 		fieldMap[strings.ToLower(field)] = colMap[strings.ToLower(field)]
 	}
 
-	for i, rec := range colData.Records() {
-		dType := cast.ToString(rec["data_type"])
-		dType = strings.Split(strings.ToLower(dType), "(")[0]
-		dType = strings.Split(dType, "<")[0]
-		generalType, ok := conn.Template().NativeTypeMap[dType]
-		if !ok {
-			err = g.Error(
-				"No general type mapping defined for col '%s', with type '%s' for '%s'",
-				rec["column_name"],
-				dType,
-				conn.GetType(),
-			)
-			return
+	colTypes := lo.Map(colData.Records(), func(rec map[string]interface{}, i int) ColumnType {
+		return ColumnType{
+			Name:             cast.ToString(rec["column_name"]),
+			DatabaseTypeName: cast.ToString(rec["data_type"]),
+			Precision:        cast.ToInt(rec["precision"]),
+			Scale:            cast.ToInt(rec["scale"]),
 		}
+	})
 
-		column := iop.Column{
-			Position:    i + 1,
-			Name:        cast.ToString(rec["column_name"]),
-			Type:        iop.ColumnType(generalType),
-			DbType:      dType,
-			DbPrecision: cast.ToInt(rec["precision"]),
-			DbScale:     cast.ToInt(rec["scale"]),
-		}
+	// if fields provided, filter
+	colTypes = lo.Filter(colTypes, func(c ColumnType, i int) bool {
 		if len(fields) > 0 {
-			_, ok := fieldMap[strings.ToLower(column.Name)]
-			if !ok {
-				continue
-			}
+			_, ok := fieldMap[strings.ToLower(c.Name)]
+			return ok
 		}
-		columns = append(columns, column)
-	}
+		return true
+	})
+
+	columns = SQLColumns(colTypes, conn)
 
 	if len(columns) == 0 {
 		err = g.Error("unable to obtain columns for " + tableFName)
@@ -2164,6 +2182,10 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		"table", tableFName,
 		"col_types", strings.Join(columnsDDL, ",\n"),
 	)
+
+	if conn.GetType() == dbio.TypeDbClickhouse {
+		ddl = ddl + g.F("\norder by (%s)", conn.Self().Quote(data.Columns[0].Name, true))
+	}
 
 	return ddl, nil
 }

@@ -1,30 +1,22 @@
 core:
   drop_table: drop table if exists {table}
   drop_view: drop view if exists {view}
-  create_temporary_table: 'create table #{table} ({col_types})'
-  replace: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
-  replace_temp: |
-    insert into {table} ({names})
-    select {names} from {temp_table}
-    on conflict ({pk_fields}) do nothing;
-    update {table} as t1 set {set_fields2}
-    from (select * from {temp_table}) as t2
-    where {pk_fields_equal}
-  limit: select top {limit} {fields} from {table}
-  insert: insert into {table} ({cols}) values ({values})
-  insert_temp: insert into {table} ({cols}) select {cols} from {temp_table}
-  insert_ignore: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do nothing
-  insert_ignore_temp: insert into {table} ({names}) select {names} from {temp_table} on conflict ({pk_fields}) do nothing
-  update_temp: |
-    update {table} as t1 set {set_fields2}
-    from (select * from {temp_table}) as t2
-    where {pk_fields_equal2}
-  sample: SELECT {fields} FROM {table} TABLESAMPLE SYSTEM (50) limit {n}
+  create_table: create table {table} ({col_types}) engine=MergeTree
+  create_temporary_table: create table {table} ({col_types}) engine=Memory
   rename_table: ALTER TABLE {table} RENAME TO {new_table}
 
 
 metadata:
+
+  current_database:
+    select currentDatabase()
     
+  databases: |
+    select currentDatabase() as name
+  
+  # clickhouse does not have schemas
+  # has database and table, for example: database1.table1
+  # for our purpose a schema is a database
   schemas: |
     select name as schema_name
     from system.databases
@@ -60,12 +52,9 @@ metadata:
   columns_full: |
     with tables as (
       select
-        database as table_schema,
+        database,
         name as table_name,
-        case type
-          when 'View' then 'true'
-          else 'false'
-        end as is_view
+        engine in ('View') as is_view
       from system.tables
       where database = '{schema}' and name = '{table}'
     )
@@ -77,19 +66,16 @@ metadata:
       cols.position as position
     from system.columns cols
     join tables
-      and tables.database = cols.database
-      and tables.table = cols.table_name
+      on tables.database = cols.database
+      and tables.table_name = cols.table
     order by cols.database, cols.table, cols.position
 
   schemata: |
     with tables as (
       select
-        database as table_schema,
+        database,
         name as table_name,
-        case type
-          when 'View' then 'true'
-          else 'false'
-        end as is_view
+        engine in ('View') as is_view
       from system.tables
       where 1=1
         {{if .schema -}} and database = '{schema}' {{- end}}
@@ -103,8 +89,8 @@ metadata:
       cols.position as position
     from system.columns cols
     join tables
-      and tables.database = cols.database
-      and tables.table = cols.table_name
+      on tables.database = cols.database
+      and tables.table_name = cols.table
     order by cols.database, cols.table, cols.position
   
   ddl_table:
@@ -264,3 +250,4 @@ variable:
   batch_values: 2000
   bool_as: string
   error_filter_table_exists: already
+  quote_char: '`'

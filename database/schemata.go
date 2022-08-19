@@ -198,3 +198,13 @@ func (s *Schemata) Columns() map[string]iop.Column {
 	}
 	return columns
 }
+
+type ColumnType struct {
+	Name             string
+	DatabaseTypeName string
+	Length           int
+	Precision        int
+	Scale            int
+	Nullable         bool
+	Sourced          bool
+}

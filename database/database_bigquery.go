@@ -156,7 +156,7 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 
 // NewTransaction creates a new transaction
 func (conn *BigQueryConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (tx Transaction, err error) {
-	context := g.NewContext(ctx)
+	// context := g.NewContext(ctx)
 
 	// _, err = conn.ExecContext(ctx, "BEGIN")
 	// if err != nil {
@@ -164,10 +164,10 @@ func (conn *BigQueryConn) NewTransaction(ctx context.Context, options ...*sql.Tx
 	// }
 
 	// BQ does not support transactions at the moment
-	Tx := &BlankTransaction{Conn: conn.Self(), context: &context}
-	conn.tx = Tx
+	// Tx := &BlankTransaction{Conn: conn.Self(), context: &context}
+	// conn.tx = Tx
 
-	return Tx, nil
+	return nil, nil
 }
 
 type bqResult struct {

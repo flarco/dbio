@@ -216,11 +216,11 @@ var DBs = map[string]*testDB{
 		schema:      "default",
 		transactDDL: `CREATE TABLE default.transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) ) engine=Memory`,
 		personDDL:   `CREATE TABLE default.person (first_name varchar(255), last_name varchar(255), email varchar(255)) engine=Memory`,
-		placeDDL:    "CREATE TABLE default.place\n(\n    country varchar,\n    city varchar null,\n    telcode bigint\n) engine=Memory",
+		placeDDL:    "CREATE TABLE default.place\n(\n    `country` String,\n    `city` Nullable(String),\n    `telcode` Int64\n)\nENGINE = Memory",
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view default.place_vw as select * from place where telcode = 65`,
-		placeVwSelect: "create or replace view PLACE_VW as select * from place where telcode = 65;",
+		placeVwSelect: "CREATE VIEW default.place_vw\n(\n    `country` String,\n    `city` Nullable(String),\n    `telcode` Int64\n) AS\nSELECT *\nFROM default.place\nWHERE telcode = 65",
 	},
 }
 
@@ -237,6 +237,7 @@ func TestClickhouse(t *testing.T) {
 	db := DBs["clickhouse"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
+	assert.NotEmpty(t, conn)
 	DBTest(t, db, conn)
 }
 
@@ -347,7 +348,6 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	if !strings.Contains("redshift,bigquery,snowflake,clickhouse", db.name) {
 		conn.MustExec(db.placeIndex)
 	}
-
 	personColumns, err := conn.GetColumns(db.schema + ".person")
 	g.AssertNoError(t, err)
 	placeColumns, err := conn.GetColumns(db.schema + ".place")
@@ -495,7 +495,9 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 	if ok {
 		_, err = conn.Exec(ddl)
-		g.AssertNoError(t, err)
+		if !g.AssertNoError(t, err) {
+			return
+		}
 
 		// import to database
 		conn.SetProp("AWS_BUCKET", os.Getenv("AWS_BUCKET"))

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/flarco/dbio"
-	"github.com/flarco/g/net"
 
 	"github.com/flarco/g"
 )
@@ -26,29 +25,47 @@ func (conn *ClickhouseConn) Init() error {
 	var instance Connection
 	instance = conn
 	conn.BaseConn.instance = &instance
-
 	return conn.BaseConn.Init()
 }
 
-func (conn *ClickhouseConn) GetURL(newURL ...string) string {
-	connURL := conn.BaseConn.URL
-	if len(newURL) > 0 {
-		connURL = newURL[0]
-	}
+// func (conn *ClickhouseConn) GetURL(newURL ...string) string {
+// 	connURL := conn.BaseConn.URL
+// 	if len(newURL) > 0 {
+// 		connURL = newURL[0]
+// 	}
 
-	u, err := net.NewURL(connURL)
-	if err != nil {
-		g.LogError(err, "could not parse MySQL URL")
-		return connURL
-	}
+// 	u, err := net.NewURL(connURL)
+// 	if err != nil {
+// 		g.LogError(err, "could not parse MySQL URL")
+// 		return connURL
+// 	}
 
-	// Add tcp explicitly...
-	URL := g.F(
-		"tcp://%s:%d?debug=false",
-		u.Hostname(), u.Port(),
-	)
+// 	// Add tcp explicitly...
+// 	URL := g.F(
+// 		"tcp://%s:%d?debug=false",
+// 		u.Hostname(), u.Port(),
+// 	)
 
-	return URL
+// 	return URL
+// }
+
+// Connect connects to the database
+// func (conn *ClickhouseConn) Connect(timeOut ...int) (err error) {
+// 	u, err := net.NewURL("clickhouse://admin:dElta123!@mpc:9000/default")
+// 	if err != nil {
+// 		return g.Error(err, "could not connect")
+// 	}
+// 	return conn.BaseConn.Connect()
+// }
+
+// NewTransaction creates a new transaction
+func (conn *ClickhouseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (tx Transaction, err error) {
+	// context := g.NewContext(ctx)
+
+	// CH does not support transactions at the moment
+	// Tx := &BlankTransaction{Conn: conn.Self(), context: &context}
+
+	return nil, nil
 }
 
 // GenerateUpsertSQL generates the upsert SQL
@@ -83,27 +100,5 @@ func (conn *ClickhouseConn) GenerateUpsertSQL(srcTable string, tgtTable string, 
 		"insert_fields", upsertMap["insert_fields"],
 	)
 
-	return
-}
-
-// ExecContext runs a sql query with context, returns `error`
-func (conn *ClickhouseConn) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
-
-	err = conn.Begin()
-	if err != nil {
-		err = g.Error(err, "Error beginning")
-	}
-
-	result, err = conn.BaseConn.ExecContext(ctx, q, args...)
-	if err != nil {
-		conn.Rollback()
-		err = g.Error(err, "Error executing "+CleanSQL(conn, q))
-	}
-
-	err = conn.Commit()
-	if err != nil {
-		conn.Rollback()
-		err = g.Error(err, "Error committing")
-	}
 	return
 }

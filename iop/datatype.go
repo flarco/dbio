@@ -1,7 +1,6 @@
 package iop
 
 import (
-	"database/sql"
 	"math"
 	"os"
 	"reflect"
@@ -23,16 +22,15 @@ var (
 
 // Column represents a schemata column
 type Column struct {
-	Position    int             `json:"position"`
-	Name        string          `json:"name"`
-	Type        ColumnType      `json:"type"`
-	DbType      string          `json:"db_type,omitempty"`
-	DbPrecision int             `json:"-"`
-	DbScale     int             `json:"-"`
-	Sourced     bool            `json:"-"` // whether is was sourced from a typed source
-	Stats       ColumnStats     `json:"stats,omitempty"`
-	ColType     *sql.ColumnType `json:"-"`
-	goType      reflect.Type    `json:"-"`
+	Position    int          `json:"position"`
+	Name        string       `json:"name"`
+	Type        ColumnType   `json:"type"`
+	DbType      string       `json:"db_type,omitempty"`
+	DbPrecision int          `json:"-"`
+	DbScale     int          `json:"-"`
+	Sourced     bool         `json:"-"` // whether is was sourced from a typed source
+	Stats       ColumnStats  `json:"stats,omitempty"`
+	goType      reflect.Type `json:"-"`
 
 	Table    string `json:"table,omitempty"`
 	Schema   string `json:"schema,omitempty"`
@@ -226,7 +224,6 @@ func (cols Columns) Clone() (newCols Columns) {
 			DbScale:     col.DbScale,
 			Sourced:     col.Sourced,
 			Stats:       col.Stats,
-			ColType:     col.ColType,
 			goType:      col.goType,
 			Table:       col.Table,
 			Schema:      col.Schema,
