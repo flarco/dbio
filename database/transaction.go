@@ -12,11 +12,21 @@ import (
 	"github.com/spf13/cast"
 )
 
-// Transaction is a database transaction
-type Transaction struct {
+type Transaction interface {
+	Context() *g.Context
+	Commit() (err error)
+	Rollback() (err error)
+	Prepare(query string) (stmt *sql.Stmt, err error)
+	QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error)
+	ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error)
+	ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error)
+}
+
+// BaseTransaction is a database transaction
+type BaseTransaction struct {
 	Tx      *sqlx.Tx
-	Context *g.Context
 	Conn    Connection
+	context *g.Context
 	log     []string
 }
 
@@ -33,11 +43,15 @@ func (r Result) RowsAffected() (int64, error) {
 }
 
 // Commit commits connection wide transaction
-func (t *Transaction) Commit() (err error) {
+func (t *BaseTransaction) Context() *g.Context {
+	return t.context
+}
+
+func (t *BaseTransaction) Commit() (err error) {
 	select {
-	case <-t.Context.Ctx.Done():
+	case <-t.context.Ctx.Done():
 		t.Rollback()
-		err = t.Context.Err()
+		err = t.context.Err()
 		return
 	default:
 		g.Trace("commiting")
@@ -50,7 +64,7 @@ func (t *Transaction) Commit() (err error) {
 }
 
 // Rollback rolls back connection wide transaction
-func (t *Transaction) Rollback() (err error) {
+func (t *BaseTransaction) Rollback() (err error) {
 	if t == nil || t.Tx == nil {
 		return
 	}
@@ -63,8 +77,8 @@ func (t *Transaction) Rollback() (err error) {
 }
 
 // Prepare prepares the statement
-func (t *Transaction) Prepare(query string) (stmt *sql.Stmt, err error) {
-	stmt, err = t.Tx.PrepareContext(t.Context.Ctx, query)
+func (t *BaseTransaction) Prepare(query string) (stmt *sql.Stmt, err error) {
+	stmt, err = t.Tx.PrepareContext(t.context.Ctx, query)
 	if err != nil {
 		err = g.Error(err, "could not prepare Tx: %s", query)
 	}
@@ -72,8 +86,8 @@ func (t *Transaction) Prepare(query string) (stmt *sql.Stmt, err error) {
 }
 
 // Exec runs a sql query, returns `error`
-func (t *Transaction) Exec(sql string, args ...interface{}) (result sql.Result, err error) {
-	result, err = t.ExecContext(t.Context.Ctx, sql, args...)
+func (t *BaseTransaction) Exec(sql string, args ...interface{}) (result sql.Result, err error) {
+	result, err = t.ExecContext(t.context.Ctx, sql, args...)
 	if err != nil {
 		err = g.Error(err, "Could not execute SQL")
 	}
@@ -81,7 +95,7 @@ func (t *Transaction) Exec(sql string, args ...interface{}) (result sql.Result, 
 }
 
 // QueryContext queries rows
-func (t *Transaction) QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error) {
+func (t *BaseTransaction) QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error) {
 	t.log = append(t.log, q)
 	if !strings.Contains(q, noTraceKey) {
 		g.Debug(q)
@@ -94,7 +108,7 @@ func (t *Transaction) QueryContext(ctx context.Context, q string, args ...interf
 }
 
 // ExecContext runs a sql query with context, returns `error`
-func (t *Transaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+func (t *BaseTransaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
 	if strings.TrimSpace(q) == "" {
 		err = g.Error("Empty Query")
 		return
@@ -118,7 +132,7 @@ func (t *Transaction) ExecContext(ctx context.Context, q string, args ...interfa
 }
 
 // ExecMultiContext runs multiple sql queries with context, returns `error`
-func (t *Transaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+func (t *BaseTransaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
 
 	Res := Result{rowsAffected: 0}
 
@@ -141,7 +155,7 @@ func (t *Transaction) ExecMultiContext(ctx context.Context, q string, args ...in
 }
 
 // DisableTrigger disables a trigger
-func (t *Transaction) DisableTrigger(tableName, triggerName string) (err error) {
+func (t *BaseTransaction) DisableTrigger(tableName, triggerName string) (err error) {
 	template := t.Conn.GetTemplateValue("core.disable_trigger")
 	sql := g.R(
 		template,
@@ -159,7 +173,7 @@ func (t *Transaction) DisableTrigger(tableName, triggerName string) (err error) 
 }
 
 // EnableTrigger enables a trigger
-func (t *Transaction) EnableTrigger(tableName, triggerName string) (err error) {
+func (t *BaseTransaction) EnableTrigger(tableName, triggerName string) (err error) {
 	template := t.Conn.GetTemplateValue("core.enable_trigger")
 	sql := g.R(
 		template,
@@ -177,14 +191,14 @@ func (t *Transaction) EnableTrigger(tableName, triggerName string) (err error) {
 }
 
 // UpsertStream inserts a stream into a table in batch
-func (t *Transaction) UpsertStream(tableFName string, ds *iop.Datastream, pk []string) (count uint64, err error) {
+func (t *BaseTransaction) UpsertStream(tableFName string, ds *iop.Datastream, pk []string) (count uint64, err error) {
 
 	// create tmp table first
 	return
 }
 
 // InsertStream inserts a stream into a table
-func (t *Transaction) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func (t *BaseTransaction) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	count, err = InsertStream(t.Conn, t, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not insert into %s", tableFName)
@@ -193,7 +207,7 @@ func (t *Transaction) InsertStream(tableFName string, ds *iop.Datastream) (count
 }
 
 // InsertBatchStream inserts a stream into a table in batch
-func (t *Transaction) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func (t *BaseTransaction) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	count, err = InsertBatchStream(t.Conn, t, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not batch insert into %s", tableFName)
@@ -202,7 +216,7 @@ func (t *Transaction) InsertBatchStream(tableFName string, ds *iop.Datastream) (
 }
 
 // Upsert does an upsert from source table into target table
-func (t *Transaction) Upsert(sourceTable, targetTable string, pkFields []string) (count uint64, err error) {
+func (t *BaseTransaction) Upsert(sourceTable, targetTable string, pkFields []string) (count uint64, err error) {
 	cnt, err := Upsert(t.Conn, t, sourceTable, targetTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "Could not upsert from %s into %s", sourceTable, targetTable)
@@ -212,7 +226,7 @@ func (t *Transaction) Upsert(sourceTable, targetTable string, pkFields []string)
 }
 
 // InsertStream inserts a stream
-func InsertStream(conn Connection, tx *Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	// make sure fields match
 	columns, err := conn.GetSQLColumns("select * from " + tableFName)
 	if err != nil {
@@ -254,10 +268,10 @@ func InsertStream(conn Connection, tx *Transaction, tableFName string, ds *iop.D
 }
 
 // InsertBatchStream inserts a stream into a table in batch
-func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	context := conn.Context()
 	if tx != nil {
-		context = tx.Context
+		context = tx.context
 	}
 
 	// make sure fields match
@@ -386,7 +400,7 @@ func InsertBatchStream(conn Connection, tx *Transaction, tableFName string, ds *
 }
 
 // Upsert upserts from source table into target table
-func Upsert(conn Connection, tx *Transaction, sourceTable, targetTable string, pkFields []string) (count int64, err error) {
+func Upsert(conn Connection, tx Transaction, sourceTable, targetTable string, pkFields []string) (count int64, err error) {
 
 	q, err := conn.GenerateUpsertSQL(sourceTable, targetTable, pkFields)
 	if err != nil {
@@ -396,7 +410,7 @@ func Upsert(conn Connection, tx *Transaction, sourceTable, targetTable string, p
 
 	var result sql.Result
 	if tx != nil {
-		result, err = tx.ExecMultiContext(tx.Context.Ctx, q)
+		result, err = tx.ExecMultiContext(tx.Context().Ctx, q)
 	} else {
 		result, err = conn.ExecMulti(q)
 	}
@@ -410,5 +424,99 @@ func Upsert(conn Connection, tx *Transaction, sourceTable, targetTable string, p
 		count = -1
 	}
 
+	return
+}
+
+type ManualTransaction struct {
+	Conn    Connection
+	context *g.Context
+	log     []string
+}
+
+func (t *ManualTransaction) Context() *g.Context {
+	return t.context
+}
+
+func (t *ManualTransaction) Commit() (err error) {
+	_, err = t.Conn.Exec("COMMIT")
+	if err != nil {
+		return g.Error(err, "could not commit")
+	}
+	return
+}
+
+func (t *ManualTransaction) Rollback() (err error) {
+	_, err = t.Conn.Exec("ROLLBACK")
+	if err != nil {
+		return g.Error(err, "could not commit")
+	}
+	return
+}
+
+func (t *ManualTransaction) Prepare(query string) (stmt *sql.Stmt, err error) {
+	return
+}
+
+func (t *ManualTransaction) QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error) {
+	_, err = t.Conn.QueryContext(ctx, q)
+	return
+}
+
+func (t *ManualTransaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+	_, err = t.Conn.ExecContext(ctx, q)
+	if err != nil {
+		err = g.Error(err, "could not execute query")
+	}
+	return
+}
+
+func (t *ManualTransaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+	_, err = t.Conn.ExecMultiContext(ctx, q)
+	if err != nil {
+		err = g.Error(err, "could not execute multiple queries")
+	}
+	return
+}
+
+type BlankTransaction struct {
+	Conn    Connection
+	context *g.Context
+	log     []string
+}
+
+func (t *BlankTransaction) Context() *g.Context {
+	return t.context
+}
+
+func (t *BlankTransaction) Commit() (err error) {
+	return
+}
+
+func (t *BlankTransaction) Rollback() (err error) {
+	return
+}
+
+func (t *BlankTransaction) Prepare(query string) (stmt *sql.Stmt, err error) {
+	return
+}
+
+func (t *BlankTransaction) QueryContext(ctx context.Context, q string, args ...interface{}) (result *sqlx.Rows, err error) {
+	_, err = t.Conn.QueryContext(ctx, q)
+	return
+}
+
+func (t *BlankTransaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+	_, err = t.Conn.ExecContext(ctx, q)
+	if err != nil {
+		err = g.Error(err, "could not execute query")
+	}
+	return
+}
+
+func (t *BlankTransaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+	_, err = t.Conn.ExecMultiContext(ctx, q)
+	if err != nil {
+		err = g.Error(err, "could not execute multiple queries")
+	}
 	return
 }

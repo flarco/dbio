@@ -96,7 +96,7 @@ type Connection interface {
 	Kill() error
 	LoadTemplates() error
 	MustExec(sql string, args ...interface{}) (result sql.Result)
-	NewTransaction(ctx context.Context, options ...*sql.TxOptions) (*Transaction, error)
+	NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error)
 	OptimizeTable(tableName string, columns iop.Columns) (err error)
 	Prepare(query string) (stmt *sql.Stmt, err error)
 	Props() map[string]string
@@ -113,7 +113,6 @@ type Connection interface {
 	Self() Connection
 	setContext(ctx context.Context, concurrency int)
 	SetProp(string, string)
-	SetTx(*Transaction)
 	StreamRecords(sql string) (<-chan map[string]interface{}, error)
 	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
 	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
@@ -121,7 +120,7 @@ type Connection interface {
 	TableExists(tableFName string) (exists bool, err error)
 	Template() Template
 	SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error)
-	Tx() *Transaction
+	Tx() Transaction
 	Unquote(string) string
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
 	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
@@ -147,7 +146,7 @@ type BaseConn struct {
 	URL         string
 	Type        dbio.Type // the type of database for sqlx: postgres, mysql, sqlite
 	db          *sqlx.DB
-	tx          *Transaction
+	tx          Transaction
 	Data        iop.Dataset
 	defaultPort int
 	instance    *Connection
@@ -415,7 +414,7 @@ func (conn *BaseConn) DbX() *DbX {
 }
 
 // Tx returns the current sqlx tx object
-func (conn *BaseConn) Tx() *Transaction {
+func (conn *BaseConn) Tx() Transaction {
 	return conn.tx
 }
 
@@ -881,7 +880,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, sql string, limit .
 }
 
 // NewTransaction creates a new transaction
-func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (*Transaction, error) {
+func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error) {
 	context := g.NewContext(ctx)
 
 	if len(options) == 0 {
@@ -901,8 +900,8 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 		return nil, g.Error(err, "could not clone conn object")
 	}
 
-	Tx := &Transaction{Tx: tx, Conn: c.Self(), Context: &context}
-	c.SetTx(Tx)
+	Tx := &BaseTransaction{Tx: tx, Conn: c.Self(), context: &context}
+	conn.tx = Tx
 
 	err = c.Connect()
 	if err != nil {
@@ -910,11 +909,6 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 	}
 
 	return Tx, nil
-}
-
-// SetTx sets the transaction
-func (conn *BaseConn) SetTx(tx *Transaction) {
-	conn.tx = tx
 }
 
 // Begin starts a connection wide transaction
@@ -929,7 +923,7 @@ func (conn *BaseConn) BeginContext(ctx context.Context, options ...*sql.TxOption
 	}
 
 	g.Trace("begin")
-	tx, err := conn.NewTransaction(ctx, options...)
+	tx, err := conn.Self().NewTransaction(ctx, options...)
 	if err != nil {
 		return g.Error(err, "could not create transaction")
 	}
@@ -946,8 +940,8 @@ func (conn *BaseConn) Commit() (err error) {
 
 	conn.AddLog("COMMIT")
 	select {
-	case <-conn.tx.Context.Ctx.Done():
-		err = conn.tx.Context.Err()
+	case <-conn.tx.Context().Ctx.Done():
+		err = conn.tx.Context().Err()
 		conn.Rollback()
 		return
 	default:
