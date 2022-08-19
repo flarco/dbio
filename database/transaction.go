@@ -463,7 +463,7 @@ func (t *ManualTransaction) QueryContext(ctx context.Context, q string, args ...
 }
 
 func (t *ManualTransaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
-	_, err = t.Conn.ExecContext(ctx, q)
+	result, err = t.Conn.ExecContext(ctx, q)
 	if err != nil {
 		err = g.Error(err, "could not execute query")
 	}
@@ -471,7 +471,7 @@ func (t *ManualTransaction) ExecContext(ctx context.Context, q string, args ...i
 }
 
 func (t *ManualTransaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
-	_, err = t.Conn.ExecMultiContext(ctx, q)
+	result, err = t.Conn.ExecMultiContext(ctx, q)
 	if err != nil {
 		err = g.Error(err, "could not execute multiple queries")
 	}
@@ -506,7 +506,7 @@ func (t *BlankTransaction) QueryContext(ctx context.Context, q string, args ...i
 }
 
 func (t *BlankTransaction) ExecContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
-	_, err = t.Conn.ExecContext(ctx, q)
+	result, err = t.Conn.ExecContext(ctx, q)
 	if err != nil {
 		err = g.Error(err, "could not execute query")
 	}
@@ -514,7 +514,7 @@ func (t *BlankTransaction) ExecContext(ctx context.Context, q string, args ...in
 }
 
 func (t *BlankTransaction) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
-	_, err = t.Conn.ExecMultiContext(ctx, q)
+	result, err = t.Conn.ExecMultiContext(ctx, q)
 	if err != nil {
 		err = g.Error(err, "could not execute multiple queries")
 	}

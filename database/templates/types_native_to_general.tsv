@@ -218,7 +218,7 @@ snowflake	timestamp_ntz	timestamp	col_timestamp_ntz timestamp_ntz	TRUE	TRUE	TIME
 snowflake	timestamp_tz	timestampz	col_timestamp_tz timestamp_tz	TRUE	TRUE	TIMESTAMP with time zone.
 snowflake	varbinary	binary	col_varbinary varbinary(100)	FALSE	FALSE	Synonymous with BINARY.
 snowflake	varchar	string	col_varchar varchar(100)	TRUE	TRUE	Default (and maximum) is 16,777,216 bytes.
-snowflake	variant	text	col_variant variant	FALSE	FALSE	
+snowflake	variant	json	col_variant variant	FALSE	FALSE	
 sqlite	blob	text	col_blob blob	TRUE	TRUE	
 sqlite	varchar	string	col_varchar varchar	TRUE	TRUE	
 sqlite	bigint	bigint	col_bigint bigint	TRUE	TRUE	
@@ -297,3 +297,4 @@ clickhouse	uint16	integer	col_uint16 uint16	TRUE	TRUE
 clickhouse	uint32	integer	col_uint32 uint32	TRUE	TRUE	
 clickhouse	uint64	bigint	col_uint64 uint64	TRUE	TRUE	
 clickhouse	uint8	integer	col_uint8 uint8	TRUE	TRUE	
+clickhouse	json	json	col_json json	FALSE	FALSE	

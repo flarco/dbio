@@ -372,7 +372,7 @@ function:
   fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
   checksum_datetime: unix_micros({field})
   checksum_boolean: 'length(cast({field} as string))'
-  checksum_json: "length(replace(cast({field} as string), ' ', ''))"
+  checksum_json: "length(replace(nullif(to_json_string({field}), 'null'), ' ', ''))"
 
 variable:
   tmp_folder: /tmp
