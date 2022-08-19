@@ -11,7 +11,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.14.0
 	github.com/ClickHouse/clickhouse-go v1.4.5
 	github.com/PuerkitoBio/goquery v1.6.0
-	github.com/aws/aws-sdk-go v1.35.22
+	github.com/aws/aws-sdk-go v1.44.80
 	github.com/denisenkom/go-mssqldb v0.9.0
 	github.com/digitalocean/godo v1.59.0
 	github.com/docker/docker v20.10.17+incompatible
