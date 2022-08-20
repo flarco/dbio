@@ -233,16 +233,16 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 	}
 
 	// Add / Extract Props from URL
-	u, err := url.Parse(URL)
+	u, err := net.NewURL(URL)
 	if err == nil {
-		for _, propStr := range strings.Split(u.RawQuery, `&`) {
-			props = append(props, propStr)
-			for _, p := range env.Vars() {
-				if strings.HasPrefix(propStr, p+"=") {
-					URL = strings.ReplaceAll(URL, propStr, "")
-				}
+		vars := env.Vars()
+		for k, v := range u.Query() {
+			props = append(props, g.F("%s=%s", k, v))
+			if _, ok := vars[strings.ToUpper(k)]; ok {
+				u.PopParam(k)
 			}
 		}
+		URL = u.String() // update url
 	} else {
 		return nil, g.Error(err, "could not parse URL")
 	}
@@ -572,7 +572,14 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		if conn.Type != dbio.TypeDbBigQuery {
 			err = conn.db.PingContext(pingCtx)
 			if err != nil {
-				return g.Error(err, "could not connect to database")
+				msg := ""
+				switch conn.Type {
+				case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
+					if val := conn.GetProp("sslmode"); !strings.EqualFold(val, "require") {
+						msg = " (try adding sslmode=require)"
+					}
+				}
+				return g.Error(err, "could not connect to database"+msg)
 			}
 		}
 

@@ -17,7 +17,7 @@ require (
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.37
+	github.com/flarco/g v0.1.39
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/jmespath/go-jmespath v0.4.0
