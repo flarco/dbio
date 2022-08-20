@@ -439,7 +439,7 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 		return
 	}
 
-	err = azFs.Delete(azPath + "*")
+	err = filesys.Delete(azFs, azPath+"*")
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+azPath)
 	}

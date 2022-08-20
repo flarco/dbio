@@ -518,12 +518,12 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		tableFName,
 	)
 
-	err = fs.Delete(gcsPath)
+	err = filesys.Delete(fs, gcsPath)
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+gcsPath)
 	}
 
-	df.Defer(func() { fs.Delete(gcsPath) })
+	df.Defer(func() { filesys.Delete(fs, gcsPath) })
 
 	g.Info("importing into bigquery via google storage")
 
@@ -641,7 +641,7 @@ func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 		return
 	}
 
-	df.Defer(func() { fs.Delete(gsURL) })
+	df.Defer(func() { filesys.Delete(fs, gsURL) })
 
 	return
 }
@@ -720,7 +720,7 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 
 	gsPath = fmt.Sprintf("gs://%s/%s/stream/%s.csv", gcBucket, filePathStorageSlug, cast.ToString(g.Now()))
 
-	gsFs.Delete(gsPath)
+	filesys.Delete(gsFs, gsPath)
 
 	for i, sql := range sqls {
 		gsPathPart := fmt.Sprintf("%s/part%02d", gsPath, i+1)

@@ -32,7 +32,7 @@ func TestFileSysLocal(t *testing.T) {
 	// Test Delete, Write, Read
 	testPath := "test/fs.test"
 	testString := "abcde"
-	fs.Delete(testPath)
+	Delete(fs, testPath)
 	reader := strings.NewReader(testString)
 	_, err = fs.Write(testPath, reader)
 	assert.NoError(t, err)
@@ -46,7 +46,7 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, testString, string(testBytes))
 
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err = fs.ListRecursive(".")
@@ -95,7 +95,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	// Test Delete, Write, Read
 	testPath := "s3://ocral/test/fs.test"
 	testString := "abcde"
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	reader := strings.NewReader(testString)
@@ -113,7 +113,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, testString, string(testBytes))
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err = fs.ListRecursive("s3://ocral/")
@@ -205,7 +205,7 @@ func TestFileSysS3(t *testing.T) {
 	// Test Delete, Write, Read
 	testPath := "s3://ocral-data-1/test/fs.test"
 	testString := "abcde"
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	reader := strings.NewReader(testString)
@@ -228,7 +228,7 @@ func TestFileSysS3(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, testString, string(testBytes))
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err = fs.ListRecursive("s3://ocral-data-1/")
@@ -245,7 +245,7 @@ func TestFileSysS3(t *testing.T) {
 	// assert.EqualValues(t, 3, len(df2.Streams))
 
 	writeFolderPath := "s3://ocral-data-1/test.fs.write"
-	err = fs.Delete(writeFolderPath)
+	err = Delete(fs, writeFolderPath)
 	assert.NoError(t, err)
 
 	fs.SetProp("FILE_BYTES_LIMIT", "20000")
@@ -292,7 +292,7 @@ func TestFileSysAzure(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, testString, string(testBytes))
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err := fs.ListRecursive("https://flarcostorage.blob.core.windows.net")
@@ -324,7 +324,7 @@ func TestFileSysAzure(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Greater(t, len(data2.Rows), 0)
 	}
-	// fs.Delete(writeFolderPath)
+	// Delete(fs, writeFolderPath)
 }
 
 func TestFileSysGoogle(t *testing.T) {
@@ -352,7 +352,7 @@ func TestFileSysGoogle(t *testing.T) {
 
 	assert.Equal(t, testString, string(testBytes))
 
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err := fs.ListRecursive("gs://flarco_us_bucket/test")
@@ -406,7 +406,7 @@ func TestFileSysSftp(t *testing.T) {
 
 	assert.Equal(t, testString, string(testBytes))
 
-	err = fs.Delete(testPath)
+	err = Delete(fs, testPath)
 	assert.NoError(t, err)
 
 	paths, err := fs.ListRecursive(root + "/tmp/test")
@@ -432,7 +432,7 @@ func TestFileSysSftp(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
 
-	err = fs.Delete(writeFolderPath)
+	err = Delete(fs, writeFolderPath)
 	assert.NoError(t, err)
 }
 

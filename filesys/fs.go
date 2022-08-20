@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/flarco/g/net"
 
 	"github.com/flarco/dbio/iop"
 
@@ -31,7 +32,6 @@ type FileSysClient interface {
 	Client() *BaseFileSysClient
 	Context() (context *g.Context)
 	FsType() dbio.Type
-	Delete(path string) (err error)
 	GetReader(path string) (reader io.Reader, err error)
 	GetReaders(paths ...string) (readers []io.Reader, err error)
 	GetDatastream(path string) (ds *iop.Datastream, err error)
@@ -40,6 +40,7 @@ type FileSysClient interface {
 	List(path string) (paths []string, err error)
 	ListRecursive(path string) (paths []string, err error)
 	Write(path string, reader io.Reader) (bw int64, err error)
+	delete(path string) (err error)
 
 	ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
@@ -408,7 +409,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 			return df, g.Error(err, "Error unzipping")
 		}
 		// delete zip file
-		os.RemoveAll(zipPath)
+		Delete(localFs, zipPath)
 
 		// TODO: handle multiple files, yielding multiple schemas
 		df, err = GetDataflow(localFs.Self(), paths, Cfg)
@@ -417,7 +418,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 		}
 
 		// delete unzipped folder when done
-		df.Defer(func() { os.RemoveAll(folderPath) })
+		df.Defer(func() { Delete(localFs, folderPath) })
 
 		return df, nil
 	}
@@ -630,7 +631,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	g.Debug("writing to %s", url)
-	err = fsClient.Delete(url)
+	err = Delete(fsClient, url)
 	if err != nil {
 		err = g.Error(err, "Could not delete url")
 		return
@@ -668,6 +669,49 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	return
+}
+
+// Delete deletes the provided path
+// with some safeguards so to not accidentally delete some root path
+func Delete(fs FileSysClient, path string) (err error) {
+
+	u, err := net.NewURL(path)
+	if err != nil {
+		return g.Error(err, "could not parse url for deletion")
+	}
+
+	// add some safefguards
+	p := strings.TrimPrefix(strings.TrimSuffix(u.Path(), "/"), "/")
+	pArr := strings.Split(p, "/")
+
+	switch fs.FsType() {
+	case dbio.TypeFileS3, dbio.TypeFileGoogle:
+		if len(p) == 0 {
+			return g.Error("will not delete bucket level %s", path)
+		}
+	case dbio.TypeFileAzure:
+		if len(p) == 0 {
+			return g.Error("will not delete account level %s", path)
+		}
+		// container level
+		if len(pArr) <= 1 {
+			return g.Error("will not delete container level %s", path)
+		}
+	case dbio.TypeFileLocal:
+		if len(u.Hostname()) == 0 && len(p) == 0 {
+			return g.Error("will not delete root level %s", path)
+		}
+	case dbio.TypeFileSftp:
+		if len(p) == 0 {
+			return g.Error("will not delete root level %s", path)
+		}
+	}
+
+	err = fs.delete(path)
+	if err != nil {
+		return g.Error(err, "could not delete path")
+	}
+	return nil
 }
 
 type FileStreamConfig struct {
@@ -819,7 +863,7 @@ func TestFsPermissions(fs FileSysClient, pathURL string) (err error) {
 	}
 
 	// Delete file/folder
-	err = fs.Delete(pathURL)
+	err = Delete(fs, pathURL)
 	if err != nil {
 		return g.Error(err, "failed testing permissions: Delete file/folder")
 	}

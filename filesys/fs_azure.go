@@ -257,7 +257,7 @@ func (fs *AzureFileSysClient) ListRecursive(url string) (paths []string, err err
 }
 
 // Delete list objects in path
-func (fs *AzureFileSysClient) Delete(urlStr string) (err error) {
+func (fs *AzureFileSysClient) delete(urlStr string) (err error) {
 	suffixWildcard := false
 	if strings.HasSuffix(urlStr, "*") {
 		urlStr = urlStr[:len(urlStr)-1]

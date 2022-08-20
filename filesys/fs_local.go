@@ -33,7 +33,7 @@ func cleanLocalFilePath(path string) string {
 }
 
 // Delete deletes the given path (file or directory)
-func (fs *LocalFileSysClient) Delete(path string) (err error) {
+func (fs *LocalFileSysClient) delete(path string) (err error) {
 	path = cleanLocalFilePath(path)
 	file, err := os.Stat(path)
 	if err != nil {

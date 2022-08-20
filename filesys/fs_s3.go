@@ -138,7 +138,7 @@ func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 // Delete deletes the given path (file or directory)
 // path should specify the full path with scheme:
 // `s3://my_bucket/key/to/file.txt`
-func (fs *S3FileSysClient) Delete(path string) (err error) {
+func (fs *S3FileSysClient) delete(path string) (err error) {
 	bucket, key, err := ParseURL(path)
 	if err != nil {
 		err = g.Error(err, "Error Parsing url: "+path)

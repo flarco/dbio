@@ -80,7 +80,7 @@ func (fs *HTTPFileSysClient) doGet(url string) (resp *http.Response, err error) 
 }
 
 // Delete :
-func (fs *HTTPFileSysClient) Delete(path string) (err error) {
+func (fs *HTTPFileSysClient) delete(path string) (err error) {
 	err = g.Error("cannot delete a HTTP file")
 	g.LogError(g.Error(err))
 	return

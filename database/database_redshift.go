@@ -103,7 +103,7 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 
 	s3Path = fmt.Sprintf("s3://%s/%s/stream/%s.csv", conn.GetProp("AWS_BUCKET"), filePathStorageSlug, cast.ToString(g.Now()))
 
-	s3Fs.Delete(s3Path)
+	filesys.Delete(s3Fs, s3Path)
 	for i, sql := range sqls {
 		s3PathPart := fmt.Sprintf("%s/u%02d-", s3Path, i+1)
 		conn.Context().Wg.Write.Add()
@@ -159,7 +159,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 	}
 	df.SetColumns(columns)
 	df.Inferred = true
-	df.Defer(func() { fs.Delete(s3Path) })
+	df.Defer(func() { filesys.Delete(fs, s3Path) })
 
 	return
 }
@@ -187,12 +187,12 @@ func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		return
 	}
 
-	err = s3Fs.Delete(s3Path)
+	err = filesys.Delete(s3Fs, s3Path)
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+s3Path)
 	}
 
-	df.Defer(func() { s3Fs.Delete(s3Path) }) // cleanup
+	df.Defer(func() { filesys.Delete(s3Fs, s3Path) }) // cleanup
 
 	g.Info("writing to s3 for redshift import")
 	bw, err := s3Fs.WriteDataflow(df, s3Path)

@@ -206,7 +206,7 @@ func (fs *GoogleFileSysClient) ListRecursive(path string) (paths []string, err e
 }
 
 // Delete list objects in path
-func (fs *GoogleFileSysClient) Delete(urlStr string) (err error) {
+func (fs *GoogleFileSysClient) delete(urlStr string) (err error) {
 	bucket, key, err := ParseURL(urlStr)
 	if err != nil || bucket == "" {
 		err = g.Error(err, "Error Parsing url: "+urlStr)

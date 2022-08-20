@@ -187,7 +187,7 @@ func (fs *SftpFileSysClient) ListRecursive(url string) (paths []string, err erro
 }
 
 // Delete list objects in path
-func (fs *SftpFileSysClient) Delete(urlStr string) (err error) {
+func (fs *SftpFileSysClient) delete(urlStr string) (err error) {
 	_, path, err := ParseURL(urlStr)
 	if err != nil {
 		err = g.Error(err, "Error Parsing url: "+urlStr)
