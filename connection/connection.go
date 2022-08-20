@@ -309,9 +309,6 @@ func (c *Connection) setURL() (err error) {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
 			} else if c.Type == dbio.TypeDbBigQuery {
 				setIfMissing("project", U.Hostname())
-				setIfMissing("dataset", c.Data["schema"])
-				setIfMissing("schema", c.Data["dataset"])
-				setIfMissing("location", c.Data["location"])
 			}
 		}
 	}
@@ -366,6 +363,8 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("port", c.Type.DefPort())
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeDbBigQuery:
+		setIfMissing("dataset", c.Data["schema"])
+		setIfMissing("schema", c.Data["dataset"])
 		template = "bigquery://{project}/{location}/{dataset}?"
 		if _, ok := c.Data["keyfile"]; ok {
 			template = template + "&credentialsFile={keyfile}"
