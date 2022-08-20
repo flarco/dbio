@@ -69,13 +69,6 @@ func (conn *SnowflakeConn) ConnString() string {
 		"",
 	)
 
-	// in case it is present
-	connString = strings.ReplaceAll(
-		connString,
-		".snowflakecomputing.com",
-		"",
-	)
-
 	return connString
 }
 

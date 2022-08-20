@@ -375,6 +375,7 @@ func (c *Connection) setURL() (err error) {
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("host", c.Data["account"])
+		c.Data["host"] = strings.ReplaceAll(cast.ToString(c.Data["host"]), ".snowflakecomputing.com", "")
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?warehouse={warehouse}"
 		if _, ok := c.Data["role"]; ok {
 			template = template + "&role={role}"
