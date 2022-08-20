@@ -395,6 +395,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbClickhouse:
 		setIfMissing("username", "")
 		setIfMissing("password", "")
+		setIfMissing("schema", c.Data["database"])
 		setIfMissing("port", c.Type.DefPort())
 		template = "clickhouse://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeFileS3, dbio.TypeFileGoogle, dbio.TypeFileAzure,
