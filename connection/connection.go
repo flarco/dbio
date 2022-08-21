@@ -291,7 +291,7 @@ func (c *Connection) setURL() (err error) {
 	if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
-			return g.Error("could not parse provided url")
+			return g.Error("could not parse provided credentials / url")
 		}
 
 		c.Type, _ = dbio.ValidateType(U.U.Scheme)
