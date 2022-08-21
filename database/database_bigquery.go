@@ -544,6 +544,7 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	copyFromGCS := func(gcsURI string, tableFName string) {
 		defer conn.Context().Wg.Write.Done()
 		g.Debug("Loading %s", gcsURI)
+
 		err := conn.CopyFromGCS(gcsURI, tableFName, df.Columns)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", gcsURI, tableFName))
@@ -552,7 +553,16 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		}
 	}
 
+	inferred := false
 	for gcsPartPath := range fileReadyChn {
+		if !inferred {
+			// the schema matters with using the load tool
+			// so let's make sure we infer once again
+			df.Inferred = false
+			df.SyncStats()
+			inferred = true
+		}
+
 		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
 		conn.Context().Wg.Write.Add()
 		go copyFromGCS(gcsPartPath, tableFName)
