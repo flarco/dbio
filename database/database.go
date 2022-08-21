@@ -1088,7 +1088,7 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 	eG := g.ErrorGroup{}
 	for _, sql := range ParseSQLMultiStatements(q) {
 		conn.AddLog(sql)
-		res, err := conn.ExecContext(ctx, sql, args...)
+		res, err := conn.Self().ExecContext(ctx, sql, args...)
 		if err != nil {
 			eG.Capture(g.Error(err, "Error executing query"))
 		} else {
