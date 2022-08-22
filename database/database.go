@@ -1064,6 +1064,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 	conn.AddLog(q)
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
+		q = q + noTraceKey // just to not show twice the sql in error since tx does
 	} else {
 		if !strings.Contains(q, noTraceKey) {
 			g.Debug(CleanSQL(conn, q), args...)

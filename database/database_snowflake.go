@@ -399,7 +399,7 @@ func (conn *SnowflakeConn) CopyFromS3(tableFName, s3Path string) (err error) {
 	g.Debug("url: " + s3Path)
 	_, err = conn.Exec(sql)
 	if err != nil {
-		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
+		return g.Error(err, "SQL Error")
 	}
 
 	return nil
@@ -465,7 +465,7 @@ func (conn *SnowflakeConn) CopyFromAzure(tableFName, azPath string) (err error) 
 	conn.SetProp("azure_sas_token", azToken)
 	_, err = conn.Exec(sql)
 	if err != nil {
-		return g.Error(err, "SQL Error:\n"+CleanSQL(conn, sql))
+		return g.Error(err, "SQL Error")
 	}
 
 	return nil
@@ -634,7 +634,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 
 	_, err = conn.Exec(sql)
 	if err != nil {
-		err = g.Error(err, "Error with COPY INTO:\n"+sql)
+		err = g.Error(err, "Error with COPY INTO")
 		return
 	}
 
