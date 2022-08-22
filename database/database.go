@@ -1283,7 +1283,7 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 			Type = iop.ColumnType(matchedType)
 		} else {
 			if dbType != "" {
-				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, colType.Name, colType)
+				g.Warn("using string since type '%s' not mapped for col '%s': %#v", dbType, colType.Name, colType)
 			}
 			Type = "string" // default as string
 		}
@@ -1296,7 +1296,7 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 		}
 
 		col.Stats.MaxLen = colType.Length
-		col.Stats.MaxDecLen = colType.Scale
+		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, 9, colType.Scale)
 		col.Sourced = colType.Sourced
 		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
 

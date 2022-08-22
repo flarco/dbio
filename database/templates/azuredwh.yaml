@@ -308,6 +308,7 @@ function:
   truncate_datef: CONVERT(DATETIME, CONVERT(DATE, {field}))
   sleep: waitfor delay '00:00:{seconds}.000'
   checksum_string: datalength({field})
+  checksum_integer: 'CAST({field} as bigint)'
   checksum_boolean: datalength({field})
   checksum_json: datalength(replace({field}, ' ', ''))
   checksum_datetime: (CAST(DATEDIFF(ss, '01-01-1970 00:00:00', {field}) as bigint) * 1000000) + DATEPART(microsecond, {field})
