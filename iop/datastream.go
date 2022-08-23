@@ -363,6 +363,10 @@ func (ds *Datastream) Start() (err error) {
 				}
 				break loop
 			default:
+				if ds.it.Counter == 1 && !ds.NoTrace {
+					g.Trace("%#v", ds.it.Row) // trace first row for debugging
+				}
+
 				row := ds.Sp.ProcessRow(ds.it.Row)
 				ds.Buffer = append(ds.Buffer, row)
 				if ds.it.Counter >= cast.ToUint64(SampleSize) {

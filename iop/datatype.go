@@ -1,11 +1,8 @@
 package iop
 
 import (
-	"math"
 	"os"
 	"reflect"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -106,84 +103,6 @@ func init() {
 // Row is a row
 func Row(vals ...interface{}) []interface{} {
 	return vals
-}
-
-//NewStreamProcessor returns a new StreamProcessor
-func NewStreamProcessor() *StreamProcessor {
-	sp := StreamProcessor{
-		stringTypeCache: map[int]string{},
-		colStats:        map[int]*ColumnStats{},
-		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{delimiter: ",", emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
-	}
-	if os.Getenv("MAX_DECIMALS") != "" {
-		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
-	}
-	sp.parseFuncs = map[string]func(s string) (interface{}, error){
-		"int": func(s string) (interface{}, error) {
-			return strconv.ParseInt(s, 10, 64)
-		},
-		"float": func(s string) (interface{}, error) {
-			return strconv.ParseFloat(s, 64)
-		},
-		"time": func(s string) (interface{}, error) {
-			return sp.ParseTime(s)
-		},
-		"bool": func(s string) (interface{}, error) {
-			return cast.ToBoolE(s)
-		},
-	}
-	sp.dateLayouts = []string{
-		"2006-01-02",
-		"2006-01-02 15:04:05",
-		"2006-01-02 15:04:05.000",
-		"2006-01-02T15:04:05.000Z",
-		"02-Jan-06",
-		"02-Jan-06 15:04:05",
-		"02-Jan-06 03:04:05 PM",
-		"02-Jan-06 03.04.05.000000 PM",
-		"2006-01-02T15:04:05-0700",
-		time.RFC3339,
-		"2006-01-02T15:04:05",  // iso8601 without timezone
-		"2006-01-02T15:04:05Z", // iso8601 with timezone
-		time.RFC1123Z,
-		time.RFC1123,
-		time.RFC822Z,
-		time.RFC822,
-		time.RFC850,
-		time.ANSIC,
-		time.UnixDate,
-		time.RubyDate,
-		"2006-01-02 15:04:05.999999999 -0700 MST", // Time.String()
-		"02 Jan 2006",
-		"2006-01-02T15:04:05-0700", // RFC3339 without timezone hh:mm colon
-		"2006-01-02 15:04:05 -07:00",
-		"2006-01-02 15:04:05 -0700",
-		"2006-01-02 15:04:05Z07:00", // RFC3339 without T
-		"2006-01-02 15:04:05Z0700",  // RFC3339 without T or timezone hh:mm colon
-		"2006-01-02 15:04:05 MST",
-		time.Kitchen,
-		time.Stamp,
-		time.StampMilli,
-		time.StampMicro,
-		time.StampNano,
-		"1/2/06",
-		"01/02/06",
-		"1/2/2006",
-		"01/02/2006",
-		"01/02/2006 15:04",
-		"01/02/2006 15:04:05",
-		"01/02/2006 03:04:05 PM", // "8/17/1994 12:00:00 AM"
-		"01/02/2006 03:04:05 PM", // "8/17/1994 12:00:00 AM"
-		"2006-01-02 15:04:05.999999999-07:00",
-		"2006-01-02T15:04:05.999999999-07:00",
-		"2006-01-02 15:04:05.999999999",
-		"2006-01-02T15:04:05.999999999",
-		"2006-01-02 15:04",
-		"2006-01-02T15:04",
-		"2006/01/02 15:04:05",
-	}
-	return &sp
 }
 
 // IsDummy returns true if the columns are injected by CreateDummyFields
