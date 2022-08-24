@@ -103,7 +103,7 @@ type Connection interface {
 	PropsArr() []string
 	Query(sql string, limit ...int) (iop.Dataset, error)
 	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
-	Quote(field string, normalize ...bool) string
+	Quote(field string) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
 	ProcessTemplate(level, text string, values map[string]interface{}) (sql string, err error)
@@ -1972,13 +1972,12 @@ func (conn *BaseConn) Unquote(field string) string {
 }
 
 // Quote adds quotes to the field name
-func (conn *BaseConn) Quote(field string, normalize ...bool) string {
-	if len(normalize) > 0 && normalize[0] {
-		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
-			field = strings.ToUpper(field)
-		} else {
-			field = strings.ToLower(field)
-		}
+func (conn *BaseConn) Quote(field string) string {
+	// always normalize. Why would you quote and not normalize?
+	if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
+		field = strings.ToUpper(field)
+	} else {
+		field = strings.ToLower(field)
 	}
 	q := conn.template.Variable["quote_char"]
 	field = conn.Self().Unquote(field)
@@ -2176,7 +2175,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		}
 
 		// normalize column name uppercase/lowercase
-		columnDDL := conn.Self().Quote(col.Name, true) + " " + nativeType
+		columnDDL := conn.Self().Quote(col.Name) + " " + nativeType
 		columnsDDL = append(columnsDDL, columnDDL)
 	}
 
@@ -2192,7 +2191,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 	)
 
 	if conn.GetType() == dbio.TypeDbClickhouse {
-		ddl = ddl + g.F("\norder by (%s)", conn.Self().Quote(data.Columns[0].Name, true))
+		ddl = ddl + g.F("\norder by (%s)", conn.Self().Quote(data.Columns[0].Name))
 	}
 
 	return ddl, nil
@@ -2717,7 +2716,7 @@ func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (
 		sql := g.R(
 			conn.Template().Core["add_column"],
 			"table", tableName,
-			"column", conn.Self().Quote(col.Name, true),
+			"column", conn.Self().Quote(col.Name),
 			"type", nativeType,
 		)
 		_, err = conn.Exec(sql)
