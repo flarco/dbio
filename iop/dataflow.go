@@ -139,7 +139,9 @@ func (df *Dataflow) ResetStats() {
 func (df *Dataflow) ReplaceStream(old, new *Datastream) {
 	new.df = old.df
 	if df != nil {
+		df.Context.Lock()
 		df.streamMap[old.id] = new
+		df.Context.Unlock()
 		if old.id != new.id {
 			g.Trace("datastream `%s` replaced by `%s`", old.id, new.id)
 		}
@@ -149,7 +151,9 @@ func (df *Dataflow) ReplaceStream(old, new *Datastream) {
 // GetFinal returns the final downstream ds (mapped or shaped)
 func (df *Dataflow) GetFinal(dsID string) (ds *Datastream) {
 	for {
+		df.Context.Lock()
 		mDs, ok := df.streamMap[dsID]
+		df.Context.Unlock()
 		if !ok || (ds != nil && mDs.id == ds.id) {
 			return
 		}
@@ -260,6 +264,7 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 
 	pushed := map[int]bool{}
 	pushCnt := 0
+
 	for {
 		for i, ds := range dss {
 			if pushed[i] || df.closed {
@@ -294,12 +299,14 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 						reshape, err := CompareColumns(df.Columns, ds.Columns)
 						if err != nil {
 							ds.Context.CaptureErr(g.Error(err, "files columns don't match"))
+							df.Context.CaptureErr(g.Error(err, "files columns don't match"))
 							df.Close()
 							return
 						} else if reshape {
 							ds, err = ds.Shape(df.Columns)
 							if err != nil {
 								ds.Context.CaptureErr(g.Error(err, "could not reshape ds"))
+								df.Context.CaptureErr(g.Error(err, "could not reshape ds"))
 								df.Close()
 								return
 							}
@@ -317,6 +324,10 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 						pushed[i] = true
 						pushCnt++
 						g.Trace("pushed dss %d", i)
+						if df.Limit > 0 && df.Count() >= df.Limit {
+							g.Debug("reached dataflow limit of %d", df.Limit)
+							return
+						}
 					default:
 					}
 				}
@@ -328,6 +339,7 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 		}
 
 		if pushCnt == len(dss) || df.closed {
+			g.Debug("pushed %d datastreams", pushCnt)
 			break
 		}
 	}
@@ -369,8 +381,10 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 			for row := range ds0.Rows {
 				select {
 				case <-df.Context.Ctx.Done():
+					ds.Context.CaptureErr(df.Err())
 					break loop
 				case <-ds.Context.Ctx.Done():
+					ds.Context.CaptureErr(ds.Err())
 					break loop
 				default:
 					row = ds.Sp.CastRow(row, ds.Columns)

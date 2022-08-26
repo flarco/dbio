@@ -92,6 +92,7 @@ func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string
 	}
 
 	fsClient.Client().fsType = fst
+	fsClient.Client().context = g.NewContext(ctx)
 
 	// set default properties
 	fsClient.SetProp("header", "true")
@@ -279,11 +280,15 @@ func (fs *BaseFileSysClient) Buckets() (paths []string, err error) {
 
 // GetProp returns the value of a property
 func (fs *BaseFileSysClient) GetProp(key string) string {
+	fs.context.Mux.Lock()
+	defer fs.context.Mux.Unlock()
 	return fs.properties[strings.ToLower(key)]
 }
 
 // SetProp sets the value of a property
 func (fs *BaseFileSysClient) SetProp(key string, val string) {
+	fs.context.Mux.Lock()
+	defer fs.context.Mux.Unlock()
 	if fs.properties == nil {
 		fs.properties = map[string]string{}
 	}

@@ -197,8 +197,9 @@ func (cols Columns) Normalize(name string) string {
 }
 
 // CompareColumns compared two columns to see if there are similar
-func CompareColumns(columns1 []Column, columns2 []Column) (reshape bool, err error) {
+func CompareColumns(columns1 Columns, columns2 Columns) (reshape bool, err error) {
 	if len(columns1) != len(columns2) {
+		g.Debug("%#v != %#v", columns1.Names(), columns2.Names())
 		return reshape, g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
 	}
 

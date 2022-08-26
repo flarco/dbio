@@ -17,7 +17,7 @@ type GithubAPI struct {
 func (api *GithubAPI) Init() (err error) {
 	api.Provider = Github
 	api.BaseURL = "https://api.github.com"
-	api.Key = api.properties["GITHUB_ACCESS_TOKEN"]
+	api.Key = api.GetProp("GITHUB_ACCESS_TOKEN")
 
 	if api.Key == "" {
 		err = g.Error("did not provide GITHUB_ACCESS_TOKEN")

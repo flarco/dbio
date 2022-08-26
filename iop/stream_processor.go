@@ -41,6 +41,7 @@ type streamConfig struct {
 	delimiter      string
 	fileMaxRows    int64
 	maxDecimals    float64
+	flatten        bool
 }
 
 //NewStreamProcessor returns a new StreamProcessor
@@ -128,7 +129,7 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 
 	if configMap["delimiter"] != "" {
-		sp.config.delimiter = cast.ToString(configMap["delimiter"])
+		sp.config.delimiter = configMap["delimiter"]
 	} else {
 		sp.config.delimiter = ","
 	}
@@ -141,6 +142,10 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 		sp.config.header = cast.ToBool(configMap["header"])
 	} else {
 		sp.config.header = true
+	}
+
+	if configMap["flatten"] != "" {
+		sp.config.flatten = cast.ToBool(configMap["flatten"])
 	}
 
 	if configMap["empty_field_as_null"] != "" {

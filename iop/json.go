@@ -35,6 +35,10 @@ func NewJSONStream(ds *Datastream, decoder decoderLike, flatten bool) *jsonStrea
 		buffer:    make(chan []interface{}, 100000),
 		sp:        NewStreamProcessor(),
 	}
+	if !flatten {
+		js.addColumn(&Column{Position: 1, Name: "data", Type: JsonType})
+		js.ds.Inferred = true
+	}
 
 	return js
 }
@@ -59,6 +63,9 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 	} else if err != nil {
 		it.Context.CaptureErr(g.Error(err, "could not decode JSON body"))
 		return false
+	} else if !js.flatten {
+		it.Row = []interface{}{g.Marshal(payload)}
+		return true
 	}
 
 	switch payloadV := payload.(type) {
@@ -138,6 +145,11 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 	}
 }
 
+func (js *jsonStream) addColumn(col *Column) {
+	js.ds.Columns = append(js.ds.Columns, *col)
+	js.ColumnMap[col.Name] = col
+}
+
 func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 
 	for _, rec := range records {
@@ -154,8 +166,7 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 					Type:     "string",
 					Position: len(js.ds.Columns) + 1,
 				}
-				js.ds.Columns = append(js.ds.Columns, *col)
-				js.ColumnMap[colName] = col
+				js.addColumn(col)
 				row = append(row, nil)
 			}
 			i := col.Position - 1

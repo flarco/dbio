@@ -120,6 +120,10 @@ func (ds *Datastream) SetEmpty() {
 
 // SetConfig sets the ds.config values
 func (ds *Datastream) SetConfig(configMap map[string]string) {
+	// lower the keys
+	for _, k := range lo.Keys(configMap) {
+		configMap[strings.ToLower(k)] = configMap[k]
+	}
 	ds.Sp.SetConfig(configMap)
 	ds.config = ds.Sp.config
 }
@@ -457,7 +461,7 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 	}
 
 	decoder := json.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, true)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
 
 	ds.it = &Iterator{
 		Row:      make([]interface{}, len(ds.Columns)),
@@ -483,7 +487,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 	}
 
 	decoder := xml.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, true)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
 
 	ds.it = &Iterator{
 		Row:      make([]interface{}, len(ds.Columns)),

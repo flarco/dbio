@@ -174,15 +174,19 @@ func (api *BaseAPI) GetBaseURL() string {
 
 // GetProp returns the value of a property
 func (api *BaseAPI) GetProp(key string) string {
-	return api.properties[key]
+	api.Context.Lock()
+	defer api.Context.Unlock()
+	return api.properties[strings.ToLower(key)]
 }
 
 // SetProp sets the value of a property
 func (api *BaseAPI) SetProp(key string, val string) {
+	api.Context.Lock()
+	defer api.Context.Unlock()
 	if api.properties == nil {
 		api.properties = map[string]string{}
 	}
-	api.properties[key] = val
+	api.properties[strings.ToLower(key)] = val
 }
 
 // Call calls an endpoint by name with the provided params and body
