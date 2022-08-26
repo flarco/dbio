@@ -40,15 +40,7 @@ jobs:
   
     - name: Test
       run: |
-        source /__/envkey/dbio/development
-        ENVKEY=$ENVKEY /__/bin/envkey-source -f --dot-env > .env
-
-        export _DEBUG=''
-
-        go mod edit -dropreplace='github.com/flarco/g' go.mod
-        go mod tidy
-
-        eval $(cat .env) bash scripts/test.sh
+        docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work/sling flarco/devbox:base bash -c "source /__/envkey/dbio/development && ENVKEY=$ENVKEY /__/bin/envkey-source -f --dot-env > .env && go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && _DEBUG='' eval $(cat .env) bash scripts/test.sh"
 
     
         
