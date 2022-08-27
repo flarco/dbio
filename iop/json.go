@@ -63,9 +63,6 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 	} else if err != nil {
 		it.Context.CaptureErr(g.Error(err, "could not decode JSON body"))
 		return false
-	} else if !js.flatten {
-		it.Row = []interface{}{g.Marshal(payload)}
-		return true
 	}
 
 	switch payloadV := payload.(type) {
@@ -153,6 +150,11 @@ func (js *jsonStream) addColumn(col *Column) {
 func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 
 	for _, rec := range records {
+		if !js.flatten {
+			js.buffer <- []interface{}{g.Marshal(rec)}
+			continue
+		}
+
 		newRec, _ := flat.Flatten(rec, &flat.Options{Delimiter: "__", Safe: true})
 		keys := lo.Keys(newRec)
 		sort.Strings(keys)
@@ -181,6 +183,10 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 }
 
 func (js *jsonStream) extractNestedArray(rec map[string]interface{}) (recordsInterf []map[string]interface{}) {
+	if !js.flatten {
+		return []map[string]interface{}{rec}
+	}
+
 	recordsInterf = []map[string]interface{}{}
 	sliceKeyValLen := map[string]int{}
 	maxLen := 0

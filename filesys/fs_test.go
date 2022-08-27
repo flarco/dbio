@@ -66,6 +66,14 @@ func TestFileSysLocal(t *testing.T) {
 
 	data, err = iop.Collect(df.Streams...)
 	assert.NoError(t, err)
+	assert.EqualValues(t, 1019, len(data.Rows))
+
+	fs.SetProp("flatten", "true")
+	df, err = fs.ReadDataflow("test/test1/json")
+	assert.NoError(t, err)
+
+	data, err = iop.Collect(df.Streams...)
+	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 
 	fs.SetProp("header", "FALSE")
