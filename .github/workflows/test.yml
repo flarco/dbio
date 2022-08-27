@@ -42,7 +42,7 @@ jobs:
       run: |
         source /__/envkey/dbio/development && ENVKEY=$ENVKEY /__/bin/envkey-source -f --dot-env > .env
         sed -i "s/_DEBUG='TRUE'/_DEBUG=''/g" .env
-        docker run --rm -it -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && set -ea && . ./.env && bash scripts/test.sh"
+        docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && set -ea && . ./.env && bash scripts/test.sh"
 
     
         
