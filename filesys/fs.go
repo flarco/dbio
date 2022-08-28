@@ -428,7 +428,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 		return df, nil
 	}
 
-	paths, err := fs.Self().List(url)
+	paths, err := fs.Self().ListRecursive(url)
 	if err != nil {
 		err = g.Error(err, "Error getting paths")
 		return

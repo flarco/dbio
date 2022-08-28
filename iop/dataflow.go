@@ -324,7 +324,7 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 						pushed[i] = true
 						pushCnt++
 						g.Trace("pushed dss %d", i)
-						if df.Limit > 0 && df.Count() >= df.Limit {
+						if df.Limit > 0 && (df.Count() >= df.Limit || len(dss) >= cast.ToInt(df.Limit)) {
 							g.Debug("reached dataflow limit of %d", df.Limit)
 							return
 						}
@@ -338,7 +338,11 @@ func (df *Dataflow) PushStreams(dss ...*Datastream) {
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if pushCnt == len(dss) || df.closed {
+		if len(dss) == 0 {
+			df.Ready = true
+			df.Close()
+			return
+		} else if pushCnt == len(dss) || df.closed {
 			g.Debug("pushed %d datastreams", pushCnt)
 			break
 		}
