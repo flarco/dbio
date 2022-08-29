@@ -84,7 +84,7 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 	ds = iop.NewDatastreamContext(fs.Context().Ctx, nil)
 	ds.SafeInference = true
-	ds.SetConfig(fs.BaseFileSysClient.properties)
+	ds.SetConfig(fs.BaseFileSysClient.Props())
 
 	if strings.Contains(strings.ToLower(path), ".xlsx") {
 		eDs, err := getExcelStream(fs.Self(), bufio.NewReader(file))

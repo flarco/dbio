@@ -175,18 +175,30 @@ func (api *BaseAPI) GetBaseURL() string {
 // GetProp returns the value of a property
 func (api *BaseAPI) GetProp(key string) string {
 	api.Context.Lock()
-	defer api.Context.Unlock()
-	return api.properties[strings.ToLower(key)]
+	val := api.properties[strings.ToLower(key)]
+	api.Context.Unlock()
+	return val
 }
 
 // SetProp sets the value of a property
 func (api *BaseAPI) SetProp(key string, val string) {
 	api.Context.Lock()
-	defer api.Context.Unlock()
 	if api.properties == nil {
 		api.properties = map[string]string{}
 	}
 	api.properties[strings.ToLower(key)] = val
+	api.Context.Unlock()
+}
+
+// Props returns a copy of the properties map
+func (api *BaseAPI) Props() map[string]string {
+	m := map[string]string{}
+	api.Context.Mux.Lock()
+	for k, v := range api.properties {
+		m[k] = v
+	}
+	api.Context.Mux.Unlock()
+	return m
 }
 
 // Call calls an endpoint by name with the provided params and body

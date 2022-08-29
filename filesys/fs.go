@@ -281,18 +281,30 @@ func (fs *BaseFileSysClient) Buckets() (paths []string, err error) {
 // GetProp returns the value of a property
 func (fs *BaseFileSysClient) GetProp(key string) string {
 	fs.context.Mux.Lock()
-	defer fs.context.Mux.Unlock()
-	return fs.properties[strings.ToLower(key)]
+	val := fs.properties[strings.ToLower(key)]
+	fs.context.Mux.Unlock()
+	return val
 }
 
 // SetProp sets the value of a property
 func (fs *BaseFileSysClient) SetProp(key string, val string) {
 	fs.context.Mux.Lock()
-	defer fs.context.Mux.Unlock()
 	if fs.properties == nil {
 		fs.properties = map[string]string{}
 	}
 	fs.properties[strings.ToLower(key)] = val
+	fs.context.Mux.Unlock()
+}
+
+// Props returns a copy of the properties map
+func (fs *BaseFileSysClient) Props() map[string]string {
+	m := map[string]string{}
+	fs.context.Mux.Lock()
+	for k, v := range fs.properties {
+		m[k] = v
+	}
+	fs.context.Mux.Unlock()
+	return m
 }
 
 // GetDatastream return a datastream for the given path
@@ -300,8 +312,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 
 	ds = iop.NewDatastreamContext(fs.Context().Ctx, nil)
 	ds.SafeInference = true
-	ds.SetConfig(fs.properties)
-
+	ds.SetConfig(fs.Props())
 	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
 		reader, err := fs.Self().GetReader(urlStr)
 		if err != nil {
@@ -663,7 +674,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		g.Trace("writing to %s [fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d useBufferedStream=%v]", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream)
 
 		df.Context.Wg.Read.Add()
-		ds.SetConfig(fs.properties) // pass options
+		ds.SetConfig(fs.Props()) // pass options
 		go processStream(ds, partURL)
 		partCnt++
 	}

@@ -16,7 +16,7 @@ type DigitalOceanAPI struct {
 func (api *DigitalOceanAPI) Init() (err error) {
 	api.Provider = DigitalOcean
 	api.BaseURL = "https://api.digitalocean.com"
-	api.Key = api.properties["DIGITALOCEAN_ACCESS_TOKEN"]
+	api.Key = api.GetProp("DIGITALOCEAN_ACCESS_TOKEN")
 
 	if api.Key == "" {
 		err = g.Error("did not provide DIGITALOCEAN_ACCESS_TOKEN")

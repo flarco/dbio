@@ -14,7 +14,7 @@ type HubspotAPI struct {
 func (api *HubspotAPI) Init() (err error) {
 	api.Provider = Hubspot
 	api.BaseURL = "https://api.hubapi.com"
-	api.Key = api.properties["HUBSPOT_API_KEY"]
+	api.Key = api.GetProp("HUBSPOT_API_KEY")
 
 	if api.Key == "" {
 		err = g.Error("did not provide HUBSPOT_API_KEY")

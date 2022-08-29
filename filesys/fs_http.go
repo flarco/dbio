@@ -152,7 +152,7 @@ func (fs *HTTPFileSysClient) GetReader(url string) (reader io.Reader, err error)
 		if err != nil {
 			return nil, g.Error(err, "could not load google sheets")
 		}
-		for k, v := range fs.Client().properties {
+		for k, v := range fs.Client().Props() {
 			ggs.Props[k] = v
 		}
 

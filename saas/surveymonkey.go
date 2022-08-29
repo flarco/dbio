@@ -14,7 +14,7 @@ type SurveyMonkeyAPI struct {
 func (api *SurveyMonkeyAPI) Init() (err error) {
 	api.Provider = SurveyMonkey
 	api.BaseURL = "https://api.surveymonkey.com/v3"
-	api.Key = api.properties["SURVEYMONKEY_ACCESS_TOKEN"]
+	api.Key = api.GetProp("SURVEYMONKEY_ACCESS_TOKEN")
 
 	if api.Key == "" {
 		err = g.Error("did not provide SURVEYMONKEY_ACCESS_TOKEN")

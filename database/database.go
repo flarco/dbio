@@ -441,32 +441,41 @@ func (conn *BaseConn) Template() Template {
 // GetProp returns the value of a property
 func (conn *BaseConn) GetProp(key string) string {
 	conn.context.Mux.Lock()
-	defer conn.context.Mux.Unlock()
-	return conn.properties[strings.ToLower(key)]
+	val := conn.properties[strings.ToLower(key)]
+	conn.context.Mux.Unlock()
+	return val
 }
 
 // SetProp sets the value of a property
 func (conn *BaseConn) SetProp(key string, val string) {
 	conn.context.Mux.Lock()
-	defer conn.context.Mux.Unlock()
 	if conn.properties == nil {
 		conn.properties = map[string]string{}
 	}
 	conn.properties[strings.ToLower(key)] = val
+	conn.context.Mux.Unlock()
 }
 
 // PropArr returns an array of properties
 func (conn *BaseConn) PropArr() []string {
 	props := []string{}
+	conn.context.Mux.Lock()
 	for k, v := range conn.properties {
 		props = append(props, g.F("%s=%s", k, v))
 	}
+	conn.context.Mux.Unlock()
 	return props
 }
 
 // Props returns a map properties
 func (conn *BaseConn) Props() map[string]string {
-	return conn.properties
+	m := map[string]string{}
+	conn.context.Mux.Lock()
+	for k, v := range conn.properties {
+		m[k] = v
+	}
+	conn.context.Mux.Unlock()
+	return m
 }
 
 // Kill kill the database connection
