@@ -50,8 +50,6 @@ type FileSysClient interface {
 	MkdirAll(path string) (err error)
 }
 
-const defaultConcurencyLimit = 10
-
 // NewFileSysClient create a file system client
 // such as local, s3, azure storage, google cloud storage
 // props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
@@ -63,7 +61,7 @@ func NewFileSysClient(fst dbio.Type, props ...string) (fsClient FileSysClient, e
 // such as local, s3, azure storage, google cloud storage
 // props are provided as `"Prop1=Value1", "Prop2=Value2", ...`
 func NewFileSysClientContext(ctx context.Context, fst dbio.Type, props ...string) (fsClient FileSysClient, err error) {
-	concurencyLimit := defaultConcurencyLimit
+	concurencyLimit := runtime.NumCPU()
 	if os.Getenv("CONCURENCY_LIMIT") != "" {
 		concurencyLimit = cast.ToInt(os.Getenv("CONCURENCY_LIMIT"))
 	}
@@ -781,7 +779,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 
 	}()
 
-	df.PushStreamChan(dsCh)
+	go df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated

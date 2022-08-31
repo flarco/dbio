@@ -2285,7 +2285,7 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 
 	}()
 
-	df.PushStreamChan(dsCh)
+	go df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated
@@ -2374,7 +2374,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		df.Context.Wg.Read.Wait()
 	}()
 
-	df.PushStreamChan(dsCh)
+	go df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	err = df.WaitReady()

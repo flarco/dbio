@@ -332,7 +332,7 @@ func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 		}
 	}()
 
-	df.PushStreamChan(dsCh)
+	go df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated

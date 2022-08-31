@@ -57,10 +57,6 @@ func Vars() (vars map[string]string) {
 		}
 	}
 
-	if vars["CONCURENCY_LIMIT"] == "" {
-		vars["CONCURENCY_LIMIT"] = "10"
-	}
-
 	if vars["SAMPLE_SIZE"] == "" {
 		vars["SAMPLE_SIZE"] = "900"
 	}

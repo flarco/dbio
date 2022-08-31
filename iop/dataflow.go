@@ -36,11 +36,12 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	if len(limit) > 0 && limit[0] != 0 {
 		Limit = cast.ToUint64(limit[0])
 	}
+	ctx := g.NewContext(context.Background())
 
 	df = &Dataflow{
-		StreamCh:   make(chan *Datastream, 10),
+		StreamCh:   make(chan *Datastream, ctx.Wg.Limit),
 		Streams:    []*Datastream{},
-		Context:    g.NewContext(context.Background()),
+		Context:    ctx,
 		Limit:      Limit,
 		streamMap:  map[string]*Datastream{},
 		deferFuncs: []func(){},
