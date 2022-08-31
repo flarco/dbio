@@ -1191,38 +1191,3 @@ func (it *Iterator) next() bool {
 		return next
 	}
 }
-
-// Collect reads from one or more streams and return a dataset
-func Collect(dss ...*Datastream) (data Dataset, err error) {
-	var datas []Dataset
-
-	if len(dss) == 0 {
-		return
-	}
-
-	for i, ds := range dss {
-		d, err := ds.Collect(0)
-		if err != nil {
-			return NewDataset(nil), g.Error(err, "Error collecting ds")
-		}
-
-		if i > 0 && len(datas[i-1].Columns) != len(d.Columns) {
-			err := g.Error(
-				"columns mismatch, %#v != %#v",
-				datas[i-1].GetFields(), d.GetFields(),
-			)
-			return NewDataset(nil), g.Error(err, "Error appending ds")
-		}
-		datas = append(datas, d)
-	}
-
-	data.Result = nil
-	data.Columns = datas[0].Columns
-	data.Rows = [][]interface{}{}
-
-	for _, d := range datas {
-		data.Rows = append(data.Rows, d.Rows...)
-	}
-
-	return
-}

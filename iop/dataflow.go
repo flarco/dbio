@@ -326,8 +326,8 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			}
 
 			// wait for stream
-			df.StreamCh <- ds
 			df.ReplaceStream(ds, ds)
+			df.StreamCh <- ds
 			g.Trace("pushed dss %d", pushCnt)
 			pushCnt++
 			if df.Limit > 0 && df.Count() >= df.Limit {
@@ -355,6 +355,30 @@ func (df *Dataflow) WaitReady() error {
 	case <-df.Context.Ctx.Done():
 		return df.Context.Err()
 	}
+}
+
+// Collect reads from one or more streams and return a dataset
+func (df *Dataflow) Collect() (data Dataset, err error) {
+	var datas []Dataset
+
+	for ds := range df.StreamCh {
+		d, err := ds.Collect(int(df.Limit))
+		if err != nil {
+			return NewDataset(nil), g.Error(err, "Error collecting ds")
+		}
+
+		datas = append(datas, d)
+	}
+
+	data.Result = nil
+	data.Columns = datas[0].Columns
+	data.Rows = [][]interface{}{}
+
+	for _, d := range datas {
+		data.Rows = append(data.Rows, d.Rows...)
+	}
+
+	return
 }
 
 // MergeDataflow merges the dataflow streams into one

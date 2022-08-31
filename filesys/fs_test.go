@@ -57,14 +57,14 @@ func TestFileSysLocal(t *testing.T) {
 	df, err := fs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
-	data, err := iop.Collect(df.Streams...)
+	data, err := iop.MergeDataflow(df).Collect(0)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 
 	df, err = fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err = iop.Collect(df.Streams...)
+	data, err = df.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1019, len(data.Rows))
 
@@ -72,7 +72,7 @@ func TestFileSysLocal(t *testing.T) {
 	df, err = fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err = iop.Collect(df.Streams...)
+	data, err = df.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 
@@ -80,7 +80,7 @@ func TestFileSysLocal(t *testing.T) {
 	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 	assert.NoError(t, err)
 
-	data1, err := iop.Collect(df1.Streams...)
+	data1, err := df1.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 18, len(data1.Rows))
 
@@ -166,7 +166,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	df3, err := fs.ReadDataflow(writeFolderPath)
 	assert.NoError(t, err)
 
-	data2, err := iop.Collect(df3.Streams...)
+	data2, err := df3.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
 }
@@ -250,7 +250,6 @@ func TestFileSysS3(t *testing.T) {
 
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
-	// assert.EqualValues(t, 3, len(df2.Streams))
 
 	writeFolderPath := "s3://ocral-data-1/test.fs.write"
 	err = Delete(fs, writeFolderPath)
@@ -260,16 +259,16 @@ func TestFileSysS3(t *testing.T) {
 	_, err = fs.WriteDataflow(df2, writeFolderPath)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
+	assert.EqualValues(t, 3, len(df2.Streams))
 
 	// eventual consistency
 	time.Sleep(2 * time.Second) // wait to s3 files to write on AWS side
 	df3, err := fs.ReadDataflow(writeFolderPath, FileStreamConfig{Limit: 1})
 	assert.NoError(t, err)
 
-	data2, err := iop.Collect(df3.Streams...)
+	data2, err := iop.MergeDataflow(df3).Collect(int(df3.Limit))
 	assert.NoError(t, err)
-	assert.EqualValues(t, 1036, len(data2.Rows))
-
+	assert.EqualValues(t, 1, len(data2.Rows))
 }
 
 func TestFileSysAzure(t *testing.T) {
@@ -321,14 +320,14 @@ func TestFileSysAzure(t *testing.T) {
 
 	df3, err := fs.ReadDataflow(writeFolderPath)
 	if assert.NoError(t, err) {
-		data2, err := iop.Collect(df3.Streams...)
+		data2, err := df3.Collect()
 		assert.NoError(t, err)
 		assert.EqualValues(t, 1036, len(data2.Rows))
 	}
 
 	df3, err = fs.ReadDataflow("https://flarcostorage.blob.core.windows.net/testcont/test2/part.01.0001.csv")
 	if assert.NoError(t, err) {
-		data2, err := iop.Collect(df3.Streams...)
+		data2, err := df3.Collect()
 		assert.NoError(t, err)
 		assert.Greater(t, len(data2.Rows), 0)
 	}
@@ -384,7 +383,7 @@ func TestFileSysGoogle(t *testing.T) {
 	df3, err := fs.ReadDataflow(writeFolderPath)
 	assert.NoError(t, err)
 
-	data2, err := iop.Collect(df3.Streams...)
+	data2, err := df3.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
 }
@@ -438,7 +437,7 @@ func TestFileSysSftp(t *testing.T) {
 	df3, err := fs.ReadDataflow(writeFolderPath)
 	assert.NoError(t, err)
 
-	data2, err := iop.Collect(df3.Streams...)
+	data2, err := df3.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
 
@@ -470,7 +469,7 @@ func TestFileSysHTTP(t *testing.T) {
 	}
 
 	for _, ds := range df.Streams {
-		data, err := iop.Collect(ds)
+		data, err := ds.Collect(0)
 		assert.NoError(t, err)
 		assert.Greater(t, len(data.Rows), 0)
 		// g.P(len(data.Rows))
@@ -508,7 +507,7 @@ func testManyCSV(t *testing.T) {
 	g.Debug("%d csvPaths", len(csvPaths))
 
 	for i, ds := range dss {
-		data, err := iop.Collect(ds)
+		data, err := ds.Collect(0)
 		g.Debug("%d rows collected from %s", len(data.Rows), csvPaths[i])
 		if assert.NoError(t, err, "for "+csvPaths[i]) {
 			assert.Greater(t, len(data.Rows), 0)
