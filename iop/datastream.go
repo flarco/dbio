@@ -229,7 +229,8 @@ func (ds *Datastream) Close() {
 		if ds.Sp.unrecognizedDate != "" {
 			g.Warn("unrecognized date format (%s)", ds.Sp.unrecognizedDate)
 		}
-		ds.Buffer = nil
+
+		ds.Buffer = nil // clear buffer
 	}
 	if ds.it != nil {
 		ds.it.close()
@@ -327,6 +328,8 @@ func (ds *Datastream) Collect(limit int) (Dataset, error) {
 	if !limited {
 		ds.SetEmpty()
 	}
+
+	ds.Buffer = nil // clear buffer
 	if ds.Err() != nil {
 		return data, g.Error(ds.Err())
 	}

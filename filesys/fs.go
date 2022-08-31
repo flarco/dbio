@@ -635,6 +635,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				}
 			}
 		}
+
+		ds.Buffer = nil // clear buffer
 		if ds.Err() != nil {
 			df.Context.CaptureErr(g.Error(ds.Err()))
 		}

@@ -406,6 +406,8 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 					ds.Push(row)
 				}
 			}
+
+			ds0.Buffer = nil // clear buffer
 		}
 	}()
 
