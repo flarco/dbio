@@ -323,11 +323,16 @@ func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 	}
 
 	df = NewDataflow()
+	dsCh := make(chan *Datastream)
 
 	go func() {
-		defer df.Close()
-		df.PushStreams(dss...)
+		defer close(dsCh)
+		for _, ds := range dss {
+			dsCh <- ds
+		}
 	}()
+
+	df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated

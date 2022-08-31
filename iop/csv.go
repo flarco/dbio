@@ -279,7 +279,7 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 	row0, err := r.Read()
 	if err == io.EOF {
 		g.Warn("csv stream provided is empty")
-		ds.Ready = true
+		ds.SetReady()
 		ds.Close()
 		return ds, nil
 	} else if err != nil {

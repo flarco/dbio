@@ -130,7 +130,7 @@ func (data *Dataset) Stream() *Datastream {
 	ds.Inferred = data.Inferred
 
 	go func() {
-		ds.Ready = true
+		ds.SetReady()
 		defer ds.Close()
 
 	loop:

@@ -394,7 +394,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 
 	if err == iterator.Done {
 		ds = iop.NewDatastreamContext(queryContext.Ctx, conn.Data.Columns)
-		ds.Ready = true
+		ds.SetReady()
 		ds.Close()
 		return ds, nil
 	}

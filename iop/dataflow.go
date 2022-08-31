@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
@@ -24,6 +23,7 @@ type Dataflow struct {
 	Ready      bool
 	Inferred   bool
 	FsURL      string
+	readyChn   chan struct{}
 	streamMap  map[string]*Datastream
 	closed     bool
 	mux        sync.Mutex
@@ -38,12 +38,13 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	}
 
 	df = &Dataflow{
-		StreamCh:   make(chan *Datastream, 100),
+		StreamCh:   make(chan *Datastream, 10),
 		Streams:    []*Datastream{},
 		Context:    g.NewContext(context.Background()),
 		Limit:      Limit,
 		streamMap:  map[string]*Datastream{},
 		deferFuncs: []func(){},
+		readyChn:   make(chan struct{}),
 	}
 
 	return
@@ -85,6 +86,14 @@ func (df *Dataflow) Close() {
 		close(df.StreamCh)
 	}
 	df.closed = true
+}
+
+// SetReady sets the df.ready
+func (df *Dataflow) SetReady() {
+	if !df.Ready {
+		df.Ready = true
+		go func() { df.readyChn <- struct{}{} }()
+	}
 }
 
 // SetEmpty sets all underlying datastreams empty
@@ -255,119 +264,96 @@ func (df *Dataflow) Size() int {
 	return len(df.Streams)
 }
 
-// PushStreams waits until each datastream is ready, then adds them to the dataflow. Should be launched as a goroutine
-func (df *Dataflow) PushStreams(dss ...*Datastream) {
+func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
+	defer df.Close()
 
-	df.mux.Lock()
-	df.Streams = append(df.Streams, dss...)
-	df.mux.Unlock()
-
-	pushed := map[int]bool{}
 	pushCnt := 0
 
-	for {
-		for i, ds := range dss {
-			if pushed[i] || df.closed {
-				continue
-			}
+	for ds := range dsCh {
+		df.mux.Lock()
+		df.Streams = append(df.Streams, ds)
+		df.mux.Unlock()
 
-			if df.Err() != nil {
-				df.Close()
-				return
-			}
-
-			if ds.Err() != nil {
-				df.Context.CaptureErr(ds.Err())
-				df.Close()
-				return
-			}
-
-			select {
-			case <-df.Context.Ctx.Done():
-				df.Close()
-				return
-			case <-ds.Context.Ctx.Done():
-				df.Close()
-				return
-			default:
-				// wait for first ds to start streaming.
-				// columns/buffer need to be populated
-				if ds.Ready {
-					ds.df = df
-					if df.Ready {
-						// compare columns, if differences than error
-						reshape, err := CompareColumns(df.Columns, ds.Columns)
-						if err != nil {
-							ds.Context.CaptureErr(g.Error(err, "files columns don't match"))
-							df.Context.CaptureErr(g.Error(err, "files columns don't match"))
-							df.Close()
-							return
-						} else if reshape {
-							ds, err = ds.Shape(df.Columns)
-							if err != nil {
-								ds.Context.CaptureErr(g.Error(err, "could not reshape ds"))
-								df.Context.CaptureErr(g.Error(err, "could not reshape ds"))
-								df.Close()
-								return
-							}
-						}
-					} else {
-						df.Columns = ds.Columns
-						df.Buffer = ds.Buffer
-						df.Inferred = ds.Inferred
-						df.Ready = true
-					}
-
-					select {
-					case df.StreamCh <- ds:
-						df.ReplaceStream(ds, ds)
-						pushed[i] = true
-						pushCnt++
-						g.Trace("pushed dss %d", i)
-						if df.Limit > 0 && (df.Count() >= df.Limit || len(dss) >= cast.ToInt(df.Limit)) {
-							g.Debug("reached dataflow limit of %d", df.Limit)
-							return
-						}
-					default:
-					}
-				}
-			}
-
-			// likelyhood of lock lessens. Unsure why
-			// It seems that ds.Columns collides
-			time.Sleep(50 * time.Millisecond)
-		}
-
-		if len(dss) == 0 {
-			df.Ready = true
-			df.Close()
-			return
-		} else if pushCnt == len(dss) || df.closed {
-			g.Debug("pushed %d datastreams", pushCnt)
+		if df.closed {
 			break
 		}
+
+		if df.Err() != nil {
+			df.Close()
+			return
+		}
+
+		if ds.Err() != nil {
+			df.Context.CaptureErr(ds.Err())
+			df.Close()
+			return
+		}
+
+		select {
+		case <-df.Context.Ctx.Done():
+			df.Close()
+			return
+		case <-ds.Context.Ctx.Done():
+			df.Close()
+			return
+		case <-ds.readyChn:
+			// wait for first ds to start streaming.
+			// columns/buffer need to be populated
+			ds.df = df
+			if df.Ready {
+				// compare columns, if differences than error
+				reshape, err := CompareColumns(df.Columns, ds.Columns)
+				if err != nil {
+					ds.Context.CaptureErr(g.Error(err, "files columns don't match"))
+					df.Context.CaptureErr(g.Error(err, "files columns don't match"))
+					df.Close()
+					return
+				} else if reshape {
+					ds, err = ds.Shape(df.Columns)
+					if err != nil {
+						ds.Context.CaptureErr(g.Error(err, "could not reshape ds"))
+						df.Context.CaptureErr(g.Error(err, "could not reshape ds"))
+						df.Close()
+						return
+					}
+				}
+			} else {
+				df.Columns = ds.Columns
+				df.Buffer = ds.Buffer
+				df.Inferred = ds.Inferred
+				df.SetReady()
+			}
+
+			// wait for stream
+			df.StreamCh <- ds
+			df.ReplaceStream(ds, ds)
+			g.Trace("pushed dss %d", pushCnt)
+			pushCnt++
+			if df.Limit > 0 && df.Count() >= df.Limit {
+				g.Debug("reached dataflow limit of %d", df.Limit)
+				return
+			}
+		}
 	}
+
+	if len(df.Streams) == 0 {
+		df.SetReady()
+	} else {
+		g.Debug("pushed %d datastreams", pushCnt)
+	}
+
 }
 
 // WaitReady waits until dataflow is ready
 func (df *Dataflow) WaitReady() error {
 	// wait for first ds to start streaming.
 	// columns need to be populated
-	for {
-		if df.Ready {
-			break
-		}
-
-		if df.Context.Err() != nil {
-			return df.Context.Err()
-		}
-
-		// likelyhood of lock lessens. Unsure why
-		// It seems that df.Columns collides
-		time.Sleep(50 * time.Millisecond)
+	select {
+	case <-df.readyChn:
+		return df.Context.Err()
+	case <-df.Context.Ctx.Done():
+		return df.Context.Err()
 	}
-
-	return nil
 }
 
 // MergeDataflow merges the dataflow streams into one
@@ -376,7 +362,7 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 	ds = NewDatastream(df.Columns)
 
 	go func() {
-		ds.Ready = true
+		ds.SetReady()
 		defer ds.Close()
 
 	loop:

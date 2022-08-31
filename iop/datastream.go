@@ -48,7 +48,8 @@ type Datastream struct {
 	config        *streamConfig
 	df            *Dataflow
 	bwRows        chan []interface{} // for correct byte written
-	bwCsv         *csv.Writer        // for correct byte written
+	readyChn      chan struct{}
+	bwCsv         *csv.Writer // for correct byte written
 	id            string
 }
 
@@ -93,6 +94,7 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		clones:     []*Datastream{},
 		bwCsv:      csv.NewWriter(ioutil.Discard),
 		bwRows:     make(chan []interface{}, 100),
+		readyChn:   make(chan struct{}),
 	}
 	ds.Sp.ds = ds
 
@@ -111,6 +113,14 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 	}()
 
 	return
+}
+
+// SetReady sets the ds.ready
+func (ds *Datastream) SetReady() {
+	if !ds.Ready {
+		ds.Ready = true
+		go func() { ds.readyChn <- struct{}{} }()
+	}
 }
 
 // SetEmpty sets the ds.Rows channel as empty
@@ -150,9 +160,8 @@ func (ds *Datastream) writeBwCsv(row []string) {
 
 // Push return the fields of the Data
 func (ds *Datastream) Push(row []interface{}) {
-	if !ds.Ready {
-		ds.Ready = true
-	} else if ds.closed {
+	ds.SetReady()
+	if ds.closed {
 		return
 	}
 	select {
@@ -175,7 +184,7 @@ func (ds *Datastream) Clone() *Datastream {
 	cDs.Inferred = ds.Inferred
 	cDs.config = ds.config
 	cDs.Sp.config = ds.Sp.config
-	cDs.Ready = true
+	cDs.SetReady()
 	ds.clones = append(ds.clones, cDs)
 	return cDs
 }
@@ -187,28 +196,12 @@ func (ds *Datastream) IsClosed() bool {
 
 // WaitReady waits until datastream is ready
 func (ds *Datastream) WaitReady() error {
-loop:
-	for {
-		select {
-		case <-ds.Context.Ctx.Done():
-			break loop
-		default:
-		}
-
-		if ds.Context.Err() != nil {
-			return ds.Context.Err()
-		}
-
-		if ds.Ready {
-			break loop
-		}
-
-		// likelyhood of lock lessens. Unsure why
-		// It seems that ds.Columns collides
-		time.Sleep(50 * time.Millisecond)
+	select {
+	case <-ds.readyChn:
+		return ds.Context.Err()
+	case <-ds.Context.Ctx.Done():
+		return ds.Context.Err()
 	}
-
-	return ds.Context.Ctx.Err()
 }
 
 // Defer runs a given function as close of Datastream
@@ -242,6 +235,10 @@ func (ds *Datastream) Close() {
 		ds.it.close()
 	}
 	ds.closed = true
+	select {
+	case <-ds.readyChn:
+	default:
+	}
 }
 
 // GetFields return the fields of the Data
@@ -398,7 +395,7 @@ func (ds *Datastream) Start() (err error) {
 		var err error
 		defer ds.Close()
 
-		ds.Ready = true
+		ds.SetReady()
 
 		for _, row := range ds.Buffer {
 			row = ds.Sp.CastRow(row, ds.Columns)
@@ -517,7 +514,7 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	row0, err := r.Read()
 	if err == io.EOF {
 		g.Warn("csv stream provided is empty")
-		ds.Ready = true
+		ds.SetReady()
 		ds.Close()
 		return nil
 	} else if err != nil {
@@ -666,7 +663,7 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 	}
 	for i := 0; i < conncurrency; i++ {
 		nDs := NewDatastreamContext(ds.Context.Ctx, ds.Columns)
-		nDs.Ready = true
+		nDs.SetReady()
 		dss = append(dss, nDs)
 	}
 
@@ -752,7 +749,7 @@ func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
 
 	go func() {
 		defer nDs.Close()
-		nDs.Ready = true
+		nDs.SetReady()
 	loop:
 		for row := range ds.Rows {
 			row = mapRowCol(row)

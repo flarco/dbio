@@ -2263,8 +2263,10 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 	df = iop.NewDataflow()
 	df.Context = g.NewContext(conn.Context().Ctx)
 
+	dsCh := make(chan *iop.Datastream)
+
 	go func() {
-		defer df.Close()
+		defer close(dsCh)
 		dss := []*iop.Datastream{}
 
 		for _, sql := range sqls {
@@ -2277,9 +2279,13 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 			dss = append(dss, ds.Split()...)
 		}
 
-		df.PushStreams(dss...)
+		for _, ds := range dss {
+			dsCh <- ds
+		}
 
 	}()
+
+	df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated
@@ -2304,9 +2310,11 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	}
 
 	df = iop.NewDataflow()
+	dsCh := make(chan *iop.Datastream)
 
 	unload := func(sql string, pathPart string) {
 		defer df.Context.Wg.Read.Done()
+		defer close(dsCh)
 		fileReadyChn := make(chan string, 10000)
 		ds, err := conn.Self().BulkExportStream(sql)
 		if err != nil {
@@ -2348,7 +2356,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 				return
 			}
 			nDs.Defer(func() { os.RemoveAll(filePath) })
-			df.PushStreams(nDs)
+			dsCh <- nDs
 		}
 	}
 
@@ -2365,6 +2373,8 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		// wait until all nDs are pushed to close
 		df.Context.Wg.Read.Wait()
 	}()
+
+	df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	err = df.WaitReady()

@@ -339,7 +339,9 @@ func TestFileSysGoogle(t *testing.T) {
 	t.Parallel()
 
 	fs, err := NewFileSysClient(dbio.TypeFileGoogle, "BUCKET=flarco_us_bucket")
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	buckets, err := fs.Buckets()
 	assert.NoError(t, err)

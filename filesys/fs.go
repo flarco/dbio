@@ -745,10 +745,10 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 
 	df = iop.NewDataflow(cfg.Limit)
 	df.Context = g.NewContext(fs.Context().Ctx)
-	go func() {
-		defer df.Close()
-		dss := []*iop.Datastream{}
+	dsCh := make(chan *iop.Datastream)
 
+	go func() {
+		defer close(dsCh)
 		for _, path := range paths {
 			if strings.HasSuffix(path, "/") {
 				g.Debug("skipping %s because is not file", path)
@@ -773,22 +773,15 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 					}
 					return
 				}
-				dss = append(dss, ds.Map(cols, transf))
+				dsCh <- ds.Map(cols, transf)
 			} else {
-				dss = append(dss, ds)
+				dsCh <- ds
 			}
 		}
 
-		// split if 1 stream
-		if len(dss) == 1 {
-			dss[0].WaitReady()
-			dss = dss[0].Split()
-		}
-
-		df.PushStreams(dss...)
-		g.Trace("pushed all streams")
-
 	}()
+
+	df.PushStreamChan(dsCh)
 
 	// wait for first ds to start streaming.
 	// columns need to be populated
