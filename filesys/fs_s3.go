@@ -217,7 +217,7 @@ func (fs *S3FileSysClient) GetReader(path string) (reader io.Reader, err error) 
 	// https://github.com/chanzuckerberg/s3parcp
 	PartSize := int64(os.Getpagesize()) * 1024 * 10
 	Concurrency := fs.getConcurrency()
-	BufferSize := 10485760 // 10MB
+	BufferSize := 64 * 1024
 	svc := s3.New(fs.getSession())
 
 	// Create a downloader with the session and default options
