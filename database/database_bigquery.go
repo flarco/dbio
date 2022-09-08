@@ -733,7 +733,7 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 	filesys.Delete(gsFs, gsPath)
 
 	for i, sql := range sqls {
-		gsPathPart := fmt.Sprintf("%s/part%02d", gsPath, i+1)
+		gsPathPart := fmt.Sprintf("%s/part%02d-*", gsPath, i+1)
 		conn.Context().Wg.Write.Add()
 		go doExport(sql, gsPathPart)
 	}
