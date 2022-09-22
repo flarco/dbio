@@ -40,6 +40,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// InferDBStream may need to be `true`, since precision and scale is not guaranteed.
+// If `false`, will use the database stream source schema
+var InferDBStream = false
+
+func init() {
+	if val := os.Getenv("SLING_INFER_DB_STREAM"); val != "" {
+		InferDBStream = cast.ToBool(val)
+	}
+}
+
 // Connection is the Base interface for Connections
 type Connection interface {
 	BaseURL() string
@@ -916,7 +926,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, limit
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = strings.Contains(query, noTraceKey)
-	// ds.Inferred = true // since precision and scale is not guaranteed
+	ds.Inferred = InferDBStream
 
 	err = ds.Start()
 	if err != nil {
