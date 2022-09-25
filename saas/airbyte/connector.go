@@ -235,7 +235,7 @@ func (c *Connector) Discover(config map[string]interface{}) (ac AirbyteCatalog, 
 }
 
 // Discover detects the structure of the data in the data source.
-func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyteCatalog, state map[string]interface{}) (ds *iop.Datastream, err error) {
+func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyteCatalog, state map[string]interface{}, props map[string]string) (ds *iop.Datastream, err error) {
 	err = c.InitTempDir()
 	if err != nil {
 		err = g.Error(err, "could not create temp dir")
@@ -256,6 +256,9 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	if state == nil {
 		state = map[string]interface{}{}
+	}
+	if props == nil {
+		props = map[string]string{}
 	}
 	err = ioutil.WriteFile(c.file("state.json"), []byte(g.Marshal(state)), 0755)
 	if err != nil {
@@ -298,6 +301,7 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 
 	cont := g.NewContext(context.Background())
 	ds = iop.NewDatastreamIt(cont.Ctx, columns, nextFunc)
+	ds.SetMetadata(props["metadata"])
 	ds.Defer(func() { os.RemoveAll(c.tempFolder) })
 
 	err = ds.Start()

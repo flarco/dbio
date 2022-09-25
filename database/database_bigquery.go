@@ -424,6 +424,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = !strings.Contains(sql, noTraceKey)
 	ds.Inferred = InferDBStream
+	ds.SetMetadata(conn.GetProp("METADATA"))
 
 	// add first row pulled to buffer
 	row := make([]interface{}, len(ds.Columns))

@@ -59,7 +59,7 @@ func TestGithub(t *testing.T) {
 		},
 	}
 
-	ds, err := c.Read(config, catalog, g.M())
+	ds, err := c.Read(config, catalog, g.M(), nil)
 	if g.AssertNoError(t, err) {
 		data, err := ds.Collect(0)
 		g.AssertNoError(t, err)

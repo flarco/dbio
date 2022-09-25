@@ -186,7 +186,7 @@ func (a *Airbyte) Stream(name string, sc StreamConfig) (ds *iop.Datastream, err 
 		config[a.GetProp("date_field")] = sc.StartDate
 	}
 
-	ds, err = a.Connector.Read(config, catalog, sc.State)
+	ds, err = a.Connector.Read(config, catalog, sc.State, a.properties)
 	if err != nil {
 		err = g.Error(err, "could not read stream for "+name)
 		return

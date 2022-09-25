@@ -93,6 +93,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 		"ENDPOINT=nyc3.digitaloceanspaces.com",
 		"ACCESS_KEY_ID="+os.Getenv("DOS_ACCESS_KEY_ID"),
 		"SECRET_ACCESS_KEY="+os.Getenv("DOS_SECRET_ACCESS_KEY"),
+		"METADATA="+g.Marshal(iop.Metadata{LoadedAt: iop.KeyValue{"loaded_at", time.Now().Unix()}, StreamURL: iop.KeyValue{"url", ""}}),
 	)
 	assert.NoError(t, err)
 
@@ -169,6 +170,8 @@ func TestFileSysDOSpaces(t *testing.T) {
 	data2, err := df3.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data2.Rows))
+	assert.Contains(t, data2.Columns.Names(), "loaded_at")
+	assert.Contains(t, data2.Columns.Names(), "url")
 }
 
 func TestFileSysLarge(t *testing.T) {

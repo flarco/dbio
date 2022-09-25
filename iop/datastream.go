@@ -51,6 +51,24 @@ type Datastream struct {
 	readyChn      chan struct{}
 	bwCsv         *csv.Writer // for correct byte written
 	id            string
+	Metadata      Metadata // map of column name to metadata type
+}
+
+type KeyValue struct {
+	Key   string      `json:"key"`
+	Value interface{} `json:"value"`
+}
+
+type Metadata struct {
+	StreamURL KeyValue `json:"stream_url"`
+	LoadedAt  KeyValue `json:"loaded_at"`
+}
+
+// AsMap return as map
+func (m *Metadata) AsMap() map[string]interface{} {
+	m0 := g.M()
+	g.JSONConvert(m, &m0)
+	return m0
 }
 
 // Iterator is the row provider for a datastream
@@ -169,6 +187,9 @@ func (ds *Datastream) Push(row []interface{}) {
 		ds.Close()
 		return
 	default:
+		// if ds.paused {
+		// 	<-ds.unpauseChnl
+		// }
 		ds.Rows <- row
 		ds.bwRows <- row
 	}
@@ -394,6 +415,49 @@ func (ds *Datastream) Start() (err error) {
 		return
 	}
 
+	// add metadata
+	metaValues := []interface{}{}
+	{
+		// ensure there are no duplicates
+		ensureName := func(name string) string {
+			colNames := lo.Keys(ds.Columns.FieldMap(true))
+			for lo.Contains(colNames, strings.ToLower(name)) {
+				name = name + "_"
+			}
+			return name
+		}
+
+		if ds.Metadata.LoadedAt.Key != "" && ds.Metadata.LoadedAt.Value != nil {
+			ds.Metadata.LoadedAt.Key = ensureName(ds.Metadata.LoadedAt.Key)
+			col := Column{
+				Name:     ds.Metadata.LoadedAt.Key,
+				Type:     BigIntType,
+				Position: len(ds.Columns) + 1,
+			}
+			ds.Columns = append(ds.Columns, col)
+			metaValues = append(metaValues, ds.Metadata.LoadedAt.Value)
+		}
+
+		if ds.Metadata.StreamURL.Key != "" && ds.Metadata.StreamURL.Value != nil {
+			ds.Metadata.StreamURL.Key = ensureName(ds.Metadata.StreamURL.Key)
+			col := Column{
+				Name:     ds.Metadata.StreamURL.Key,
+				Type:     StringType,
+				Position: len(ds.Columns) + 1,
+			}
+			ds.Columns = append(ds.Columns, col)
+			metaValues = append(metaValues, ds.Metadata.StreamURL.Value)
+		}
+	}
+
+	// setMetaValues sets mata column values
+	setMetaValues := func(row []interface{}) []interface{} { return row }
+	if len(metaValues) > 0 {
+		setMetaValues = func(row []interface{}) []interface{} {
+			return append(row, metaValues...)
+		}
+	}
+
 	go func() {
 		var err error
 		defer ds.Close()
@@ -405,7 +469,7 @@ func (ds *Datastream) Start() (err error) {
 			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
 				continue
 			}
-			ds.Push(row)
+			ds.Push(setMetaValues(row))
 		}
 
 		row := make([]interface{}, len(ds.Columns))
@@ -440,7 +504,7 @@ func (ds *Datastream) Start() (err error) {
 				}
 				break loop
 			default:
-				ds.Push(row)
+				ds.Push(setMetaValues(row))
 			}
 		}
 		if !ds.NoTrace {
@@ -449,6 +513,12 @@ func (ds *Datastream) Start() (err error) {
 	}()
 
 	return
+}
+
+func (ds *Datastream) SetMetadata(jsonStr string) {
+	if jsonStr != "" {
+		g.Unmarshal(jsonStr, &ds.Metadata)
+	}
 }
 
 // ConsumeJsonReader uses the provided reader to stream JSON

@@ -927,6 +927,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, limit
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = strings.Contains(query, noTraceKey)
 	ds.Inferred = InferDBStream
+	ds.SetMetadata(conn.GetProp("METADATA"))
 
 	err = ds.Start()
 	if err != nil {

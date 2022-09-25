@@ -373,6 +373,7 @@ func (api *BaseAPI) Stream(name string, params map[string]interface{}, body []by
 	}
 
 	ds = iop.NewDatastreamIt(context.Background(), []iop.Column{}, nextFunc)
+	ds.SetMetadata(api.GetProp("METADATA"))
 	aos.Ds = ds
 
 	err = ds.Start()
