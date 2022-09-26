@@ -2655,7 +2655,9 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 		refCol := colMap[strings.ToLower(col.Name)]
 		checksum1 := colChecksum[strings.ToLower(col.Name)]
 		checksum2 := cast.ToUint64(data.Rows[0][i])
-		if checksum1 != checksum2 {
+		if refCol.Stats.TotalCnt == 0 {
+			// skip
+		} else if checksum1 != checksum2 {
 			if refCol.IsString() && conn.GetType() == dbio.TypeDbSQLServer && checksum2 >= checksum1 {
 				// datalength can return higher counts since it counts bytes
 			} else {

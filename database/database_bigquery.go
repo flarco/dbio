@@ -413,7 +413,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, lim
 			return false
 		}
 
-		it2.Row = make([]interface{}, len(ds.Columns))
+		it2.Row = make([]interface{}, len(values))
 		for i := range values {
 			it2.Row[i] = values[i]
 		}

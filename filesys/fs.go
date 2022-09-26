@@ -305,6 +305,17 @@ func (fs *BaseFileSysClient) Props() map[string]string {
 	return m
 }
 
+func (fs *BaseFileSysClient) GetRefTs() time.Time {
+	var ts time.Time
+	if val := cast.ToInt64(fs.GetProp("SLING_FS_TIMESTAMP")); val != 0 {
+		ts = time.Unix(val, 0)
+		if gte := os.Getenv("SLING_GREATER_THAN_EQUAL"); gte != "" && cast.ToBool(gte) {
+			ts = time.Unix(val, 0).Add(-1 * time.Millisecond)
+		}
+	}
+	return ts
+}
+
 // GetDatastream return a datastream for the given path
 func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, err error) {
 
@@ -629,6 +640,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				}
 			} else {
 				// slower! but safer, waits for compression but does not hold data in memory
+				g.PP(ds.Columns)
 				for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
 					err := processReader(reader)
 					if err != nil {

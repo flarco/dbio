@@ -180,12 +180,13 @@ func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 // ListRecursive lists the file in given directory path recursively
 func (fs *LocalFileSysClient) ListRecursive(path string) (paths []string, err error) {
 	path = cleanLocalFilePath(path)
+	ts := fs.GetRefTs()
 
 	walkFunc := func(subPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !info.IsDir() && (ts.IsZero() || info.ModTime().IsZero() || info.ModTime().After(ts)) {
 			paths = append(paths, subPath)
 		}
 		return nil

@@ -303,7 +303,7 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 			return false
 		}
 
-		it.Row = make([]interface{}, len(it.ds.Columns))
+		it.Row = make([]interface{}, len(row))
 		var val interface{}
 		for i, val0 := range row {
 			if !it.ds.Columns[i].IsString() {

@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -440,13 +439,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 		return paths, err
 	}
 
-	var ts time.Time
-	if val := cast.ToInt64(fs.GetProp("SLING_FS_TIMESTAMP")); val != 0 {
-		ts = time.Unix(val, 0)
-		if gte := os.Getenv("SLING_GREATER_THAN_EQUAL"); gte != "" && cast.ToBool(gte) {
-			ts = time.Unix(val, 0).Add(-1 * time.Millisecond)
-		}
-	}
+	ts := fs.GetRefTs()
 
 	prefixes := []string{}
 	for {
@@ -456,7 +449,7 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 		}
 
 		for _, obj := range result.Contents {
-			if obj.LastModified == nil || ts.IsZero() || obj.LastModified.After(ts) {
+			if obj.LastModified == nil || obj.LastModified.IsZero() || ts.IsZero() || obj.LastModified.After(ts) {
 				paths = append(paths, urlPrefix+*obj.Key)
 			}
 		}

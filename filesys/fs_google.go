@@ -182,6 +182,7 @@ func (fs *GoogleFileSysClient) ListRecursive(path string) (paths []string, err e
 		return
 	}
 	key = cleanKey(key)
+	ts := fs.GetRefTs()
 
 	query := &gcstorage.Query{Prefix: key}
 	query.SetAttrSelection([]string{"Name"})
@@ -200,7 +201,10 @@ func (fs *GoogleFileSysClient) ListRecursive(path string) (paths []string, err e
 		if attrs.Name == "" {
 			continue
 		}
-		paths = append(paths, g.F("gs://%s/%s", bucket, attrs.Name))
+
+		if ts.IsZero() || attrs.Updated.IsZero() || attrs.Updated.After(ts) {
+			paths = append(paths, g.F("gs://%s/%s", bucket, attrs.Name))
+		}
 	}
 	return
 }

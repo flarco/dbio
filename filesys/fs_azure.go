@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	azstorage "github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -137,6 +138,7 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 	}
 
 	path = cleanKey(path)
+	ts := fs.GetRefTs()
 
 	svc := fs.client.GetBlobService()
 
@@ -163,10 +165,13 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 			return paths, err
 		}
 		for _, blob := range blobs {
-			paths = append(
-				paths,
-				g.F("https://%s/%s/%s", host, container.Name, blob.Name),
-			)
+			lastModified := time.Time(blob.Properties.LastModified)
+			if ts.IsZero() || lastModified.IsZero() || lastModified.After(ts) {
+				paths = append(
+					paths,
+					g.F("https://%s/%s/%s", host, container.Name, blob.Name),
+				)
+			}
 		}
 	} else if len(pathArr) > 1 {
 		container := svc.GetContainerReference(pathArr[0])
@@ -180,10 +185,13 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 			return paths, err
 		}
 		for _, blob := range blobs {
-			paths = append(
-				paths,
-				g.F("https://%s/%s/%s", host, container.Name, blob.Name),
-			)
+			lastModified := time.Time(blob.Properties.LastModified)
+			if ts.IsZero() || lastModified.IsZero() || lastModified.After(ts) {
+				paths = append(
+					paths,
+					g.F("https://%s/%s/%s", host, container.Name, blob.Name),
+				)
+			}
 		}
 
 		if len(blobs) == 0 {

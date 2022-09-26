@@ -150,6 +150,7 @@ func (fs *SftpFileSysClient) ListRecursive(url string) (paths []string, err erro
 		return
 	}
 	path = "/" + fs.cleanKey(path)
+	ts := fs.GetRefTs()
 
 	stat, err := fs.client.Stat(path)
 	if err != nil {
@@ -169,16 +170,18 @@ func (fs *SftpFileSysClient) ListRecursive(url string) (paths []string, err erro
 	}
 
 	for _, file := range files {
-		path := g.F("%s%s%s", fs.getPrefix(), path, file.Name())
-		if file.IsDir() {
-			subPaths, err := fs.ListRecursive(path)
-			// g.P(subPaths)
-			if err != nil {
-				return []string{}, g.Error(err, "error listing sub path")
+		if ts.IsZero() || file.ModTime().IsZero() || file.ModTime().After(ts) {
+			path := g.F("%s%s%s", fs.getPrefix(), path, file.Name())
+			if file.IsDir() {
+				subPaths, err := fs.ListRecursive(path)
+				// g.P(subPaths)
+				if err != nil {
+					return []string{}, g.Error(err, "error listing sub path")
+				}
+				paths = append(paths, subPaths...)
+			} else {
+				paths = append(paths, path)
 			}
-			paths = append(paths, subPaths...)
-		} else {
-			paths = append(paths, path)
 		}
 	}
 	sort.Strings(paths)
