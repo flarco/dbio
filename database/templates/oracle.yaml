@@ -49,8 +49,7 @@ core:
     WHEN NOT MATCHED THEN
         insert ({names}) values ({values})
   ddl: |
-    select to_char(dbms_metadata.get_ddl(
-    '{obj_type}'),'table}'),'schema}')) as ddl
+    select to_char(dbms_metadata.get_ddl('{obj_type}','{table}','{schema}')) as ddl
     from dual
   sqlldr: |
     OPTIONS (
@@ -129,7 +128,7 @@ metadata:
       and view_name = '{table}'
 
   ddl_table: |
-    select dbms_metadata.get_ddl('TABLE', '{table}') '{schema}') as ddl from dual
+    select dbms_metadata.get_ddl('TABLE', '{table}', '{schema}') as ddl from dual
   
   columns_full: |
     select

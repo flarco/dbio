@@ -147,7 +147,7 @@ var DBs = map[string]*testDB{
 	"oracle": {
 		name:        "oracle",
 		URL:         "ORACLE_URL",
-		schema:      "system",
+		schema:      "SYSTEM",
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
 		personDDL:   `CREATE TABLE person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
 		placeDDL:    "CREATE TABLE \"SYSTEM\".\"PLACE\" \n   (\t\"COUNTRY\" VARCHAR2(255), \n\t\"CITY\" VARCHAR2(255), \n\t\"TELCODE\" NUMBER(*,0)\n   ) PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING\n  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645\n  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)\n  TABLESPACE \"SYSTEM\"",
@@ -194,10 +194,10 @@ var DBs = map[string]*testDB{
 	"snowflake": {
 		name:        "snowflake",
 		URL:         os.Getenv("SNOWFLAKE_URL"),
-		schema:      "public",
+		schema:      "PUBLIC",
 		transactDDL: `CREATE TABLE public.transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
 		personDDL:   `CREATE TABLE public.person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
-		placeDDL:    "create or replace TABLE PLACE (\n\tCOUNTRY VARCHAR(16777216),\n\tCITY VARCHAR(16777216),\n\tTELCODE NUMBER(38,0)\n);",
+		placeDDL:    "create or replace TABLE PLACE (\n\tCOUNTRY VARCHAR,\n\tCITY VARCHAR,\n\tTELCODE NUMBER(38,0)\n);",
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
@@ -478,7 +478,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	// load Csv from test file
-	csv1 := iop.CSV{Path: "test/test2.csv"}
+	csv1 := iop.CSV{Path: "test/test1.csv"}
 
 	stream, err = csv1.ReadStream()
 	g.AssertNoError(t, err)
@@ -518,7 +518,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// Test Schemata
 	schemata, err := conn.GetSchemata(db.schema, "")
 	g.AssertNoError(t, err)
-	sData := schemata.Database().Schemas[db.schema]
+	sData := schemata.Database().Schemas[strings.ToLower(db.schema)]
 	assert.Equal(t, strings.ToLower(db.schema), strings.ToLower(sData.Name))
 	assert.Contains(t, sData.Tables, "person")
 	assert.Contains(t, sData.Tables, "place_vw")
@@ -611,8 +611,6 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 func ELTest(t *testing.T, db *testDB, srcTable string) {
 	tgtTable := srcTable + "2"
-	_, sTable := SplitTableFullName(srcTable)
-	_, tTable := SplitTableFullName(tgtTable)
 
 	// var srcConn, tgtConn PostgresConn
 	srcConn, err := NewConn(db.URL, db.propStrs...)
@@ -626,14 +624,17 @@ func ELTest(t *testing.T, db *testDB, srcTable string) {
 	err = tgtConn.Connect()
 	g.AssertNoError(t, err)
 
+	sTable, _ := ParseTableName(srcTable, srcConn.GetType())
+	tTable, _ := ParseTableName(tgtTable, tgtConn.GetType())
+
 	ddl, err := srcConn.GetDDL(srcTable)
 	g.AssertNoError(t, err)
 	assert.NotEmpty(t, ddl)
-	newDdl := strings.Replace(ddl, sTable, tTable, 1)
+	newDdl := strings.Replace(ddl, sTable.Name, tTable.Name, 1)
 	if strings.Contains("oracle,snowflake", db.name) {
 		newDdl = strings.Replace(
-			ddl, strings.ToUpper(sTable),
-			strings.ToUpper(tTable), 1,
+			ddl, strings.ToUpper(sTable.Name),
+			strings.ToUpper(tTable.Name), 1,
 		)
 	}
 
@@ -821,12 +822,12 @@ func TestLargeDataset(t *testing.T) {
 	DBs["snowflake_aws"] = &testDB{
 		name:   "snowflake-aws",
 		URL:    os.Getenv("SNOWFLAKE_URL") + "&CopyMethod=AWS",
-		schema: "public",
+		schema: "PUBLIC",
 	}
 	DBs["snowflake_azure"] = &testDB{
 		name:   "snowflake-azure",
 		URL:    os.Getenv("SNOWFLAKE_URL") + "&CopyMethod=AZURE",
-		schema: "public",
+		schema: "PUBLIC",
 	}
 
 	// dbs = []*testDB{DBs["bigquery"]}

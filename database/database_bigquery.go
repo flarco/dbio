@@ -596,6 +596,11 @@ func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumn
 	}
 	defer client.Close()
 
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	gcsRef := bigquery.NewGCSReference(gcsURI)
 	gcsRef.FieldDelimiter = ","
 	gcsRef.AllowQuotedNewlines = true
@@ -606,9 +611,7 @@ func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumn
 		gcsRef.Compression = bigquery.Gzip
 	}
 	gcsRef.MaxBadRecords = 0
-
-	schema, tableID := SplitTableFullName(tableFName)
-	loader := client.Dataset(schema).Table(tableID).LoaderFrom(gcsRef)
+	loader := client.Dataset(table.Schema).Table(table.Name).LoaderFrom(gcsRef)
 	loader.WriteDisposition = bigquery.WriteAppend
 
 	job, err := loader.Run(conn.Context().Ctx)
@@ -757,6 +760,11 @@ func (conn *BigQueryConn) CopyToGCS(tableFName string, gcsURI string) error {
 	}
 	defer client.Close()
 
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	if strings.ToUpper(conn.GetProp("COMPRESSION")) == "GZIP" {
 		gcsURI = gcsURI + ".gz"
 	}
@@ -769,8 +777,7 @@ func (conn *BigQueryConn) CopyToGCS(tableFName string, gcsURI string) error {
 	}
 	gcsRef.MaxBadRecords = 0
 
-	schema, tableID := SplitTableFullName(tableFName)
-	extractor := client.DatasetInProject(conn.ProjectID, schema).Table(tableID).ExtractorTo(gcsRef)
+	extractor := client.DatasetInProject(conn.ProjectID, table.Schema).Table(table.Name).ExtractorTo(gcsRef)
 	extractor.DisableHeader = false
 	// You can choose to run the task in a specific location for more complex data locality scenarios.
 	// Ex: In this example, source dataset and GCS bucket are in the US.

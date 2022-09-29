@@ -283,7 +283,7 @@ func (ds *Datastream) Close() {
 
 // schemaChange applies a column type change
 func (ds *Datastream) schemaChange(i int, newType ColumnType) {
-	if ds.Columns[i].Type == newType {
+	if ds == nil || ds.Columns[i].Type == newType {
 		return
 	}
 

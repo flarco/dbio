@@ -306,8 +306,12 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 	default:
 	}
 
-	schema, _ := SplitTableFullName(tableFName)
-	stage := conn.getOrCreateStage(schema)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return 0, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
+	stage := conn.getOrCreateStage(table.Schema)
 	if stage != "" {
 		return conn.CopyViaStage(tableFName, df)
 	}
@@ -558,11 +562,14 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 
 	if conn.GetProp("schema") == "" {
-		schema, _ := SplitTableFullName(tableFName)
-		if schema == "" {
+		table, err := ParseTableName(tableFName, conn.Type)
+		if err != nil {
+			return 0, g.Error(err, "could not parse table name: "+tableFName)
+		}
+		if table.Schema == "" {
 			return 0, g.Error("Prop schema is required")
 		}
-		conn.SetProp("schema", schema)
+		conn.SetProp("schema", table.Schema)
 	}
 
 	// Write the ds to a temp file
@@ -579,14 +586,14 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	go func() {
 		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
 		if err != nil {
-			err = g.Error(err, "Could not get fs client for Local")
+			df.Context.CaptureErr(g.Error(err, "Could not get fs client for Local"))
 			return
 		}
 
 		_, err = fs.WriteDataflowReady(df, folderPath, fileReadyChn)
 
 		if err != nil {
-			err = g.Error(err, "Error writing dataflow to disk: "+folderPath)
+			df.Context.CaptureErr(g.Error(err, "Error writing dataflow to disk: "+folderPath))
 			return
 		}
 
@@ -726,10 +733,14 @@ func (conn *SnowflakeConn) GenerateUpsertSQL(srcTable string, tgtTable string, p
 // include schema and table, example: `schema1.table2`
 // fields should be `schema_name|table_name|table_type|column_name|data_type|column_id`
 func (conn *SnowflakeConn) GetColumnsFull(tableFName string) (data iop.Dataset, err error) {
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return data, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	data1, err := conn.SumbitTemplate(
 		"single", conn.template.Metadata, "columns_full",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 	if err != nil {
 		return data1, err

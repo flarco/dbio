@@ -1369,10 +1369,14 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 // TableExists returns true if the table exists
 func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return false, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	colData, err := conn.SumbitTemplate(
 		"single", conn.template.Metadata, "columns",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 	if err != nil {
 		return false, g.Error(err, "could not check table existence: "+tableFName)
@@ -1464,39 +1468,56 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 // include schema and table, example: `schema1.table2`
 // fields should be `schema_name|table_name|table_type|column_name|data_type|column_id`
 func (conn *BaseConn) GetColumnsFull(tableFName string) (iop.Dataset, error) {
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return iop.Dataset{}, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	return conn.SumbitTemplate(
 		"single", conn.template.Metadata, "columns_full",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 }
 
 // GetPrimaryKeys returns primark keys for given table.
 func (conn *BaseConn) GetPrimaryKeys(tableFName string) (iop.Dataset, error) {
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return iop.Dataset{}, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	return conn.SumbitTemplate(
 		"single", conn.template.Metadata, "primary_keys",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 }
 
 // GetIndexes returns indexes for given table.
 func (conn *BaseConn) GetIndexes(tableFName string) (iop.Dataset, error) {
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return iop.Dataset{}, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	return conn.SumbitTemplate(
 		"single", conn.template.Metadata, "indexes",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 }
 
 // GetDDL returns DDL for given table.
 func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
-	schema, table := SplitTableFullName(tableFName)
+
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return "", g.Error(err, "could not parse table name: "+tableFName)
+	}
+
 	ddlCol := cast.ToInt(conn.template.Variable["ddl_col"])
 	ddlArr := []string{}
 	data, err := conn.SumbitTemplate(
 		"single", conn.template.Metadata, "ddl_view",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 
 	for _, row := range data.Rows {
@@ -1510,7 +1531,7 @@ func (conn *BaseConn) GetDDL(tableFName string) (string, error) {
 
 	data, err = conn.SumbitTemplate(
 		"single", conn.template.Metadata, "ddl_table",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 	if err != nil {
 		return "", err
@@ -1778,9 +1799,12 @@ func (conn *BaseConn) ProcessTemplate(level, text string, values map[string]inte
 			err = g.Error("missing 'tables' key")
 		} else {
 			for _, tableFName := range cast.ToStringSlice(tableFNames) {
-				schema, table := SplitTableFullName(tableFName)
-				values["schema"] = schema
-				values["table"] = table
+				table, err := ParseTableName(tableFName, conn.Type)
+				if err != nil {
+					return "", g.Error(err, "could not parse table name: "+tableFName)
+				}
+				values["schema"] = table.Schema
+				values["table"] = table.Name
 				sqls = append(sqls, g.Rm(text, values))
 			}
 			sql = strings.Join(sqls, "\nUNION ALL\n")

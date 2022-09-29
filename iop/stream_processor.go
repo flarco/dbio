@@ -377,7 +377,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		iVal, err := cast.ToIntE(val)
 		if err != nil {
 			fVal, err := sp.toFloat64E(val)
-			if err != nil {
+			if err != nil || sp.ds == nil {
 				// is string
 				sp.ds.schemaChange(i, StringType)
 				cs.StringCnt++
@@ -407,7 +407,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		iVal, err := cast.ToInt64E(val)
 		if err != nil {
 			fVal, err := sp.toFloat64E(val)
-			if err != nil {
+			if err != nil || sp.ds == nil {
 				// is string
 				sp.ds.schemaChange(i, StringType)
 				cs.StringCnt++
