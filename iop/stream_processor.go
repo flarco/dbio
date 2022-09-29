@@ -353,7 +353,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 
 		cond1 := cs.TotalCnt > 0 && cs.NullCnt == cs.TotalCnt
-		cond2 := !isString
+		cond2 := !isString && cs.StringCnt == 0
 
 		if (cond1 || cond2) && sp.ds != nil {
 			// this is an attempt to cast correctly "uncasted" columns
@@ -361,7 +361,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			// as the ds.Shape() function will change it back to the "string" type,
 			// to match the target table column type. This takes priority.
 			nVal = sp.ParseString(cast.ToString(val))
-			sp.ds.Columns[i].Type = sp.GetType(nVal)
+			sp.ds.schemaChange(i, sp.GetType(nVal))
 			if !sp.ds.Columns[i].IsString() { // so we don't loop
 				return sp.CastVal(i, nVal, &sp.ds.Columns[i])
 			}
@@ -376,11 +376,18 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	case col.Type == SmallIntType:
 		iVal, err := cast.ToIntE(val)
 		if err != nil {
-			// is string
-			cs.StringCnt++
-			cs.TotalCnt++
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
-			return cast.ToString(val)
+			fVal, err := sp.toFloat64E(val)
+			if err != nil {
+				// is string
+				sp.ds.schemaChange(i, StringType)
+				cs.StringCnt++
+				cs.TotalCnt++
+				cs.Checksum = cs.Checksum + uint64(len(sVal))
+				return cast.ToString(val)
+			}
+			// is decimal
+			sp.ds.schemaChange(i, DecimalType)
+			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
 		}
 
 		if int64(iVal) > cs.Max {
@@ -399,11 +406,18 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	case col.Type.IsInteger():
 		iVal, err := cast.ToInt64E(val)
 		if err != nil {
-			// is string
-			cs.StringCnt++
-			cs.TotalCnt++
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
-			return cast.ToString(val)
+			fVal, err := sp.toFloat64E(val)
+			if err != nil {
+				// is string
+				sp.ds.schemaChange(i, StringType)
+				cs.StringCnt++
+				cs.TotalCnt++
+				cs.Checksum = cs.Checksum + uint64(len(sVal))
+				return cast.ToString(val)
+			}
+			// is decimal
+			sp.ds.schemaChange(i, DecimalType)
+			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
 		}
 
 		if iVal > cs.Max {
@@ -423,6 +437,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		fVal, err := sp.toFloat64E(val)
 		if err != nil {
 			// is string
+			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
@@ -452,6 +467,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		bVal, err := cast.ToBoolE(val)
 		if err != nil {
 			// is string
+			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
@@ -470,6 +486,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			// )
 			// sp.warn = true
 			nVal = val // keep string
+			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
 		} else if dVal.IsZero() {
 			nVal = nil

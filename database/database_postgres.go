@@ -93,9 +93,13 @@ func (conn *PostgresConn) BulkExportStream(sql string) (ds *iop.Datastream, err 
 }
 
 // BulkImportStream inserts a stream into a table
-func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func (conn *PostgresConn) BulkImportStream0(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 
-	schema, table := SplitTableFullName(tableFName)
+	table, err := ParseTableName(tableFName, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not get  table name for imoprt")
+		return
+	}
 
 	columns, err := conn.GetColumns(tableFName, ds.GetFields(true, true)...)
 	if err != nil {
@@ -119,19 +123,76 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		defer conn.Commit()
 	}
 
-	stmt, err := conn.Prepare(
-		pq.CopyInSchema(schema, table, columns.Names()...),
-	)
+	stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, columns.Names()...))
 	if err != nil {
 		g.Trace("%s: %#v", table, columns.Names())
 		return count, g.Error(err, "could not prepare statement")
 	}
 
+	// set OnSchemaChange
+	if df := ds.Df(); df != nil {
+
+		df.OnSchemaChange = func(i int, newType iop.ColumnType) error {
+
+			ds.Context.Lock()
+			defer ds.Context.Unlock()
+
+			_, err = stmt.Exec()
+			if err != nil {
+				return g.Error(err, "could not pre-execute statement")
+			}
+
+			err = stmt.Close()
+			if err != nil {
+				return g.Error(err, "could not pre-close statement")
+			}
+
+			err = conn.Commit()
+			g.LogError(err)
+			if err != nil {
+				return g.Error(err, "could not pre-commit for schema change")
+			}
+
+			table.Columns, err = conn.GetColumns(tableFName)
+			if err != nil {
+				return g.Error(err, "could not get table columns for schema change")
+			}
+
+			df.Columns[i].Type = newType
+			ok, err := conn.OptimizeTable(&table, df.Columns)
+			if err != nil {
+				return g.Error(err, "could not change table schema")
+			} else if ok {
+				for i := range df.Columns {
+					df.Columns[i].Type = table.Columns[i].Type
+				}
+			}
+
+			err = conn.Begin()
+			if err != nil {
+				return g.Error(err, "could not post-begin for schema change")
+			}
+
+			stmt, err = conn.Prepare(
+				pq.CopyInSchema(table.Schema, table.Name, columns.Names()...),
+			)
+			if err != nil {
+				return g.Error(err, "could not post-prepare statement")
+			}
+
+			return nil
+		}
+	}
+
 	for row := range ds.Rows {
 		count++
 		// Do insert
+		ds.Context.Lock()
 		_, err := stmt.Exec(row...)
+		ds.Context.Unlock()
+
 		if err != nil {
+			ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
 			ds.Context.Cancel()
 			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)

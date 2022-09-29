@@ -478,7 +478,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	// load Csv from test file
-	csv1 := iop.CSV{Path: "test/test1.csv"}
+	csv1 := iop.CSV{Path: "test/test2.csv"}
 
 	stream, err = csv1.ReadStream()
 	g.AssertNoError(t, err)

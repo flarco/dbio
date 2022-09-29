@@ -3,21 +3,54 @@ package database
 import (
 	"strings"
 
+	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 )
 
 // Table represents a schemata table
 type Table struct {
-	Name     string `json:"name"`
-	Schema   string `json:"schema"`
-	Database string `json:"database"`
-	IsView   bool   `json:"is_view"` // whether is a view
-	Columns  iop.Columns
+	Name     string      `json:"name"`
+	Schema   string      `json:"schema"`
+	Database string      `json:"database,omitempty"`
+	IsView   bool        `json:"is_view,omitempty"` // whether is a view
+	SQL      string      `json:"sql,omitempty"`
+	Dialect  dbio.Type   `json:"dialect,omitempty"`
+	Columns  iop.Columns `json:"columns,omitempty"`
+}
+
+func (t *Table) IsQuery() bool {
+	return t.SQL != ""
 }
 
 func (t *Table) FullName() string {
-	return t.Schema + "." + t.Name
+	q := GetQualifierQuote(t.Dialect)
+
+	fdqnArr := []string{}
+	if t.Schema != "" {
+		fdqnArr = append(fdqnArr, q+t.Schema+q)
+	}
+	if t.Name != "" {
+		fdqnArr = append(fdqnArr, q+t.Name+q)
+	}
+	return strings.Join(fdqnArr, ".")
+}
+
+func (t *Table) FDQN() string {
+	q := GetQualifierQuote(t.Dialect)
+
+	fdqnArr := []string{}
+	if t.Database != "" {
+		fdqnArr = append(fdqnArr, q+t.Database+q)
+	}
+	if t.Schema != "" {
+		fdqnArr = append(fdqnArr, q+t.Schema+q)
+	}
+	if t.Name != "" {
+		fdqnArr = append(fdqnArr, q+t.Name+q)
+	}
+	return strings.Join(fdqnArr, ".")
 }
 
 func (t *Table) ColumnsMap() map[string]iop.Column {
@@ -207,4 +240,88 @@ type ColumnType struct {
 	Scale            int
 	Nullable         bool
 	Sourced          bool
+}
+
+func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
+	table.Dialect = dialect
+
+	quote := GetQualifierQuote(dialect)
+
+	defCaseUpper := false
+	if g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
+		defCaseUpper = true
+	}
+
+	inQuote := false
+	words := []string{}
+	word := ""
+
+	addWord := func() {
+		if word == "" {
+			return
+		}
+		words = append(words, word)
+		word = ""
+	}
+
+	for _, r := range text {
+		c := string(r)
+
+		switch c {
+		case quote:
+			if inQuote {
+				addWord()
+			}
+			inQuote = !inQuote
+			continue
+		case ".":
+			if !inQuote {
+				addWord()
+				continue
+			}
+		case " ", "\n", "\t", "\r", "(", ")", "-", "'":
+			if !inQuote {
+				table.SQL = strings.TrimSpace(text)
+				return
+			}
+		}
+
+		if inQuote {
+			word = word + c
+		} else {
+			word = word + lo.Ternary(defCaseUpper, strings.ToUpper(c), c)
+		}
+	}
+
+	if inQuote {
+		return table, g.Error("unterminated qualifier quote")
+	} else if word != "" {
+		addWord()
+	}
+
+	if len(words) == 0 {
+		err = g.Error("invalid table name")
+		return
+	} else if len(words) == 1 {
+		table.Name = words[0]
+	} else if len(words) == 2 {
+		table.Schema = words[0]
+		table.Name = words[1]
+	} else if len(words) == 3 {
+		table.Database = words[0]
+		table.Schema = words[1]
+		table.Name = words[2]
+	} else {
+		table.SQL = strings.TrimSpace(text)
+	}
+
+	return
+}
+
+func GetQualifierQuote(dialect dbio.Type) string {
+	quote := `"`
+	if g.In(dialect, dbio.TypeDbMySQL, dbio.TypeDbBigQuery) {
+		quote = "`"
+	}
+	return quote
 }

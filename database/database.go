@@ -96,6 +96,7 @@ type Connection interface {
 	GetSchemas() (iop.Dataset, error)
 	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
+	GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error)
 	GetTemplateValue(path string) (value string)
 	GetType() dbio.Type
 	GetURL(newURL ...string) string
@@ -107,7 +108,7 @@ type Connection interface {
 	LoadTemplates() error
 	MustExec(sql string, args ...interface{}) (result sql.Result)
 	NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error)
-	OptimizeTable(tableName string, columns iop.Columns) (err error)
+	OptimizeTable(table *Table, columns iop.Columns) (ok bool, err error)
 	Prepare(query string) (stmt *sql.Stmt, err error)
 	Props() map[string]string
 	PropsArr() []string
@@ -1386,17 +1387,20 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 // GetColumns returns columns for given table. `tableFName` should
 // include schema and table, example: `schema1.table2`
 // fields should be `column_name|data_type`
-func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
+func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error) {
+	if table.IsQuery() {
+		return conn.GetSQLColumns(table.SQL)
+	}
+
 	columns = iop.Columns{}
-	schema, table := SplitTableFullName(tableFName)
 	colData, err := conn.SumbitTemplate(
 		"single", conn.template.Metadata, "columns",
-		g.M("schema", schema, "table", table),
+		g.M("schema", table.Schema, "table", table.Name),
 	)
 	if err != nil {
-		return columns, g.Error(err, "could not get list of columns for table: "+tableFName)
+		return columns, g.Error(err, "could not get list of columns for table: "+table.FullName())
 	} else if len(colData.Rows) == 0 {
-		return columns, g.Error("did not find any columns for table: " + tableFName)
+		return columns, g.Error("did not find any columns for table: " + table.FullName())
 	}
 
 	// if fields provided, check if exists in table
@@ -1412,7 +1416,7 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 		if !ok {
 			err = g.Error(
 				"provided field '%s' not found in table %s",
-				strings.ToLower(field), tableFName,
+				strings.ToLower(field), table.FullName(),
 			)
 			return
 		}
@@ -1438,12 +1442,22 @@ func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns i
 	})
 
 	columns = SQLColumns(colTypes, conn)
+	table.Columns = columns
 
 	if len(columns) == 0 {
-		err = g.Error("unable to obtain columns for " + tableFName)
+		err = g.Error("unable to obtain columns for " + table.FullName())
 	}
 
 	return
+}
+
+func (conn *BaseConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return columns, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
+	return conn.GetTableColumns(&table, fields...)
 }
 
 // GetColumnsFull returns columns for given table. `tableName` should
@@ -2408,12 +2422,12 @@ func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFiel
 // GenerateUpsertExpressions returns a map with needed expressions
 func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string, pkFields []string) (exprs map[string]string, err error) {
 
-	srcColumns, err := conn.GetSQLColumns("select * from " + srcTable)
+	srcColumns, err := conn.GetColumns(srcTable)
 	if err != nil {
 		err = g.Error(err, "could not get columns for "+srcTable)
 		return
 	}
-	tgtColumns, err := conn.GetSQLColumns("select * from " + tgtTable)
+	tgtColumns, err := conn.GetColumns(tgtTable)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -2530,61 +2544,71 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 // Hole in this: will truncate data points, since it is based
 // only on new data being inserted... would need a complete
 // stats of the target table to properly optimize.
-func (conn *BaseConn) OptimizeTable(tableName string, newColStats iop.Columns) (err error) {
-
-	// stats are already provided with columns
-	tgtColStats, err := conn.Self().GetColumnStats(tableName)
-	if err != nil {
-		return g.Error(err, "unable to run column stats")
+func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bool, err error) {
+	if len(table.Columns) != len(newColumns) {
+		return false, g.Error("different column length %d != %d", len(table.Columns), len(newColumns))
 	}
 
-	colStats, err := iop.SyncColumns(newColStats, tgtColStats)
-	if err != nil {
-		return g.Error(err, "unable to sync columns data")
-	}
-
-	columns := iop.InferFromStats(colStats, false, false)
-
-	// compare, and alter or recreate as needed
 	colDDLs := []string{}
-	for _, col := range columns {
-		nativeType, err := conn.GetNativeType(col)
-		if err != nil {
-			return g.Error(err, "no native mapping")
-		}
+	for i, col := range table.Columns {
+		newCol := newColumns[i]
 
+		if !strings.EqualFold(col.Name, newCol.Name) {
+			return false, g.Error("column name mismatch, %s != %s", col.Name, newCol.Name)
+		} else if col.Type == newCol.Type {
+			continue
+		}
+		msg := g.F("optimizing existing '%s' (%s) vs new '%s' (%s) => ", col.Name, col.Type, newCol.Name, newCol.Type)
 		switch {
-		case col.Type.IsString():
-			// alter field to resize column
-			colDDL := g.R(
-				conn.GetTemplateValue("core.modify_column"),
-				"column", conn.Self().Quote(col.Name),
-				"type", nativeType,
-			)
-			colDDLs = append(colDDLs, colDDL)
+		case col.Type.IsDatetime() && newCol.Type.IsDatetime():
+			newCol.Type = iop.TimestampType
+		case col.Type.IsInteger() && newCol.Type.IsDecimal():
+			newCol.Type = iop.DecimalType
+		case col.Type.IsInteger() && newCol.Type == iop.BigIntType:
+			newCol.Type = iop.BigIntType
+		case col.Type == iop.SmallIntType && newCol.Type == iop.IntegerType:
+			newCol.Type = iop.IntegerType
 		default:
-			// alter field to resize column
-			colDDL := g.R(
-				conn.GetTemplateValue("core.modify_column"),
-				"column", conn.Self().Quote(col.Name),
-				"type", nativeType,
-			)
-			colDDLs = append(colDDLs, colDDL)
+			newCol.Type = iop.StringType
 		}
 
+		if col.Type == newCol.Type {
+			continue
+		}
+
+		g.Debug(msg + string(newCol.Type))
+
+		nativeType, err := conn.GetNativeType(newCol)
+		if err != nil {
+			return false, g.Error(err, "no native mapping for `%s`", newCol.Type)
+		}
+		// alter field to resize column
+		colDDL := g.R(
+			conn.GetTemplateValue("core.modify_column"),
+			"column", conn.Self().Quote(col.Name),
+			"type", nativeType,
+		)
+		colDDLs = append(colDDLs, colDDL)
+		table.Columns[i].Type = newCol.Type
+		table.Columns[i].DbType = nativeType
+	}
+
+	if len(colDDLs) == 0 {
+		return false, nil
 	}
 
 	ddl := g.R(
 		conn.GetTemplateValue("core.alter_columns"),
-		"table", tableName,
+		"table", table.FullName(),
 		"col_ddls", strings.Join(colDDLs, ", "),
 	)
+
 	_, err = conn.Exec(ddl)
 	if err != nil {
-		err = g.Error(err, "could not alter columns on table "+tableName)
+		return false, g.Error(err, "could not alter columns on table "+table.FullName())
 	}
 
-	return
+	return true, nil
 }
 
 // CompareChecksums compares the checksum values from the database side
@@ -2722,7 +2746,7 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	conn.SetProp("PARALLEL", "true")
 }
 
-func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (err error) {
+func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (ok bool, err error) {
 	cols, err := conn.GetSQLColumns("select * from " + tableName)
 	if err != nil {
 		err = g.Error(err, "could not obtain table columns")
@@ -2743,7 +2767,7 @@ func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (
 	for _, col := range missing {
 		nativeType, err := conn.GetNativeType(col)
 		if err != nil {
-			return g.Error(err, "no native mapping")
+			return false, g.Error(err, "no native mapping")
 		}
 		sql := g.R(
 			conn.Template().Core["add_column"],
@@ -2753,11 +2777,11 @@ func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (
 		)
 		_, err = conn.Exec(sql)
 		if err != nil {
-			return g.Error(err, "could not add column %s to table %s", col.Name, tableName)
+			return false, g.Error(err, "could not add column %s to table %s", col.Name, tableName)
 		}
 	}
 
-	return
+	return len(missing) > 0, nil
 }
 
 // TestPermissions tests the needed permissions in a given connection
@@ -3070,4 +3094,68 @@ func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
 	conn.Context().Wg.Read.Wait()
 
 	return schemata, nil
+}
+
+// GenerateDDL genrate a DDL based on a dataset
+func GenerateAlterDDL(conn Connection, table Table, newColumns iop.Columns) (bool, error) {
+
+	if len(table.Columns) != len(newColumns) {
+		return false, g.Error("different column lenght %d != %d", len(table.Columns), len(newColumns))
+	}
+
+	colDDLs := []string{}
+	for i, col := range table.Columns {
+		newCol := newColumns[i]
+
+		if col.Type == newCol.Type {
+			continue
+		}
+
+		// convert from general type to native type
+		nativeType, err := conn.GetNativeType(newCol)
+		if err != nil {
+			return false, g.Error(err, "no native mapping")
+		}
+
+		switch {
+		case col.Type.IsString():
+			// alter field to resize column
+			colDDL := g.R(
+				conn.GetTemplateValue("core.modify_column"),
+				"column", conn.Self().Quote(col.Name),
+				"type", nativeType,
+			)
+			colDDLs = append(colDDLs, colDDL)
+		default:
+			// alter field to resize column
+			colDDL := g.R(
+				conn.GetTemplateValue("core.modify_column"),
+				"column", conn.Self().Quote(col.Name),
+				"type", nativeType,
+			)
+			colDDLs = append(colDDLs, colDDL)
+		}
+
+	}
+
+	ddl := g.R(
+		conn.GetTemplateValue("core.alter_columns"),
+		"table", table.FullName(),
+		"col_ddls", strings.Join(colDDLs, ", "),
+	)
+	_, err := conn.Exec(ddl)
+	if err != nil {
+		return false, g.Error(err, "could not alter columns on table "+table.FullName())
+	}
+
+	return true, nil
+}
+
+func Clone(conn Connection) (newConn Connection, err error) {
+	props := g.MapToKVArr(conn.Base().properties)
+	newConn, err = NewConn(conn.GetURL(), props...)
+	if err != nil {
+		err = g.Error(err, "could not clone database connection")
+	}
+	return
 }

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/spf13/cast"
+	"github.com/stretchr/testify/assert"
 )
 
 func bParseString(sp *StreamProcessor, val string, b *testing.B) {
@@ -274,4 +276,15 @@ func TestParseDate(t *testing.T) {
 	g.P(sp.ParseString(val))
 	val = `1/17/20`
 	g.P(sp.ParseString(val))
+}
+
+func TestParseDecimal(t *testing.T) {
+	sp := NewStreamProcessor()
+	val := "1.2"
+	g.P(sp.ParseString(val))
+	val = "1.2.3"
+	g.P(sp.ParseString(val))
+	iVal, err := cast.ToIntE("1.2")
+	g.P(iVal)
+	assert.Error(t, err)
 }

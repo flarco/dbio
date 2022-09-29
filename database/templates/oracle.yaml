@@ -50,7 +50,7 @@ core:
         insert ({names}) values ({values})
   ddl: |
     select to_char(dbms_metadata.get_ddl(
-    upper('{obj_type}'),upper('{table}'),upper('{schema}'))) as ddl
+    '{obj_type}'),'table}'),'schema}')) as ddl
     from dual
   sqlldr: |
     OPTIONS (
@@ -83,20 +83,20 @@ metadata:
   tables: |
     select table_name
     from sys.all_tables
-    where owner = upper('{schema}')
+    where owner = '{schema}'
     order by table_name
     
   views: |
     select view_name as table_name
     from sys.all_views
-    where owner = upper('{schema}')
+    where owner = '{schema}'
     order by view_name
 
   columns: |
     select column_name, data_type, coalesce(data_precision, data_length) as precision, data_scale as scale
     from sys.all_tab_columns
-    where owner = upper('{schema}')
-      and table_name = upper('{table}')
+    where owner = '{schema}'
+      and table_name = '{table}'
     order by column_id
 
   primary_keys: |
@@ -105,8 +105,8 @@ metadata:
       cols.position as position,
       cols.column_name as column_name
     FROM all_constraints cons, all_cons_columns cols
-    WHERE cons.owner = upper('{schema}')
-      and cols.table_name = upper('{table}')
+    WHERE cons.owner = '{schema}'
+      and cols.table_name = '{table}'
       and cons.constraint_type = 'P'
       and cons.constraint_name = cols.constraint_name
       and cons.owner = cols.owner
@@ -118,18 +118,18 @@ metadata:
       index_name,
       column_name
     from all_ind_columns
-    where index_owner = upper('{schema}')
-      and table_name = upper('{table}')
+    where index_owner = '{schema}'
+      and table_name = '{table}'
     order by index_name, column_position
 
   ddl_view: |
     select text as ddl
     from sys.all_views
-    where owner = upper('{schema}')
-      and view_name = upper('{table}')
+    where owner = '{schema}'
+      and view_name = '{table}'
 
   ddl_table: |
-    select dbms_metadata.get_ddl('TABLE', upper('{table}'), upper('{schema}')) as ddl from dual
+    select dbms_metadata.get_ddl('TABLE', '{table}') '{schema}') as ddl from dual
   
   columns_full: |
     select
@@ -139,8 +139,8 @@ metadata:
       col.data_type as data_type,
       col.column_id as position
     from sys.all_tab_columns col 
-    where owner = upper('{schema}')
-      and table_name = upper('{table}')
+    where owner = '{schema}'
+      and table_name = '{table}'
     order by col.owner, col.table_name, col.column_id
 
   schemata: |
@@ -159,8 +159,8 @@ metadata:
       on views.owner = col.owner
       and views.view_name = col.table_name
     where 1=1
-      {{if .schema -}} and col.owner = upper('{schema}') {{- end}}
-      {{if .table -}} and table_name = upper('{table}') {{- end}}
+      {{if .schema -}} and col.owner = '{schema}' {{- end}}
+      {{if .table -}} and table_name = '{table}' {{- end}}
     order by col.owner, col.table_name, col.column_id
   
   sessions:

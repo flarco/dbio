@@ -94,10 +94,10 @@ metadata:
     order by cols.database, cols.table, cols.position
   
   ddl_table:
-    SHOW CREATE {schema}.{table}
+    SHOW CREATE TABLE {schema}.{table}
   
   ddl_view: |
-    SHOW CREATE {schema}.{table}
+    SHOW CREATE VIEW {schema}.{table}
   
   sessions:
     select *

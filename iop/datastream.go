@@ -52,6 +52,8 @@ type Datastream struct {
 	bwCsv         *csv.Writer // for correct byte written
 	id            string
 	Metadata      Metadata // map of column name to metadata type
+	paused        bool
+	pauseChnl     chan struct{}
 }
 
 type KeyValue struct {
@@ -133,6 +135,10 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 	return
 }
 
+func (ds *Datastream) Df() *Dataflow {
+	return ds.df
+}
+
 // SetReady sets the ds.ready
 func (ds *Datastream) SetReady() {
 	if !ds.Ready {
@@ -187,10 +193,12 @@ func (ds *Datastream) Push(row []interface{}) {
 		ds.Close()
 		return
 	default:
-		// if ds.paused {
-		// 	<-ds.unpauseChnl
-		// }
-		ds.Rows <- row
+		select {
+		case ds.Rows <- row:
+		case <-ds.pauseChnl:
+			<-ds.pauseChnl // wait for unpause
+			ds.Rows <- row
+		}
 		ds.bwRows <- row
 	}
 	for _, cDs := range ds.clones {
@@ -243,6 +251,16 @@ func (ds *Datastream) Close() {
 		close(ds.Rows)
 		close(ds.bwRows)
 
+	loop:
+		for {
+			select {
+			case <-ds.pauseChnl:
+			case <-ds.readyChn:
+			default:
+				break loop
+			}
+		}
+
 		for _, f := range ds.deferFuncs {
 			f()
 		}
@@ -260,6 +278,32 @@ func (ds *Datastream) Close() {
 	select {
 	case <-ds.readyChn:
 	default:
+	}
+}
+
+// schemaChange applies a column type change
+func (ds *Datastream) schemaChange(i int, newType ColumnType) {
+	if ds.Columns[i].Type == newType {
+		return
+	}
+
+	g.Debug("column type change for %s (%s to %s)", ds.Columns[i].Name, ds.Columns[i].Type, newType)
+	ds.Columns[i].Type = newType
+	if df := ds.df; df != nil {
+		df.Pause()
+
+		df.Columns[i].Type = newType
+		err := df.OnSchemaChange(i, newType)
+		if err != nil {
+			ds.Context.CaptureErr(err)
+		} else {
+			for _, ds0 := range df.StreamMap {
+				if len(ds0.Columns) == len(df.Columns) {
+					ds0.Columns[i].Type = newType
+				}
+			}
+		}
+		df.Unpause()
 	}
 }
 
@@ -496,11 +540,17 @@ func (ds *Datastream) Start() (err error) {
 
 			select {
 			case <-ds.Context.Ctx.Done():
+				if ds.df != nil {
+					ds.df.Context.CaptureErr(ds.Err())
+				}
 				break loop
 			case <-ds.it.Context.Ctx.Done():
 				if ds.it.Context.Err() != nil {
 					err = g.Error(ds.it.Context.Err())
 					ds.Context.CaptureErr(err, "Failed to scan")
+					if ds.df != nil {
+						ds.df.Context.CaptureErr(ds.Err())
+					}
 				}
 				break loop
 			default:

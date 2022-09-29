@@ -295,9 +295,19 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 		return
 	}
 
+	// in case schema change is needed, cannot alter while inserting
+	// mux := ds.Context.Mux
+	// if df := ds.Df(); df != nil {
+	// 	mux = df.Context.Mux
+	// }
+
 	insertBatch := func(rows [][]interface{}) error {
 		var err error
 		defer context.Wg.Write.Done()
+
+		// mux.Lock()
+		// defer mux.Unlock()
+
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 		conn.Base().AddLog(insertTemplate)
 		// open statement
