@@ -1,5 +1,5 @@
 general_type	oracle	postgres	mysql	sqlserver	azuresql	azuredwh	redshift	snowflake	sqlite	bigquery	clickhouse
-bigint	number(19)	bigint	bigint	bigint	bigint	bigint	bigint	bigint	integer	int64	Int64
+bigint	number(19)	bigint	bigint	bigint	bigint	bigint	bigint	bigint	bigint	int64	Int64
 binary	varbinary()	bytes	varbinary	varbinary	varbinary	varbinary	varchar(65535)	binary	blob	bytes	String
 bool	varchar(5)	bool	char(5)	varchar(5)	varchar(5)	varchar(5)	bool	boolean	text	bool	FixedString(5)
 date	timestamp	date	datetime	datetime2	datetime2	datetime2	date	date	text	date	Date

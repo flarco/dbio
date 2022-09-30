@@ -27,12 +27,44 @@ func (conn *SQLiteConn) Init() error {
 	return conn.BaseConn.Init()
 }
 
+// GetURL returns the processed URL
+func (conn *SQLiteConn) GetURL(newURL ...string) string {
+	connURL := conn.BaseConn.URL
+	if len(newURL) > 0 {
+		connURL = newURL[0]
+	}
+
+	// fix scheme
+	URL := strings.ReplaceAll(
+		connURL,
+		"sqlite://",
+		"file:",
+	)
+
+	return URL
+}
+
 // GenerateUpsertSQL generates the upsert SQL
 func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
 	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
+		return
+	}
+
+	_, indexTable := SplitTableFullName(tgtTable)
+
+	indexSQL := g.R(
+		conn.GetTemplateValue("core.create_unique_index"),
+		"index", strings.Join(pkFields, "_")+"_idx",
+		"table", indexTable,
+		"cols", strings.Join(pkFields, ", "),
+	)
+
+	_, err = conn.Exec(indexSQL)
+	if err != nil {
+		err = g.Error(err, "could not create unique index")
 		return
 	}
 

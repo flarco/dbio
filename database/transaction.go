@@ -296,17 +296,17 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 	}
 
 	// in case schema change is needed, cannot alter while inserting
-	// mux := ds.Context.Mux
-	// if df := ds.Df(); df != nil {
-	// 	mux = df.Context.Mux
-	// }
+	mux := ds.Context.Mux
+	if df := ds.Df(); df != nil {
+		mux = df.Context.Mux
+	}
 
 	insertBatch := func(rows [][]interface{}) error {
 		var err error
 		defer context.Wg.Write.Done()
 
-		// mux.Lock()
-		// defer mux.Unlock()
+		mux.Lock()
+		defer mux.Unlock()
 
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 		conn.Base().AddLog(insertTemplate)
@@ -412,7 +412,19 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 // Upsert upserts from source table into target table
 func Upsert(conn Connection, tx Transaction, sourceTable, targetTable string, pkFields []string) (count int64, err error) {
 
-	q, err := conn.GenerateUpsertSQL(sourceTable, targetTable, pkFields)
+	srcTable, err := ParseTableName(sourceTable, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not parse source table name")
+		return
+	}
+
+	tgtTable, err := ParseTableName(targetTable, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not parse target table name")
+		return
+	}
+
+	q, err := conn.GenerateUpsertSQL(srcTable.FullName(), tgtTable.FullName(), pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert sql")
 		return

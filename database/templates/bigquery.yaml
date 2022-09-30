@@ -6,6 +6,8 @@ core:
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
   truncate_table: create or replace table {table} as select * from {table} limit 0
+  alter_columns: alter table {table} alter column {col_ddls}
+  modify_column: '{column} set data type {type}'
   # column_names: select * from ({sql}) as t limit 1
 
 metadata:

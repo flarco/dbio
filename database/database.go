@@ -280,7 +280,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &ClickhouseConn{URL: URL}
 	} else if strings.HasPrefix(URL, "snowflake") {
 		conn = &SnowflakeConn{URL: URL}
-	} else if strings.HasPrefix(URL, "file:") {
+	} else if strings.HasPrefix(URL, "sqlite:") {
 		conn = &SQLiteConn{URL: URL}
 	} else {
 		conn = &BaseConn{URL: URL}
@@ -1764,8 +1764,15 @@ func (conn *BaseConn) ProcessTemplate(level, text string, values map[string]inte
 		cols = iop.NewColumnsFromFields(columns...)
 		if len(cols) == 0 {
 			// get all columns then
+			var table Table
 			tableFName := g.F("%s.%s", values["schema"], values["table"])
-			cols, err = conn.GetSQLColumns("select * from " + tableFName)
+			table, err = ParseTableName(tableFName, conn.GetType())
+			if err != nil {
+				err = g.Error(err, "could not parse table name")
+				return
+			}
+
+			cols, err = conn.GetColumns(table.FullName())
 			if err != nil {
 				err = g.Error(err, "could not obtain table columns")
 			}
@@ -2510,7 +2517,12 @@ func (conn *BaseConn) GenerateUpsertExpressions(srcTable string, tgtTable string
 // GetColumnStats analyzes the table and returns the column statistics
 func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error) {
 
-	tableColumns, err := conn.Self().GetSQLColumns("select * from " + tableName)
+	table, err := ParseTableName(tableName, conn.GetType())
+	if err != nil {
+		return columns, g.Error(err, "could not parse table name")
+	}
+
+	tableColumns, err := conn.Self().GetColumns(table.FullName())
 	if err != nil {
 		err = g.Error(err, "could not obtain columns data")
 		return
@@ -2528,7 +2540,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 	}
 
 	// run analysis field_stat_len
-	m := g.M("table", tableName, "fields", fields)
+	m := g.M("table", table.FullName(), "fields", fields)
 	data, err := conn.Self().RunAnalysis("field_stat_len", m)
 	if err != nil {
 		err = g.Error(err, "could not analyze table")
@@ -2571,6 +2583,8 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bool, err error) {
 	if len(table.Columns) != len(newColumns) {
 		return false, g.Error("different column length %d != %d", len(table.Columns), len(newColumns))
+	} else if conn.Type == dbio.TypeDbSQLite {
+		return false, nil
 	}
 
 	colDDLs := []string{}
@@ -2588,10 +2602,18 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 			newCol.Type = iop.TimestampType
 		case col.Type.IsInteger() && newCol.Type.IsDecimal():
 			newCol.Type = iop.DecimalType
+		case col.Type.IsDecimal() && newCol.Type.IsInteger():
+			newCol.Type = iop.DecimalType
 		case col.Type.IsInteger() && newCol.Type == iop.BigIntType:
+			newCol.Type = iop.BigIntType
+		case col.Type == iop.BigIntType && newCol.Type.IsInteger():
 			newCol.Type = iop.BigIntType
 		case col.Type == iop.SmallIntType && newCol.Type == iop.IntegerType:
 			newCol.Type = iop.IntegerType
+		case col.Type == iop.IntegerType && newCol.Type == iop.SmallIntType:
+			newCol.Type = iop.IntegerType
+		case col.Type == iop.TextType || newCol.Type == iop.TextType:
+			newCol.Type = iop.TextType
 		default:
 			newCol.Type = iop.StringType
 		}
@@ -2638,7 +2660,13 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 // CompareChecksums compares the checksum values from the database side
 // to the checkum values from the StreamProcessor
 func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (err error) {
-	tColumns, err := conn.GetSQLColumns("select * from " + tableName)
+
+	table, err := ParseTableName(tableName, conn.GetType())
+	if err != nil {
+		return g.Error(err, "could not parse table name")
+	}
+
+	tColumns, err := conn.GetColumns(table.FullName())
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -2706,8 +2734,12 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 		if refCol.Stats.TotalCnt == 0 {
 			// skip
 		} else if checksum1 != checksum2 {
-			if refCol.IsString() && conn.GetType() == dbio.TypeDbSQLServer && checksum2 >= checksum1 {
+			if refCol.Type != col.Type {
+				// don't compare
+			} else if refCol.IsString() && conn.GetType() == dbio.TypeDbSQLServer && checksum2 >= checksum1 {
 				// datalength can return higher counts since it counts bytes
+			} else if refCol.IsDatetime() && conn.GetType() == dbio.TypeDbSQLite && checksum1/1000 == checksum2 {
+				// sqlite can only handle timestamps up to milliseconds
 			} else {
 				eg.Add(g.Error("checksum failure for %s: %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
 			}
@@ -2771,9 +2803,15 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 }
 
 func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (ok bool, err error) {
-	cols, err := conn.GetSQLColumns("select * from " + tableName)
+	table, err := ParseTableName(tableName, conn.GetType())
+	if err != nil {
+		return ok, g.Error(err, "could not parse table name")
+	}
+
+	cols, err := conn.GetColumns(table.FullName())
 	if err != nil {
 		err = g.Error(err, "could not obtain table columns")
+		return
 	}
 
 	colsMap := lo.KeyBy(cols, func(c iop.Column) string {
@@ -2795,13 +2833,13 @@ func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (
 		}
 		sql := g.R(
 			conn.Template().Core["add_column"],
-			"table", tableName,
+			"table", table.FullName(),
 			"column", conn.Self().Quote(col.Name),
 			"type", nativeType,
 		)
 		_, err = conn.Exec(sql)
 		if err != nil {
-			return false, g.Error(err, "could not add column %s to table %s", col.Name, tableName)
+			return false, g.Error(err, "could not add column %s to table %s", col.Name, table.FullName())
 		}
 	}
 
@@ -2927,9 +2965,14 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 		return
 	}
 
+	table, err := ParseTableName(tableFName, conn.GetType())
+	if err != nil {
+		return g.Error(err, "could not parse table name")
+	}
+
 	sql := g.R(
 		conn.Template().Core["copy_from_s3"],
-		"table", tableFName,
+		"table", table.FullName(),
 		"s3_path", s3Path,
 		"aws_access_key_id", AwsID,
 		"aws_secret_access_key", AwsAccessKey,
@@ -2972,9 +3015,14 @@ func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
 		return g.Error(err)
 	}
 
+	table, err := ParseTableName(tableFName, conn.GetType())
+	if err != nil {
+		return g.Error(err, "could not parse table name")
+	}
+
 	sql := g.R(
 		conn.Template().Core["copy_from_azure"],
-		"table", tableFName,
+		"table", table.FullName(),
 		"azure_path", azPath,
 		"azure_sas_token", azToken,
 	)

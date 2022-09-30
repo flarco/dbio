@@ -640,7 +640,6 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				}
 			} else {
 				// slower! but safer, waits for compression but does not hold data in memory
-				g.PP(ds.Columns)
 				for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
 					err := processReader(reader)
 					if err != nil {

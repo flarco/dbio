@@ -81,7 +81,7 @@ var DBs = map[string]*testDB{
 
 	"sqlite3": {
 		name:   "sqlite3",
-		URL:    "file:./test.db",
+		URL:    "sqlite://./test.db",
 		schema: "main",
 
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,

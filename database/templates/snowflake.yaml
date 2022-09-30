@@ -5,6 +5,8 @@ core:
   create_index: create index {index} on {table} ({cols})
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
+  alter_columns: alter table {table} alter {col_ddls}
+  modify_column: '{column} set data type {type}'
   enable_trigger: ""
   disable_trigger: ""
   copy_from_stage: |

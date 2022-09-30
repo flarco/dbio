@@ -5,6 +5,8 @@ core:
   create_index: create index {index} on {table} ({cols})
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
+  alter_columns: alter table {table} modify {col_ddls}
+  modify_column: '{column} {type}'
 
 metadata:
   current_database: select database() as name from dual
