@@ -50,7 +50,7 @@ metadata:
     select * from (
       select table_name
       from information_schema.tables
-      where table_type = 'VIEW'
+      where table_type in ('VIEW', 'FOREIGN')
         and table_catalog = ( select current_catalog )
         and table_schema = '{schema}'
       
@@ -114,6 +114,7 @@ metadata:
         table_name,
         case table_type
           when 'VIEW' then true
+          when 'FOREIGN' then true
           else false
         end as is_view
       from information_schema.tables
@@ -148,7 +149,7 @@ metadata:
       join pg_namespace s on t.relnamespace = s.oid
     where a.attnum > 0 
       and not a.attisdropped
-      and t.relkind in ('r', 'v', 'm')
+      and t.relkind in ('r', 'v', 'm', 'f')
       {{if .schema -}} and s.nspname = '{schema}' {{- end}}
       {{if .table -}} and t.relnam = '{table}' {{- end}}
     order by s.nspname, t.relname, a.attnum
