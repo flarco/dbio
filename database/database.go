@@ -333,9 +333,9 @@ func getDriverName(dbType dbio.Type) (driverName string) {
 func getDialector(conn Connection) (driverDialector gorm.Dialector) {
 	switch conn.GetType() {
 	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
-		driverDialector = postgres.Open(conn.BaseURL())
+		driverDialector = postgres.Open(conn.Self().BaseURL())
 	case dbio.TypeDbSQLite:
-		driverDialector = sqlite.Open(conn.BaseURL())
+		driverDialector = sqlite.Open(conn.Self().GetURL())
 	default:
 		g.LogError(g.Error("No Gorm Dialector found for %s", conn.GetType()))
 	}
