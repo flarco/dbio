@@ -807,7 +807,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 }
 
 // MakeDatastream create a datastream from a reader
-func MakeDatastream(reader io.Reader) (ds *iop.Datastream, err error) {
+func MakeDatastream(reader io.Reader, cfg map[string]string) (ds *iop.Datastream, err error) {
 
 	data, reader2, err := g.Peek(reader, 0)
 	if err != nil {
@@ -818,6 +818,7 @@ func MakeDatastream(reader io.Reader) (ds *iop.Datastream, err error) {
 	if strings.HasPrefix(peekStr, "[") || strings.HasPrefix(peekStr, "{") {
 		ds = iop.NewDatastream(iop.Columns{})
 		ds.SafeInference = true
+		ds.SetConfig(cfg)
 		err = ds.ConsumeJsonReader(reader2)
 		if err != nil {
 			return nil, err
