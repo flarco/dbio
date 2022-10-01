@@ -93,7 +93,7 @@ func (conn *PostgresConn) BulkExportStream(sql string) (ds *iop.Datastream, err 
 }
 
 // BulkImportStream inserts a stream into a table
-func (conn *PostgresConn) BulkImportStream0(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {

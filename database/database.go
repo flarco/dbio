@@ -834,7 +834,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, limit
 
 	queryContext := g.NewContext(ctx)
 
-	conn.AddLog(query)
+	// conn.AddLog(query)
 	var result *sqlx.Rows
 	if conn.tx != nil {
 		result, err = conn.tx.QueryContext(queryContext.Ctx, query)
@@ -1082,7 +1082,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 		return
 	}
 
-	conn.AddLog(q)
+	// conn.AddLog(q)
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
 		q = q + noTraceKey // just to not show twice the sql in error since tx does
@@ -1109,7 +1109,7 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 
 	eG := g.ErrorGroup{}
 	for _, sql := range ParseSQLMultiStatements(q) {
-		conn.AddLog(sql)
+		// conn.AddLog(sql)
 		res, err := conn.Self().ExecContext(ctx, sql, args...)
 		if err != nil {
 			eG.Capture(g.Error(err, "Error executing query"))

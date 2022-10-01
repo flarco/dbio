@@ -309,7 +309,7 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 		defer mux.Unlock()
 
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
-		conn.Base().AddLog(insertTemplate)
+		// conn.Base().AddLog(insertTemplate)
 		// open statement
 		var stmt *sql.Stmt
 		if tx != nil {
