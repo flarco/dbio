@@ -300,6 +300,7 @@ func (c *Connection) setURL() (err error) {
 		if c.Type.IsDb() {
 			// set props from URL
 			setIfMissing("schema", U.PopParam("schema"))
+			setIfMissing("sslmode", U.PopParam("sslmode"))
 			setIfMissing("host", U.Hostname())
 			setIfMissing("username", U.Username())
 			setIfMissing("password", U.Password())

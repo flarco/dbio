@@ -160,6 +160,36 @@ postgres	uuid	string	col_uuid uuid	FALSE	FALSE	universally unique identifier
 postgres	varbit	string	col_varbit varbit	FALSE	FALSE	variable-length bit string
 postgres	varchar	string	col_varchar varchar	TRUE	TRUE	variable-length character string
 postgres	xml	string	col_xml xml	FALSE	FALSE	XML data
+postgres	information_schema.sql_identifier	string		FALSE	FALSE	Steampipe Data Type
+postgres	information_schema.character_data	string		FALSE	FALSE	Steampipe Data Type
+postgres	information_schema.yes_or_no	string		FALSE	FALSE	Steampipe Data Type
+postgres	information_schema.cardinal_number	integer		FALSE	FALSE	Steampipe Data Type
+postgres	information_schema.time_stamp	string		FALSE	FALSE	Steampipe Data Type
+postgres	"char"	string		FALSE	FALSE	Steampipe Data Type
+postgres	oid	string		FALSE	FALSE	Steampipe Data Type
+postgres	xid	string		FALSE	FALSE	Steampipe Data Type
+postgres	regproc	string		FALSE	FALSE	Steampipe Data Type
+postgres	pg_node_tree	string		FALSE	FALSE	Steampipe Data Type
+postgres	text[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	name[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	real[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	anyarray	json		FALSE	FALSE	Steampipe Data Type
+postgres	oid[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	"""char"""	string		FALSE	FALSE	Steampipe Data Type
+postgres	oidvector	string		FALSE	FALSE	Steampipe Data Type
+postgres	"""char""[]"	json		FALSE	FALSE	Steampipe Data Type
+postgres	pg_ndistinct	string		FALSE	FALSE	Steampipe Data Type
+postgres	pg_dependencies	string		FALSE	FALSE	Steampipe Data Type
+postgres	pg_mcv_list	string		FALSE	FALSE	Steampipe Data Type
+postgres	pg_statistic[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	int2vector	string		FALSE	FALSE	Steampipe Data Type
+postgres	regtype[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	smallint[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	boolean[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	double precision[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	regtype	string				
 postgres	void			FALSE	FALSE	
 redshift	bigint	bigint	col_bigint bigint	TRUE	TRUE	signed eight-byte integer
 redshift	boolean	bool	col_boolean boolean	TRUE	FALSE	logical boolean (true/false)

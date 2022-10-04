@@ -861,6 +861,7 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 
 	schemata := Schemata{
 		Databases: map[string]Database{},
+		conn:      conn,
 	}
 
 	datasets := conn.Datasets

@@ -57,6 +57,7 @@ func NewStreamProcessor() *StreamProcessor {
 	}
 	sp.parseFuncs = map[string]func(s string) (interface{}, error){
 		"int": func(s string) (interface{}, error) {
+			// return fastfloat.ParseInt64(s)
 			return strconv.ParseInt(s, 10, 64)
 		},
 		"float": func(s string) (interface{}, error) {
@@ -503,6 +504,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 }
 
 // CastToString to string. used for csv writing
+// slows processing down 5% with upstream CastRow or 35% without upstream CastRow
 func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...ColumnType) string {
 	typ := ColumnType("")
 	switch v := val.(type) {
@@ -526,6 +528,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 			val = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
 		}
 		return cast.ToString(val)
+		// return fmt.Sprintf("%v", val)
 	case typ.IsDatetime():
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
@@ -536,6 +539,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		return tVal.Format("2006-01-02 15:04:05.000")
 	default:
 		return cast.ToString(val)
+		// return fmt.Sprintf("%v", val)
 	}
 }
 
@@ -747,6 +751,7 @@ func (sp *StreamProcessor) ParseVal(val interface{}) interface{} {
 }
 
 // CastRow casts each value of a row
+// slows down processing about 40%?
 func (sp *StreamProcessor) CastRow(row []interface{}, columns []Column) []interface{} {
 	sp.N++
 	// Ensure usable types

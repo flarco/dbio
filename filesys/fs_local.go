@@ -84,6 +84,8 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 	ds = iop.NewDatastreamContext(fs.Context().Ctx, nil)
 	ds.SafeInference = true
+	ds.SetMetadata(fs.GetProp("METADATA"))
+	ds.Metadata.StreamURL.Value = path
 	ds.SetConfig(fs.BaseFileSysClient.Props())
 
 	if strings.Contains(strings.ToLower(path), ".xlsx") {
@@ -104,6 +106,8 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 		if strings.Contains(path, ".json") {
 			err = ds.ConsumeJsonReader(reader)
+		} else if strings.HasSuffix(path, ".xml") {
+			err = ds.ConsumeXmlReader(reader)
 		} else {
 			err = ds.ConsumeCsvReader(reader)
 		}

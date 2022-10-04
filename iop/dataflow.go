@@ -429,7 +429,7 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 					ds.Context.CaptureErr(ds0.Err())
 					break loop
 				default:
-					row = ds.Sp.CastRow(row, ds.Columns)
+					// row = ds.Sp.CastRow(row, ds.Columns) // needs to be recasted?
 					ds.Push(row)
 				}
 			}
