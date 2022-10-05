@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/jmoiron/sqlx"
@@ -57,7 +58,7 @@ func (t *BaseTransaction) Commit() (err error) {
 		g.Trace("commiting")
 		err = t.Tx.Commit()
 		if err != nil {
-			err = g.Error(err, "could not commit Tx\n%s", strings.Join(t.log, "\n -----------------------\n"))
+			err = g.Error(err, "could not commit Tx")
 		}
 	}
 	return
@@ -282,6 +283,9 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 	}
 
 	batchSize := cast.ToInt(conn.GetTemplateValue("variable.batch_values")) / len(columns)
+	if conn.GetType() == dbio.TypeDbClickhouse {
+		batchSize = 1
+	}
 
 	ds, err = ds.Shape(columns)
 	if err != nil {
@@ -300,6 +304,7 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 	if df := ds.Df(); df != nil {
 		mux = df.Context.Mux
 	}
+	_ = mux
 
 	insertBatch := func(rows [][]interface{}) error {
 		var err error
@@ -369,13 +374,13 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 		batchRows = append(batchRows, row)
 		count++
 		if len(batchRows) == batchSize {
+			context.Wg.Write.Add()
 			select {
 			case <-context.Ctx.Done():
 				return count, context.Err()
 			case <-ds.Context.Ctx.Done():
 				return count, ds.Context.Err()
 			default:
-				context.Wg.Write.Add()
 				go insertBatch(batchRows)
 			}
 

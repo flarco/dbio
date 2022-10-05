@@ -1681,23 +1681,15 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 			continue
 		}
 
-		switch v := rec["is_view"].(type) {
+		switch rec["is_view"].(type) {
 		case int64, float64:
 			if cast.ToInt64(rec["is_view"]) == 0 {
 				rec["is_view"] = false
 			} else {
 				rec["is_view"] = true
 			}
-		case string:
-			if cast.ToBool(rec["is_view"]) {
-				rec["is_view"] = true
-			} else {
-				rec["is_view"] = false
-			}
-
 		default:
-			_ = fmt.Sprint(v)
-			_ = rec["is_view"]
+			rec["is_view"] = cast.ToBool(rec["is_view"])
 		}
 
 		schema := Schema{

@@ -32,6 +32,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.6.10
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.0
+	github.com/turbot/steampipe-plugin-github v0.21.0
 	github.com/xitongsys/parquet-go v1.5.4
 	github.com/xitongsys/parquet-go-source v0.0.0-20201014235637-c24a23d9ef1e
 	github.com/xo/dburl v0.3.0
@@ -182,7 +183,6 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/tkrajina/go-reflector v0.5.4 // indirect
 	github.com/turbot/go-kit v0.4.0 // indirect
-	github.com/turbot/steampipe-plugin-github v0.21.0 // indirect
 	github.com/turbot/steampipe-plugin-sdk/v4 v4.1.7 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect

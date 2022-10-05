@@ -32,7 +32,7 @@ metadata:
   views: |
     select name as table_name
     from system.tables
-    where engine = 'VIEW'
+    where engine = 'View'
       and database = '{schema}'
     order by name
 
@@ -61,6 +61,7 @@ metadata:
     select
       cols.database as schema_name,
       cols.table as table_name,
+      tables.is_view as is_view,
       cols.name as column_name,
       cols.type as data_type,
       cols.position as position
@@ -84,6 +85,7 @@ metadata:
     select
       cols.database as schema_name,
       cols.table as table_name,
+      tables.is_view as is_view,
       cols.name as column_name,
       cols.type as data_type,
       cols.position as position
@@ -116,8 +118,8 @@ analysis:
       sum(case when cast({field} as text) ~ '\t' then 1 else 0 end) as cnt_tab, 
       sum(case when cast({field} as text) ~ ',' then 1 else 0 end) as cnt_comma, 
       sum(case when cast({field} as text) ~ '"' then 1 else 0 end) as cnt_dquote, 
-      min(datalength(cast({field} as text))) as f_min_len, 
-      max(datalength(cast({field} as text))) as f_max_len
+      min(char_length(cast({field} as text))) as f_min_len, 
+      max(char_length(cast({field} as text))) as f_max_len
     from {schema}.{table}
 
   field_stat_len: |
@@ -128,8 +130,8 @@ analysis:
       '{field}' as field,
       '{type}' as type,
       count(*) as tot_cnt,
-      min(datalength({field})) as f_min_len,
-      max(datalength({field})) as f_max_len
+      min(char_length({field})) as f_min_len,
+      max(char_length({field})) as f_max_len
     from {schema}.{table}
 
   field_stat_deep: |
@@ -146,8 +148,8 @@ analysis:
       count(*) - count(distinct {field}) as f_dup_cnt,
       min({field}) as f_min,
       max({field}) as f_max,
-      min(datalength(cast({field} as text))) as f_min_len,
-      max(datalength(cast({field} as text))) as f_max_len
+      min(char_length(cast({field} as text))) as f_min_len,
+      max(char_length(cast({field} as text))) as f_max_len
     from {schema}.{table}
 
   distro_field: |
@@ -237,8 +239,7 @@ analysis:
 function:
   truncate_f: round({field}, 2, 1)
   truncate_datef: CONVERT(DATETIME, CONVERT(DATE, {field}))
-  sleep: waitfor delay '00:00:{seconds}.000'
-  checksum_string: datalength({field})
+  checksum_string: char_length({field})
   checksum_datetime: toUnixTimestamp64(toDateTime64({field}))
   # checksum_datetime: toUnixTimestamp64Micro(toDateTime64({field}))
   checksum_decimal: ABS(CAST({field} as bigint))

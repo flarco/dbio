@@ -461,7 +461,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	data, err = conn.GetColumnsFull(db.schema + ".place")
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
-	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64", "FIXED"}, data.Records()[2]["data_type"])
+	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64", "FIXED", "Int64"}, data.Records()[2]["data_type"])
 
 	// GetDDL of table
 	if !strings.Contains("redshift,bigquery,sqlserver,azuresql,azuredwh", db.name) {
@@ -501,18 +501,24 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 		// import to database
 		conn.SetProp("AWS_BUCKET", os.Getenv("AWS_BUCKET"))
-		err = conn.Begin()
+		// err = conn.Begin()
 		g.AssertNoError(t, err)
 		_, err = conn.BulkImportStream(csvTable, stream)
-		g.AssertNoError(t, err)
+		if !g.AssertNoError(t, err) {
+			return
+		}
 
 		// select back to assert equality
 		count, err := conn.GetCount(csvTable)
 		g.AssertNoError(t, err)
 		assert.Equal(t, uint64(1000), count)
 
-		err = conn.Commit()
+		// err = conn.Commit()
 		g.AssertNoError(t, err)
+	}
+
+	if t.Failed() {
+		return
 	}
 
 	// Test Schemata
@@ -525,9 +531,11 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	personTable := sData.Tables["person"]
 	assert.Len(t, personTable.Columns, 3)
 	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "character varying(255)", "string"}, personTable.ColumnsMap()["email"].DbType)
-	g.P(sData.Tables["place_vw"])
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
+	if t.Failed() {
+		return
+	}
 
 	// RunAnalysis field_stat
 	values := map[string]interface{}{
@@ -563,6 +571,9 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		assert.EqualValues(t, 2, cast.ToInt(data.Records()[0]["tot_cnt"]))
 		assert.EqualValues(t, 0, cast.ToInt(data.Records()[1]["f_dup_cnt"]))
 	}
+	if t.Failed() {
+		return
+	}
 
 	// Not used
 	// columns, err = conn.GetColumnStats(db.schema + ".transact")
@@ -574,15 +585,18 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// assert.EqualValues(t, "decimal", columns[3].Type)
 
 	// Extract / Load Test
-	if !strings.Contains("redshift,bigquery,sqlite3,sqlserver,azuresql,azuredwh", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlite3,sqlserver,azuresql,azuredwh,clickhouse", db.name) {
 		ELTest(t, db, csvTable)
+		if t.Failed() {
+			return
+		}
 	}
 
 	// Drop all tables
 	err = conn.DropTable("person", "place", "transact", "test1")
 	g.AssertNoError(t, err)
 
-	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh,clickhouse", db.name) {
 		// test sleep function
 		sleepSQL := g.R(
 			conn.GetTemplateValue("function.sleep"),
@@ -811,6 +825,7 @@ func TestLargeDataset(t *testing.T) {
 		DBs["postgres"],
 		DBs["mysql"],
 		DBs["oracle"],
+		DBs["clickhouse"],
 		// DBs["redshift"],
 		DBs["sqlserver"],
 		// DBs["azuresql"],
@@ -830,7 +845,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["bigquery"]}
+	// dbs = []*testDB{DBs["clickhouse"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
@@ -842,6 +857,8 @@ func TestLargeDataset(t *testing.T) {
 			return
 		}
 		defer conn.Close()
+		g.Info("START - testing large file for %s", db.name)
+		defer g.Info("END - testing large file for %s", db.name)
 
 		tableName := db.schema + ".test1"
 		err = conn.DropTable(tableName)
@@ -869,7 +886,6 @@ func TestLargeDataset(t *testing.T) {
 		err = conn.DropTable(tableName)
 		g.AssertNoError(t, err)
 
-		g.Info("Finished TestLargeDataset for %s", db.name)
 	}
 
 	testSnowflake := func() {

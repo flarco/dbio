@@ -11,7 +11,7 @@ go test -run 'TestParseDate'
 cd -
 
 cd database
-go test -run 'TestPostgres|TestMySQL|TestOracle|TestSnowflake|TestSqlServer|TestBigQuery|TestSQLite'
+go test -run 'TestPostgres|TestMySQL|TestOracle|TestSnowflake|TestSqlServer|TestBigQuery|TestSQLite|TestClickhouse'
 go test -run TestLargeDataset
 cd -
 

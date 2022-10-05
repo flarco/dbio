@@ -244,7 +244,7 @@ func (c *CSV) getReader() (*csv.Reader, error) {
 
 	r = csv.NewReader(reader4)
 	r.LazyQuotes = true
-	// r.ReuseRecord = true
+	r.ReuseRecord = true
 	// r.TrimLeadingSpace = true
 	// r.TrailingComma = true
 	if c.Delimiter != 0 {
