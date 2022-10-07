@@ -196,7 +196,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 			ds.Context.Cancel()
 			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)
-			return count, g.Error(err, "could not execute statement")
+			return count, g.Error(err, "could not execute statement row")
 		}
 	}
 
