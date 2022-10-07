@@ -169,7 +169,7 @@ func (c *CSV) SetFields(fields []string) {
 	}
 }
 
-func (c *CSV) getReader() (*csv.Reader, error) {
+func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 	var r *csv.Reader
 	var reader2, reader3, reader4 io.Reader
 
@@ -229,10 +229,16 @@ func (c *CSV) getReader() (*csv.Reader, error) {
 		reader3 = reader2
 	}
 
-	deli, numCols := detectDelimiter(testBytes)
-	// if !c.NoTrace {
-	// 	g.Trace("delimiter chosen %#v", string(deli))
-	// }
+	deli, numCols, err := detectDelimiter(delimiter, testBytes)
+	if err != nil {
+		return r, g.Error(err, "could not detect delimiter")
+	} else if !c.NoTrace {
+		if deli != ',' && delimiter == "" {
+			g.Info("delimiter auto-detected: %#v", string(deli))
+		} else {
+			g.Debug("delimiter used: %#v", string(deli))
+		}
+	}
 
 	// inject dummy header if none present
 	if c.NoHeader && numCols > 0 {
@@ -271,7 +277,7 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 
 	ds = NewDatastream(c.Columns)
 
-	r, err := c.getReader()
+	r, err := c.getReader("")
 	if err != nil {
 		return ds, g.Error(err, "Error getting CSV reader")
 	}
@@ -466,62 +472,96 @@ func detectCarrRet(testBytes []byte) (needsCleanUp bool) {
 	return
 }
 
-func detectDelimiter(testBytes []byte) (bestDeli rune, numCols int) {
+func detectDelimiter(delimiter string, testBytes []byte) (bestDeli rune, numCols int, err error) {
 	bestDeli = ','
-	deliList := []rune{',', '\t', '|', ';'}
-	if os.Getenv("DELIMITER") != "" {
-		deliList = append([]rune(os.Getenv("DELIMITER")), deliList...)
+	deliSuggested := false
+	if delimiter != "" {
+		bestDeli = []rune(delimiter)[0]
+		deliSuggested = true
+	} else if val := os.Getenv("DELIMITER"); val != "" {
+		bestDeli = []rune(val)[0]
+		deliSuggested = true
 	}
-	testCsvRowLens := map[rune][]int{}
 
-	for _, d := range deliList {
+	deliList := []rune{',', '\t', '|', ';'}
+	testCsvRowNumCols := make([][]int, len(deliList))
+	eG := g.ErrorGroup{}
+
+	// remove last line
+	testString := string(testBytes)
+	lines := strings.Split(testString, "\n")
+	if len(lines) > 2 {
+		testString = strings.Join(lines[:len(lines)-1], "\n")
+	}
+
+	errMap := map[rune]error{}
+	for i, d := range deliList {
 		var csvErr error
-		var row []string
-		rowLens := []int{}
-		csvR := csv.NewReader(bytes.NewReader(testBytes))
+		var row, prevRow []string
+		RowNumCols := []int{}
+		csvR := csv.NewReader(strings.NewReader(testString))
 		csvR.LazyQuotes = true
 		csvR.Comma = d
 		for {
 			row, csvErr = csvR.Read()
 			if csvErr == io.EOF {
 				csvErr = nil
+				row = prevRow
 				break
 			} else if csvErr != nil {
-				// g.Trace("failed delimited test for %#v: %s", string(d), err.Error())
+				g.Trace("failed delimiter detection for %#v: %s", string(d), csvErr.Error())
+				errMap[d] = g.Error(csvErr, "failed delimited detection for %#v", string(d))
+				eG.Capture(errMap[d])
 				break
 			}
-			rowLens = append(rowLens, len(row))
-		}
-		if csvErr != nil && len(rowLens) < 3 {
-			// g.Trace("csvErr for '%s': %s", string(d), csvErr.Error())
-			continue
+			RowNumCols = append(RowNumCols, len(row))
+			prevRow = row
 		}
 
-		testCsvRowLens[d] = rowLens
-		// g.Trace("rowLens for '%s': %#v", string(d), rowLens)
+		if deliSuggested && d == bestDeli {
+			numCols = len(row)
+			err = csvErr
+			return
+		}
+
+		testCsvRowNumCols[i] = RowNumCols
 	}
 
-	bestAlignedRowLen := 0
-	for d, rowLens := range testCsvRowLens {
-		prevRowLen := 0
+	bestAlignedRowNumCol := 0
+	maxRowNumCol := 0
+	var maxRowNumColDeli rune
+	for i, RowNumCols := range testCsvRowNumCols {
+		d := deliList[i]
+		prevRowNumCol := 0
 		aligned := true
-		for i, rowLen := range rowLens {
+		for i, RowNumCol := range RowNumCols {
+			if RowNumCol > maxRowNumCol {
+				maxRowNumCol = RowNumCol
+				maxRowNumColDeli = d
+			}
 			if i == 0 {
-				prevRowLen = rowLen
+				prevRowNumCol = RowNumCol
 				continue
 			}
-			if rowLen != prevRowLen {
+			if RowNumCol != prevRowNumCol {
 				aligned = false
 				break
 			}
 		}
-		if aligned {
-			if prevRowLen > bestAlignedRowLen {
+		if _, errored := errMap[d]; !errored && aligned {
+			if prevRowNumCol > bestAlignedRowNumCol {
 				bestDeli = d
-				bestAlignedRowLen = prevRowLen
-				numCols = bestAlignedRowLen
+				bestAlignedRowNumCol = prevRowNumCol
+				numCols = bestAlignedRowNumCol
 			}
 		}
+	}
+
+	if len(eG.Errors) == len(deliList) {
+		err = g.Error(eG.Err(), "could not auto-detect delimiter")
+	} else if err := errMap[maxRowNumColDeli]; err != nil && maxRowNumCol > numCols {
+		err = g.Error(err, "could not use delimiter %#v. Try specifying a delimiter.", maxRowNumColDeli)
+		return maxRowNumColDeli, maxRowNumCol, err
 	}
 
 	return

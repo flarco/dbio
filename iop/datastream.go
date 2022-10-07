@@ -109,7 +109,7 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		Columns:    columns,
 		Context:    g.NewContext(ctx),
 		Sp:         NewStreamProcessor(),
-		config:     &streamConfig{emptyAsNull: true, header: true, delimiter: ","},
+		config:     &streamConfig{emptyAsNull: true, header: true},
 		deferFuncs: []func(){},
 		clones:     []*Datastream{},
 		bwCsv:      csv.NewWriter(ioutil.Discard),
@@ -627,12 +627,15 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	c := CSV{Reader: reader, NoHeader: !ds.config.header}
 
-	r, err := c.getReader()
+	r, err := c.getReader(ds.config.delimiter)
 	if err != nil {
 		err = g.Error(err, "could not get reader")
 		ds.Context.CaptureErr(err)
 		return err
 	}
+
+	// set delimiter
+	ds.config.delimiter = string(c.Delimiter)
 
 	row0, err := r.Read()
 	if err == io.EOF {
@@ -1040,7 +1043,10 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
-		w.Comma = []rune(ds.config.delimiter)[0]
+		w.Comma = ','
+		if ds.config.delimiter != "" {
+			w.Comma = []rune(ds.config.delimiter)[0]
+		}
 
 		if ds.config.header {
 			bw, err := w.Write(ds.GetFields(true, true))
@@ -1232,7 +1238,10 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
-		w.Comma = []rune(ds.config.delimiter)[0]
+		w.Comma = ','
+		if ds.config.delimiter != "" {
+			w.Comma = []rune(ds.config.delimiter)[0]
+		}
 
 		// header row to lower case
 		fields := ds.GetFields(true, true)

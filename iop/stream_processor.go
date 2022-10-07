@@ -44,13 +44,13 @@ type streamConfig struct {
 	flatten        bool
 }
 
-//NewStreamProcessor returns a new StreamProcessor
+// NewStreamProcessor returns a new StreamProcessor
 func NewStreamProcessor() *StreamProcessor {
 	sp := StreamProcessor{
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{delimiter: ",", emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
+		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -131,8 +131,6 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 
 	if configMap["delimiter"] != "" {
 		sp.config.delimiter = configMap["delimiter"]
-	} else {
-		sp.config.delimiter = ","
 	}
 
 	if configMap["file_max_rows"] != "" {

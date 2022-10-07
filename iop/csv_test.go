@@ -200,3 +200,36 @@ func TestSreamOptions(t *testing.T) {
 	assert.Equal(t, "Roger", data.Rows[20][1])
 
 }
+
+func TestDetectDelimiter(t *testing.T) {
+	testString := `col1,col2
+cal,cal
+cao;daf
+"fa",da
+ra<d|da`
+	deli, numCols, err := detectDelimiter(",", []byte(testString))
+	assert.Error(t, err)
+	assert.Equal(t, string(','), string(deli))
+	assert.Equal(t, 1, numCols)
+
+	deli, numCols, err = detectDelimiter("\t", []byte(testString))
+	assert.NoError(t, err)
+	assert.Equal(t, "\t", string(deli))
+	assert.Equal(t, 1, numCols)
+
+	deli, numCols, err = detectDelimiter("", []byte(testString))
+	assert.Error(t, err)
+	assert.Equal(t, string(','), string(deli))
+	assert.Equal(t, 2, numCols)
+
+	testString = `col1|col2
+cal|cal
+cao|daf
+"fa"|da
+ra<d|da`
+
+	deli, numCols, err = detectDelimiter("", []byte(testString))
+	assert.NoError(t, err)
+	assert.Equal(t, string('|'), string(deli))
+	assert.Equal(t, 2, numCols)
+}
