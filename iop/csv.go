@@ -487,6 +487,10 @@ func detectDelimiter(delimiter string, testBytes []byte) (bestDeli rune, numCols
 	testCsvRowNumCols := make([][]int, len(deliList))
 	eG := g.ErrorGroup{}
 
+	if deliSuggested {
+		deliList = []rune{bestDeli}
+	}
+
 	// remove last line
 	testString := string(testBytes)
 	lines := strings.Split(testString, "\n")
