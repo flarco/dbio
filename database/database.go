@@ -1115,6 +1115,7 @@ func (conn *BaseConn) ExecMultiContext(ctx context.Context, q string, args ...in
 			eG.Capture(g.Error(err, "Error executing query"))
 		} else {
 			ra, _ := res.RowsAffected()
+			g.Trace("RowsAffected: %d", ra)
 			Res.rowsAffected = Res.rowsAffected + ra
 		}
 	}
@@ -1554,7 +1555,7 @@ func (conn *BaseConn) CreateTemporaryTable(tableName string, cols iop.Columns) (
 	}
 
 	// execute ddl
-	_, err = conn.Exec(tableDDL)
+	_, err = conn.ExecMulti(tableDDL)
 	if err != nil {
 		return g.Error(err, "Could not create table "+tableName)
 	}
@@ -1583,7 +1584,7 @@ func (conn *BaseConn) CreateTable(tableName string, cols iop.Columns, tableDDL s
 	}
 
 	// execute ddl
-	_, err = conn.Exec(tableDDL)
+	_, err = conn.ExecMulti(tableDDL)
 	if err != nil {
 		return g.Error(err, "Could not create table "+tableName)
 	}
@@ -2247,10 +2248,6 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 		"col_types", strings.Join(columnsDDL, ",\n"),
 	)
 
-	if conn.GetType() == dbio.TypeDbClickhouse {
-		ddl = ddl + g.F("\norder by (%s)", conn.Self().Quote(data.Columns[0].Name))
-	}
-
 	return ddl, nil
 }
 
@@ -2367,7 +2364,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		ds, err := conn.Self().BulkExportStream(sql)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error running query"))
-			conn.Context().Cancel()
+			df.Context.Cancel()
 			return
 		}
 
@@ -2574,16 +2571,21 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 // stats of the target table to properly optimize.
 func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bool, err error) {
 	if len(table.Columns) != len(newColumns) {
-		return false, g.Error("different column length %d != %d", len(table.Columns), len(newColumns))
+		return false, g.Error("different column length %d != %d\ntable.Columns: %#v\nnewColumns: %#v", len(table.Columns), len(newColumns), table.Columns.Names(), newColumns.Names())
 	} else if conn.Type == dbio.TypeDbSQLite {
 		return false, nil
 	}
 
+	newColumnsMap := lo.KeyBy(newColumns, func(c iop.Column) string {
+		return strings.ToLower(c.Name)
+	})
+
 	colDDLs := []string{}
 	for i, col := range table.Columns {
-		newCol := newColumns[i]
-
-		if !strings.EqualFold(col.Name, newCol.Name) {
+		newCol, ok := newColumnsMap[strings.ToLower(col.Name)]
+		if !ok {
+			return false, g.Error("column not found in table: %s", col.Name)
+		} else if !strings.EqualFold(col.Name, newCol.Name) {
 			return false, g.Error("column name mismatch, %s != %s", col.Name, newCol.Name)
 		} else if col.Type == newCol.Type {
 			continue
@@ -2616,32 +2618,45 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 
 		g.Debug(msg + string(newCol.Type))
 
-		nativeType, err := conn.GetNativeType(newCol)
+		oldNativeType, err := conn.GetNativeType(col)
 		if err != nil {
 			return false, g.Error(err, "no native mapping for `%s`", newCol.Type)
 		}
+
+		newNativeType, err := conn.GetNativeType(newCol)
+		if err != nil {
+			return false, g.Error(err, "no native mapping for `%s`", newCol.Type)
+		}
+
+		if oldNativeType == newNativeType {
+			continue
+		}
+
 		// alter field to resize column
 		colDDL := g.R(
 			conn.GetTemplateValue("core.modify_column"),
 			"column", conn.Self().Quote(col.Name),
-			"type", nativeType,
+			"type", newNativeType,
 		)
 		colDDLs = append(colDDLs, colDDL)
 		table.Columns[i].Type = newCol.Type
-		table.Columns[i].DbType = nativeType
+		table.Columns[i].DbType = newNativeType
 	}
 
 	if len(colDDLs) == 0 {
 		return false, nil
 	}
 
-	ddl := g.R(
-		conn.GetTemplateValue("core.alter_columns"),
-		"table", table.FullName(),
-		"col_ddls", strings.Join(colDDLs, ", "),
-	)
+	ddlParts := []string{}
+	for _, colDDL := range colDDLs {
+		ddlParts = append(ddlParts, g.R(
+			conn.GetTemplateValue("core.alter_columns"),
+			"table", table.FullName(),
+			"col_ddls", colDDL,
+		))
+	}
 
-	_, err = conn.Exec(ddl)
+	_, err = conn.ExecMulti(strings.Join(ddlParts, ";\n"))
 	if err != nil {
 		return false, g.Error(err, "could not alter columns on table "+table.FullName())
 	}
@@ -2702,7 +2717,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 		}
 		colName := fieldsMap[strings.ToLower(col.Name)]
 		expr = g.R(expr, "field", conn.Self().Quote(cast.ToString(colName)))
-		exprs = append(exprs, g.F("sum(%s) as %s", expr, col.Name))
+		exprs = append(exprs, g.F("sum(%s) as %s", expr, conn.Self().Quote(cast.ToString(colName))))
 		exprMap[strings.ToLower(col.Name)] = g.F("sum(%s)", expr)
 	}
 
@@ -2733,7 +2748,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 			} else if refCol.IsDatetime() && conn.GetType() == dbio.TypeDbSQLite && checksum1/1000 == checksum2 {
 				// sqlite can only handle timestamps up to milliseconds
 			} else {
-				eg.Add(g.Error("checksum failure for %s: %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
+				eg.Add(g.Error("checksum failure for %s (sling-side vs db-side): %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
 			}
 		}
 	}

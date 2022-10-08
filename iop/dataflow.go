@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
@@ -28,6 +29,7 @@ type Dataflow struct {
 	StreamMap      map[string]*Datastream
 	closed         bool
 	mux            sync.Mutex
+	schemaVersion  int // for column type version
 }
 
 // NewDataflow creates a new dataflow
@@ -97,6 +99,7 @@ func (df *Dataflow) Pause() {
 		for _, ds := range df.StreamMap {
 			go func() { ds.pauseChnl <- struct{}{} }()
 			ds.paused = true
+			time.Sleep(1 * time.Millisecond) // just to ensure channel is consumed
 		}
 	}
 }

@@ -1,4 +1,5 @@
 set -e  # exit on error
+# set -o allexport; source .env; set +o allexport
 
 export _DEBUG=''
 
@@ -7,7 +8,7 @@ go test
 cd -
 
 cd iop
-go test -run 'TestParseDate'
+go test -run 'TestParseDate|TestDetectDelimiter'
 cd -
 
 cd database

@@ -8,7 +8,6 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
-	"github.com/lib/pq"
 
 	"github.com/flarco/g"
 )
@@ -30,36 +29,6 @@ func (conn *ClickhouseConn) Init() error {
 	conn.BaseConn.instance = &instance
 	return conn.BaseConn.Init()
 }
-
-// func (conn *ClickhouseConn) GetURL(newURL ...string) string {
-// 	connURL := conn.BaseConn.URL
-// 	if len(newURL) > 0 {
-// 		connURL = newURL[0]
-// 	}
-
-// 	u, err := net.NewURL(connURL)
-// 	if err != nil {
-// 		g.LogError(err, "could not parse MySQL URL")
-// 		return connURL
-// 	}
-
-// 	// Add tcp explicitly...
-// 	URL := g.F(
-// 		"tcp://%s:%d?debug=false",
-// 		u.Hostname(), u.Port(),
-// 	)
-
-// 	return URL
-// }
-
-// Connect connects to the database
-// func (conn *ClickhouseConn) Connect(timeOut ...int) (err error) {
-// 	u, err := net.NewURL("clickhouse://admin:dElta123!@mpc:9000/default")
-// 	if err != nil {
-// 		return g.Error(err, "could not connect")
-// 	}
-// 	return conn.BaseConn.Connect()
-// }
 
 // NewTransaction creates a new transaction
 func (conn *ClickhouseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error) {
@@ -112,10 +81,13 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 	}
 
 	// COPY needs a transaction
-	err = conn.Begin()
-	if err != nil {
-		err = g.Error(err, "could not begin")
-		return
+	if conn.Tx() == nil {
+		err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelDefault})
+		if err != nil {
+			err = g.Error(err, "could not begin")
+			return
+		}
+		defer conn.Commit()
 	}
 
 	insertStatement := conn.GenerateInsertStatement(
@@ -138,18 +110,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 			ds.Context.Lock()
 			defer ds.Context.Unlock()
 
-			_, err = stmt.Exec()
-			if err != nil {
-				return g.Error(err, "could not pre-execute statement")
-			}
-
-			err = stmt.Close()
-			if err != nil {
-				return g.Error(err, "could not pre-close statement")
-			}
-
 			err = conn.Commit()
-			g.LogError(err)
 			if err != nil {
 				return g.Error(err, "could not pre-commit for schema change")
 			}
@@ -169,14 +130,12 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 				}
 			}
 
-			err = conn.Begin()
+			err = conn.Begin(&sql.TxOptions{Isolation: sql.LevelDefault})
 			if err != nil {
 				return g.Error(err, "could not post-begin for schema change")
 			}
 
-			stmt, err = conn.Prepare(
-				pq.CopyInSchema(table.Schema, table.Name, columns.Names()...),
-			)
+			stmt, err = conn.Prepare(insertStatement)
 			if err != nil {
 				return g.Error(err, "could not post-prepare statement")
 			}
@@ -187,7 +146,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 
 	for row := range ds.Rows {
 		count++
-		// Do insert
+
 		ds.Context.Lock()
 		_, err := stmt.Exec(row...)
 		ds.Context.Unlock()
@@ -195,9 +154,8 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
 			ds.Context.Cancel()
-			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)
-			return count, g.Error(err, "could not execute statement")
+			return count, g.Error(err, "could not execute statement row")
 		}
 	}
 
@@ -241,7 +199,6 @@ func (conn *ClickhouseConn) GenerateInsertStatement(tableName string, fields []s
 
 // GenerateUpsertSQL generates the upsert SQL
 func (conn *ClickhouseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
-
 	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
 	if err != nil {
 		err = g.Error(err, "could not generate upsert variables")
@@ -249,26 +206,26 @@ func (conn *ClickhouseConn) GenerateUpsertSQL(srcTable string, tgtTable string, 
 	}
 
 	sqlTempl := `
-	INSERT INTO {tgt_table} as tgt
-		({insert_fields}) 
-	SELECT {src_fields}
-	FROM {src_table} as src
-	WHERE true
-	ON CONFLICT ({pk_fields})
-	DO UPDATE 
-	SET {set_fields}
-	`
+	ALTER TABLE {tgt_table}
+	DELETE WHERE ({pk_fields}) in (
+			SELECT {pk_fields}
+			FROM {src_table} src
+	)
+	;
 
+	INSERT INTO {tgt_table}
+		({insert_fields})
+	SELECT {src_fields}
+	FROM {src_table} src
+	`
 	sql = g.R(
 		sqlTempl,
 		"src_table", srcTable,
 		"tgt_table", tgtTable,
 		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
-		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
+		"insert_fields", upsertMap["insert_fields"],
 		"src_fields", upsertMap["src_fields"],
 		"pk_fields", upsertMap["pk_fields"],
-		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
-		"insert_fields", upsertMap["insert_fields"],
 	)
 
 	return

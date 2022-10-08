@@ -144,7 +144,7 @@ func (t *BaseTransaction) ExecMultiContext(ctx context.Context, q string, args .
 			eG.Capture(g.Error(err, "Error executing query"))
 		} else {
 			ra, _ := res.RowsAffected()
-			g.Debug("RowsAffected: %d", ra)
+			g.Trace("RowsAffected: %d", ra)
 			Res.rowsAffected = Res.rowsAffected + ra
 		}
 	}
@@ -229,7 +229,7 @@ func (t *BaseTransaction) Upsert(sourceTable, targetTable string, pkFields []str
 // InsertStream inserts a stream
 func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	// make sure fields match
-	columns, err := conn.GetSQLColumns("select * from " + tableFName)
+	columns, err := conn.GetColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -276,7 +276,7 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 	}
 
 	// make sure fields match
-	columns, err := conn.GetSQLColumns("select * from " + tableFName)
+	columns, err := conn.GetColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -337,7 +337,7 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 		// Do insert
 		_, err = stmt.ExecContext(ds.Context.Ctx, vals...)
 		if err != nil {
-			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d", len(rows), len(rows[0]), len(rows)*len(rows[0]))
+			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(rows[0]), len(rows)*len(rows[0]), len(vals))
 			if len(insertTemplate) > 3000 {
 				insertTemplate = insertTemplate[:3000]
 			}
@@ -374,6 +374,7 @@ func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, 
 		batchRows = append(batchRows, row)
 		count++
 		if len(batchRows) == batchSize {
+			g.P(row)
 			context.Wg.Write.Add()
 			select {
 			case <-context.Ctx.Done():
@@ -447,7 +448,7 @@ func Upsert(conn Connection, tx Transaction, sourceTable, targetTable string, pk
 	}
 
 	count, err = result.RowsAffected()
-	if err != nil {
+	if err != nil || (count == 0 && conn.GetType() == dbio.TypeDbClickhouse) {
 		count = -1
 	}
 

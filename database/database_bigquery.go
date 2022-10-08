@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -499,9 +500,31 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
-
 	gcBucket := conn.GetProp("GC_BUCKET")
+
+	////////////////////////////////////////////////
+	// https://cloud.google.com/bigquery/docs/batch-loading-data#loading_data_from_local_files
+
+	if gcBucket == "" {
+		// g.Warn("loading directly to bigquery table (normally faster using Google Storage)")
+		fileRowLimit := 0
+		fileBytesLimit := int64(0)
+		for ds := range df.StreamCh {
+			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+				compressor := iop.NewCompressor(iop.GzipCompressorType)
+				err := conn.LoadCSVFromReader(tableFName, compressor.Compress(reader), ds.Columns)
+				if err != nil {
+					df.Context.CaptureErr(g.Error(err, "Error copying from reader"))
+					df.Context.Cancel()
+					return df.Count(), g.Error(err, "Error importing to BigQuery")
+				}
+			}
+		}
+		return df.Count(), nil
+	}
+	////////////////////////////////////////////////
+
+	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
 
 	if gcBucket == "" {
 		return count, g.Error("Need to set 'GC_BUCKET' to copy to google storage")
@@ -535,8 +558,8 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 
 		if err != nil {
 			g.LogError(err, "error writing dataflow to google storage: "+gcsPath)
+			df.Context.CaptureErr(g.Error(err, "error writing dataflow to google storage: "+gcsPath))
 			df.Context.Cancel()
-			conn.Context().Cancel()
 			return
 		}
 
@@ -550,7 +573,6 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", gcsURI, tableFName))
 			df.Context.Cancel()
-			conn.Context().Cancel()
 		}
 	}
 
@@ -575,6 +597,49 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	}
 
 	return df.Count(), nil
+}
+
+// LoadCSVFromReader demonstrates loading data into a BigQuery table using a file on the local filesystem.
+func (conn *BigQueryConn) LoadCSVFromReader(tableFName string, reader io.Reader, dsColumns []iop.Column) error {
+	client, err := conn.getNewClient()
+	if err != nil {
+		return g.Error(err, "Failed to connect to client")
+	}
+	defer client.Close()
+
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return g.Error(err, "could not parse table name: "+tableFName)
+	}
+
+	source := bigquery.NewReaderSource(reader)
+	source.FieldDelimiter = ","
+	source.AllowQuotedNewlines = true
+	source.Quote = `"`
+	source.SkipLeadingRows = 1
+	source.Schema = getBqSchema(dsColumns)
+
+	loader := client.Dataset(table.Schema).Table(table.Name).LoaderFrom(source)
+	loader.WriteDisposition = bigquery.WriteAppend
+
+	job, err := loader.Run(conn.Context().Ctx)
+	if err != nil {
+		return g.Error(err, "Error in loader.Execute")
+	}
+	status, err := job.Wait(conn.Context().Ctx)
+	if err != nil {
+		return g.Error(err, "Error in task.Wait")
+	}
+
+	if status.Err() != nil {
+		conn.Context().CaptureErr(err)
+		for _, e := range status.Errors {
+			conn.Context().CaptureErr(*e)
+		}
+		return g.Error(conn.Context().Err(), "Error in Import Task")
+	}
+
+	return nil
 }
 
 // BulkImportStream demonstrates loading data into a BigQuery table using a file on the local filesystem.
@@ -689,29 +754,33 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 	doExport := func(sql string, gsPartURL string) {
 		defer conn.Context().Wg.Write.Done()
 
-		// create temp table
-		tableName := g.F(
-			"pg_home.tmp_%s",
-			g.RandString(g.AlphaRunes, 5),
-		)
-
-		_, err := conn.Exec(g.F(
-			"create table `%s.%s` as \n%s",
-			conn.ProjectID,
-			tableName, sql,
-		))
-		if err != nil {
-			conn.Context().CaptureErr(g.Error(err, "Could not create table"))
-			return
-		}
-
 		bucket := conn.GetProp("GC_BUCKET")
 		if bucket == "" {
 			err = g.Error("need to provide prop 'GC_BUCKET'")
 			return
 		}
 
-		// gcsURI := g.F("gs://%s/%s.csv/*", bucket, tableName)
+		// create temp table
+		dropTable := true
+		tableName := g.F(
+			"pg_home.tmp_%s",
+			g.RandString(g.AlphaRunes, 5),
+		)
+
+		if strings.HasPrefix(sql, "select * from ") {
+			tableName = strings.TrimPrefix(sql, "select * from ")
+			dropTable = false
+		} else {
+			_, err := conn.Exec(g.F(
+				"create table `%s.%s` as \n%s",
+				conn.ProjectID,
+				tableName, sql,
+			))
+			if err != nil {
+				conn.Context().CaptureErr(g.Error(err, "Could not create table"))
+				return
+			}
+		}
 
 		// export
 		err = conn.CopyToGCS(tableName, gsPartURL)
@@ -720,9 +789,11 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 		}
 
 		// drop temp table
-		err = conn.DropTable(tableName)
-		if err != nil {
-			conn.Context().CaptureErr(g.Error(err, "Could not Drop table: "+tableName))
+		if dropTable {
+			err = conn.DropTable(tableName)
+			if err != nil {
+				conn.Context().CaptureErr(g.Error(err, "Could not Drop table: "+tableName))
+			}
 		}
 
 	}

@@ -197,7 +197,7 @@ var DBs = map[string]*testDB{
 		schema:      "PUBLIC",
 		transactDDL: `CREATE TABLE public.transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
 		personDDL:   `CREATE TABLE public.person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
-		placeDDL:    "create or replace TABLE PLACE (\n\tCOUNTRY VARCHAR,\n\tCITY VARCHAR,\n\tTELCODE NUMBER(38,0)\n);",
+		placeDDL:    "create or replace TABLE PLACE (\n\tCOUNTRY VARCHAR(16777216),\n\tCITY VARCHAR(16777216),\n\tTELCODE NUMBER(38,0)\n);",
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
 		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
@@ -494,7 +494,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	ok := assert.NotEmpty(t, ddl)
 
 	if ok {
-		_, err = conn.Exec(ddl)
+		_, err = conn.ExecMulti(ddl)
 		if !g.AssertNoError(t, err) {
 			return
 		}
@@ -867,7 +867,7 @@ func TestLargeDataset(t *testing.T) {
 		ddl, err := conn.GenerateDDL(tableName, data, false)
 		g.AssertNoError(t, err)
 
-		_, err = conn.Exec(ddl)
+		_, err = conn.ExecMulti(ddl)
 		g.AssertNoError(t, err)
 		tInsertStreamLarge(t, conn, data, tableName)
 

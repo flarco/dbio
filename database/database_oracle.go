@@ -2,6 +2,8 @@ package database
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -44,6 +46,37 @@ func (conn *OracleConn) Init() error {
 	return conn.BaseConn.Init()
 }
 
+// ExecMultiContext runs multiple sql queries with context, returns `error`
+func (conn *OracleConn) ExecMultiContext(ctx context.Context, q string, args ...interface{}) (result sql.Result, err error) {
+
+	Res := Result{rowsAffected: 0}
+
+	q2 := strings.TrimRight(strings.TrimSpace(strings.ToLower(q)), ";")
+	cond1 := strings.HasPrefix(q2, "begin") && strings.HasSuffix(q2, "end")
+	cond2 := strings.Contains(q2, "execute immediate")
+	if cond1 || cond2 {
+		return conn.Self().ExecContext(ctx, q)
+	}
+
+	eG := g.ErrorGroup{}
+	for _, sql := range ParseSQLMultiStatements(q) {
+		// conn.AddLog(sql)
+		res, err := conn.Self().ExecContext(ctx, sql, args...)
+		if err != nil {
+			eG.Capture(g.Error(err, "Error executing query"))
+		} else {
+			ra, _ := res.RowsAffected()
+			g.Trace("RowsAffected: %d", ra)
+			Res.rowsAffected = Res.rowsAffected + ra
+		}
+	}
+
+	err = eG.Err()
+	result = Res
+
+	return
+}
+
 // BulkImportStream bulk import stream
 func (conn *OracleConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	_, err = exec.LookPath("sqlldr")
@@ -57,7 +90,7 @@ func (conn *OracleConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	}
 
 	// needs to get columns to shape stream
-	columns, err := conn.GetSQLColumns("select * from " + tableFName)
+	columns, err := conn.GetColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -314,7 +347,7 @@ func (conn *OracleConn) GenerateInsertStatement(tableName string, fields []strin
 	for n := 0; n < numRows; n++ {
 		for i, field := range fields {
 			c++
-			valField := field
+			valField := strings.ReplaceAll(field, "_", "") // cannot start with "_"
 			if len(valField) > 28 {
 				valField = valField[:28]
 			}
@@ -331,6 +364,7 @@ func (conn *OracleConn) GenerateInsertStatement(tableName string, fields []strin
 		))
 	}
 
+	g.Trace("Count of Bind Vars: %d", c)
 	statement := g.R(
 		`INSERT ALL {intosStr} SELECT 1 FROM DUAL`,
 		"intosStr", strings.Join(intos, "\n"),

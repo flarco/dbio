@@ -38,7 +38,10 @@ func TestBatchInsertClickhouse(t *testing.T) {
 			Username: "admin",
 			Password: "dElta123!",
 		},
-		Settings:    g.M("allow_experimental_map_type", "1"),
+		Settings: g.M(
+			"allow_experimental_map_type", "1",
+			// "allow_experimental_lightweight_delete", "true",
+		),
 		DialTimeout: 5 * time.Second,
 		// Compression: compression,
 		// TLS:         tlsConfig,

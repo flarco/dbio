@@ -232,8 +232,8 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 	deli, numCols, err := detectDelimiter(delimiter, testBytes)
 	if err != nil {
 		return r, g.Error(err, "could not detect delimiter")
-	} else if !c.NoTrace {
-		if deli != ',' && delimiter == "" {
+	} else if !c.NoTrace && deli != ',' {
+		if delimiter == "" {
 			g.Info("delimiter auto-detected: %#v", string(deli))
 		} else {
 			g.Debug("delimiter used: %#v", string(deli))
@@ -257,6 +257,7 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 		r.Comma = c.Delimiter
 	} else {
 		r.Comma = deli
+		c.Delimiter = deli
 	}
 
 	return r, err
@@ -513,7 +514,7 @@ func detectDelimiter(delimiter string, testBytes []byte) (bestDeli rune, numCols
 				row = prevRow
 				break
 			} else if csvErr != nil {
-				g.Trace("failed delimiter detection for %#v: %s", string(d), csvErr.Error())
+				// g.Trace("failed delimiter detection for %#v: %s", string(d), csvErr.Error())
 				errMap[d] = g.Error(csvErr, "failed delimited detection for %#v", string(d))
 				eG.Capture(errMap[d])
 				break

@@ -120,7 +120,7 @@ func (conn *MySQLConn) BulkImportStream(tableFName string, ds *iop.Datastream) (
 	}
 
 	// needs to get columns to shape stream
-	columns, err := conn.GetSQLColumns("select * from " + tableFName)
+	columns, err := conn.GetColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return
@@ -234,7 +234,7 @@ func (conn *MySQLConn) LoadDataInFile(tableFName string, ds *iop.Datastream) (co
 	return ds.Count, nil
 }
 
-//UPSERT
+// UPSERT
 // https://vladmihalcea.com/how-do-upsert-and-merge-work-in-oracle-sql-server-postgresql-and-mysql/
 // GenerateUpsertSQL generates the upsert SQL
 func (conn *MySQLConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {

@@ -1,9 +1,11 @@
 core:
   drop_table: drop table if exists {table}
   drop_view: drop view if exists {view}
-  create_table: create table {table} ({col_types}) engine=MergeTree
+  create_table: create table {table} ({col_types}) engine=MergeTree ORDER BY tuple()
   create_temporary_table: create table {table} ({col_types}) engine=Memory
   rename_table: ALTER TABLE {table} RENAME TO {new_table}
+  alter_columns: alter table {table} modify column {col_ddls}
+  modify_column: '{column} {type}'
 
 
 metadata:
@@ -240,9 +242,9 @@ function:
   truncate_f: round({field}, 2, 1)
   truncate_datef: CONVERT(DATETIME, CONVERT(DATE, {field}))
   checksum_string: char_length({field})
-  checksum_datetime: toUnixTimestamp64(toDateTime64({field}))
-  # checksum_datetime: toUnixTimestamp64Micro(toDateTime64({field}))
-  checksum_decimal: ABS(CAST({field} as bigint))
+  checksum_datetime: toUnixTimestamp64Nano(toDateTime64({field}, 6)) / 1000
+  # checksum_datetime: toUnixTimestamp64Nano(toDateTime64({field}, 6)) / 1000
+  checksum_decimal: ABS(CAST({field} as Nullable(Int64)))
 
 
 variable:

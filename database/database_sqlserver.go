@@ -141,7 +141,7 @@ func (conn *MsSQLServerConn) BulkImportStream(tableFName string, ds *iop.Datastr
 	}
 
 	// needs to get columns to shape stream
-	columns, err := conn.GetSQLColumns("select * from " + tableFName)
+	columns, err := conn.GetColumns(tableFName)
 	if err != nil {
 		err = g.Error(err, "could not get column list")
 		return

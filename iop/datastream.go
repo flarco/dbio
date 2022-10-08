@@ -297,6 +297,7 @@ func (ds *Datastream) schemaChange(i int, newType ColumnType) {
 		if err != nil {
 			ds.Context.CaptureErr(err)
 		} else {
+			df.schemaVersion++ // increment version
 			for _, ds0 := range df.StreamMap {
 				if len(ds0.Columns) == len(df.Columns) {
 					ds0.Columns[i].Type = newType
@@ -568,6 +569,7 @@ func (ds *Datastream) Start() (err error) {
 func (ds *Datastream) SetMetadata(jsonStr string) {
 	if jsonStr != "" {
 		g.Unmarshal(jsonStr, &ds.Metadata)
+		ds.Metadata.LoadedAt.Value = cast.ToInt64(ds.Metadata.LoadedAt.Value)
 	}
 }
 
@@ -1038,6 +1040,15 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 	readerChn <- pipeR
 	tbw := int64(0)
 
+	version := 0
+	mux := ds.Context.Mux
+	df := ds.Df()
+	if df != nil {
+		mux = df.Context.Mux
+		version = df.schemaVersion
+	}
+	_ = mux
+
 	go func() {
 		defer close(readerChn)
 
@@ -1052,11 +1063,37 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			bw, err := w.Write(ds.GetFields(true, true))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
-				ds.Context.CaptureErr(g.Error(err, "error writing header"))
+				err = g.Error(err, "error writing header")
+				ds.Context.CaptureErr(err)
 				ds.Context.Cancel()
 				pipeW.Close()
 				return
 			}
+		}
+
+		nextPipe := func() error {
+
+			pipeW.Close() // close the prior reader?
+			tbw = 0       // reset
+
+			// new reader
+			c = 0
+			pipeR, pipeW = io.Pipe()
+			w = csv.NewWriter(pipeW)
+
+			if ds.config.header {
+				bw, err := w.Write(ds.GetFields(true, true))
+				tbw = tbw + cast.ToInt64(bw)
+				if err != nil {
+					err = g.Error(err, "error writing header")
+					ds.Context.CaptureErr(g.Error(err, "error writing header"))
+					ds.Context.Cancel()
+					pipeW.Close()
+					return err
+				}
+			}
+			readerChn <- pipeR
+			return nil
 		}
 
 		for row0 := range ds.Rows {
@@ -1066,6 +1103,18 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			for i, val := range row0 {
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}
+			mux.Lock()
+
+			// if schema changed, trigger next pipe
+			if df != nil && df.schemaVersion > version {
+				w.Flush()
+				err := nextPipe()
+				if err != nil {
+					return
+				}
+				version = df.schemaVersion
+			}
+
 			bw, err := w.Write(row)
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {
@@ -1075,27 +1124,13 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				return
 			}
 			w.Flush()
+			mux.Unlock()
 
 			if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-				pipeW.Close() // close the prior reader?
-				tbw = 0       // reset
-
-				// new reader
-				c = 0
-				pipeR, pipeW = io.Pipe()
-				w = csv.NewWriter(pipeW)
-
-				if ds.config.header {
-					bw, err = w.Write(ds.GetFields(true, true))
-					tbw = tbw + cast.ToInt64(bw)
-					if err != nil {
-						ds.Context.CaptureErr(g.Error(err, "error writing header"))
-						ds.Context.Cancel()
-						pipeW.Close()
-						return
-					}
+				err = nextPipe()
+				if err != nil {
+					return
 				}
-				readerChn <- pipeR
 			}
 		}
 		pipeW.Close()

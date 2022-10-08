@@ -62,7 +62,6 @@ func (conn *PostgresConn) CopyToStdout(sql string) (stdOutReader io.Reader, err 
 			)
 			conn.Context().CaptureErr(err)
 			g.LogError(err, "could not PG copy")
-			conn.Context().Cancel()
 		}
 	}()
 
@@ -190,13 +189,11 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		ds.Context.Lock()
 		_, err := stmt.Exec(row...)
 		ds.Context.Unlock()
-
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
 			ds.Context.Cancel()
-			conn.Context().Cancel()
 			g.Trace("error for row: %#v", row)
-			return count, g.Error(err, "could not execute statement row")
+			return count, g.Error(err, "could not execute statement")
 		}
 	}
 
