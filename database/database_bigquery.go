@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -500,7 +501,7 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	if gcBucket := conn.GetProp("GC_BUCKET"); gcBucket == "" || true {
+	if gcBucket := conn.GetProp("GC_BUCKET"); gcBucket == "" {
 		return conn.importViaLocalStorage(tableFName, df)
 	}
 
@@ -516,12 +517,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 		return
 	}
 
-	localPath, err := ioutil.TempDir("bigquery", tableFName+".*.csv")
-	if err != nil {
-		err = g.Error(err, "Could not get temp folder")
-		return
-	}
-
+	localPath := path.Join(os.TempDir(), "bigquery", tableFName, g.NowFileStr())
 	err = filesys.Delete(fs, localPath)
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+localPath)
@@ -573,7 +569,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 
 	conn.Context().Wg.Write.Wait()
 	if df.Err() != nil {
-		return df.Count(), g.Error(df.Context.Err(), "Error importing to BigQuery")
+		return df.Count(), g.Error(df.Err(), "Error importing to BigQuery")
 	}
 
 	return df.Count(), nil
@@ -651,7 +647,7 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 
 	conn.Context().Wg.Write.Wait()
 	if df.Err() != nil {
-		return df.Count(), g.Error(df.Context.Err(), "Error importing to BigQuery")
+		return df.Count(), g.Error(df.Err(), "Error importing to BigQuery")
 	}
 
 	return df.Count(), nil

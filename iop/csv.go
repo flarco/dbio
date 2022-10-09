@@ -496,6 +496,8 @@ func detectDelimiter(delimiter string, testBytes []byte) (bestDeli rune, numCols
 	testString := string(testBytes)
 	lines := strings.Split(testString, "\n")
 	if len(lines) > 2 {
+		// here we are cutting the lines in attempt to have a "complete" row
+		// however, this backfires when cutting a line when quote is escaped
 		testString = strings.Join(lines[:len(lines)-1], "\n")
 	}
 
@@ -526,6 +528,14 @@ func detectDelimiter(delimiter string, testBytes []byte) (bestDeli rune, numCols
 		if deliSuggested && d == bestDeli {
 			numCols = len(row)
 			err = csvErr
+
+			if err != nil && len(prevRow) > 0 {
+				numCols = len(prevRow)
+			}
+
+			// set err to nil since we are cutting the string, which may intentionally error
+			err = nil
+
 			return
 		}
 

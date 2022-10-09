@@ -57,7 +57,18 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 
 // Err return the error if any
 func (df *Dataflow) Err() (err error) {
-	return df.Context.Err()
+	eG := g.ErrorGroup{}
+	for _, ds := range df.Streams {
+		eG.Capture(ds.Err())
+	}
+
+	if err = df.Context.Err(); err != nil {
+		if err.Error() == "context canceled" {
+			return eG.Err()
+		}
+		return err
+	}
+	return eG.Err()
 }
 
 // IsClosed is true is ds is closed
@@ -377,9 +388,9 @@ func (df *Dataflow) WaitReady() error {
 	// columns need to be populated
 	select {
 	case <-df.readyChn:
-		return df.Context.Err()
+		return df.Err()
 	case <-df.Context.Ctx.Done():
-		return df.Context.Err()
+		return df.Err()
 	}
 }
 

@@ -200,7 +200,7 @@ func TestFileSysLarge(t *testing.T) {
 		_, err := ds.Collect(0)
 		assert.NoError(t, err)
 	}
-	assert.NoError(t, df.Context.Err())
+	assert.NoError(t, df.Err())
 }
 
 func TestFileSysS3(t *testing.T) {

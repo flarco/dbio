@@ -6,10 +6,10 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -2290,7 +2290,7 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 
 	df.Context.Wg.Write.Wait()
 
-	return count, df.Context.Err()
+	return count, df.Err()
 }
 
 // BulkExportFlow creates a dataflow from a sql query
@@ -2406,16 +2406,12 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		}
 	}
 
-	path, err := ioutil.TempDir("database", g.F("%s/stream/%s/%s.csv", filePathStorageSlug, conn.GetType(), cast.ToString(g.Now())))
-	if err != nil {
-		err = g.Error(err, "Could not create temp folder")
-		return
-	}
+	folderPath := path.Join(os.TempDir(), "sling", "stream", string(conn.GetType()), g.NowFileStr())
 
 	go func() {
 		defer df.Close()
 		for i, sql := range sqls {
-			pathPart := fmt.Sprintf("%s/sql%02d", path, i+1)
+			pathPart := fmt.Sprintf("%s/sql%02d", folderPath, i+1)
 			df.Context.Wg.Read.Add()
 			go unload(sql, pathPart)
 		}
@@ -2432,7 +2428,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		return df, g.Error(err)
 	}
 
-	g.Debug("Unloading to %s", path)
+	g.Debug("Unloading to %s", folderPath)
 	df.SetColumns(columns)
 	df.Inferred = true
 

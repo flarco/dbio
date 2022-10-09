@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"time"
@@ -390,7 +391,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			err = ds.ConsumeCsvReader(reader)
 		}
 		if err != nil {
-			ds.Context.CaptureErr(g.Error(err, "Error consuming reader"))
+			ds.Context.CaptureErr(g.Error(err, "Error consuming reader for %s", urlStr))
 			ds.Context.Cancel()
 			fs.Context().CaptureErr(g.Error(err, "Error consuming reader"))
 			// fs.Context().Cancel()
@@ -420,10 +421,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 			return df, g.Error(err, "could not get zip reader")
 		}
 
-		folderPath, err := ioutil.TempDir("", "dbio_temp_")
-		if err != nil {
-			return df, g.Error(err, "could not get create temp file")
-		}
+		folderPath := path.Join(os.TempDir(), "dbio_temp_")
 
 		zipPath := folderPath + ".zip"
 		_, err = localFs.Write(zipPath, reader)
@@ -693,8 +691,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	df.Context.Wg.Read.Wait()
-	if df.Context.Err() != nil {
-		err = g.Error(df.Context.Err())
+	if df.Err() != nil {
+		err = g.Error(df.Err())
 	}
 
 	return

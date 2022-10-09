@@ -485,12 +485,7 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (filePath string, err 
 	)
 
 	// Write the each stage file to temp file, read to ds
-	folderPath, err := ioutil.TempDir("snowflake", g.F("get.%s.csv", g.NowFileStr()))
-	if err != nil {
-		err = g.Error(err, "Could not create temp folder")
-		return
-	}
-
+	folderPath := path.Join(os.TempDir(), "snowflake", "get", g.NowFileStr())
 	unload := func(sql string, stagePartPath string) {
 
 		defer conn.Context().Wg.Write.Done()
@@ -573,7 +568,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 
 	// Write the ds to a temp file
-	folderPath, err := ioutil.TempDir("snowflake", g.F("put.%s.csv", g.NowFileStr()))
+	folderPath := path.Join(os.TempDir(), "snowflake", "put", g.NowFileStr())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -627,8 +622,8 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 
 	conn.Context().Wg.Write.Wait()
 
-	if df.Context.Err() != nil {
-		return 0, g.Error(df.Context.Err())
+	if df.Err() != nil {
+		return 0, g.Error(df.Err())
 	}
 
 	// COPY INTO Table

@@ -208,9 +208,9 @@ cao;daf
 "fa",da
 ra<d|da`
 	deli, numCols, err := detectDelimiter(",", []byte(testString))
-	assert.Error(t, err)
+	assert.NoError(t, err) // since delimiter is specified, will retun no error
 	assert.Equal(t, string(','), string(deli))
-	assert.Equal(t, 1, numCols)
+	assert.Equal(t, 2, numCols)
 
 	deli, numCols, err = detectDelimiter("\t", []byte(testString))
 	assert.NoError(t, err)

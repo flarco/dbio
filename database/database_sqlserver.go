@@ -128,7 +128,7 @@ func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow)
 
 	df.Context.Wg.Write.Wait()
 
-	return df.Count(), df.Context.Err()
+	return df.Count(), df.Err()
 }
 
 // BulkImportStream bulk import stream
@@ -194,7 +194,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 	}
 
 	// Write the ds to a temp file
-	file, err := ioutil.TempFile("sqlserver", tableFName+".*.csv")
+	file, err := ioutil.TempFile(os.TempDir(), "sqlserver."+tableFName+".*.csv")
 	if err != nil {
 		err = g.Error(err, "Error opening temp file")
 		return
@@ -478,7 +478,7 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 
 	df.Context.Wg.Write.Wait()
 	if df.Err() != nil {
-		err = g.Error(df.Context.Err())
+		err = g.Error(df.Err())
 	}
 
 	return df.Count(), err
