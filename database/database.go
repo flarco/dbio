@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -2405,7 +2406,11 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 		}
 	}
 
-	path := fmt.Sprintf("/tmp/%s/stream/%s/%s.csv", filePathStorageSlug, conn.GetType(), cast.ToString(g.Now()))
+	path, err := ioutil.TempDir("database", g.F("%s/stream/%s/%s.csv", filePathStorageSlug, conn.GetType(), cast.ToString(g.Now())))
+	if err != nil {
+		err = g.Error(err, "Could not create temp folder")
+		return
+	}
 
 	go func() {
 		defer df.Close()

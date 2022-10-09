@@ -500,31 +500,89 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	defer df.CleanUp()
 
-	gcBucket := conn.GetProp("GC_BUCKET")
-
-	////////////////////////////////////////////////
-	// https://cloud.google.com/bigquery/docs/batch-loading-data#loading_data_from_local_files
-
-	if gcBucket == "" {
-		// g.Warn("loading directly to bigquery table (normally faster using Google Storage)")
-		fileRowLimit := 0
-		fileBytesLimit := int64(0)
-		for ds := range df.StreamCh {
-			for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
-				compressor := iop.NewCompressor(iop.GzipCompressorType)
-				err := conn.LoadCSVFromReader(tableFName, compressor.Compress(reader), ds.Columns)
-				if err != nil {
-					df.Context.CaptureErr(g.Error(err, "Error copying from reader"))
-					df.Context.Cancel()
-					return df.Count(), g.Error(err, "Error importing to BigQuery")
-				}
-			}
-		}
-		return df.Count(), nil
+	if gcBucket := conn.GetProp("GC_BUCKET"); gcBucket == "" || true {
+		return conn.importViaLocalStorage(tableFName, df)
 	}
-	////////////////////////////////////////////////
 
+	return conn.importViaGoogleStorage(tableFName, df)
+}
+
+func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataflow) (count uint64, err error) {
 	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
+
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
+	if err != nil {
+		err = g.Error(err, "Could not get fs client for Local")
+		return
+	}
+
+	localPath, err := ioutil.TempDir("bigquery", tableFName+".*.csv")
+	if err != nil {
+		err = g.Error(err, "Could not get temp folder")
+		return
+	}
+
+	err = filesys.Delete(fs, localPath)
+	if err != nil {
+		return count, g.Error(err, "Could not Delete: "+localPath)
+	}
+
+	df.Defer(func() { filesys.Delete(fs, localPath) })
+
+	g.Info("importing into bigquery via local storage")
+
+	fileReadyChn := make(chan string, 10)
+
+	go func() {
+		_, err = fs.WriteDataflowReady(df, localPath, fileReadyChn)
+
+		if err != nil {
+			g.LogError(err, "error writing dataflow to local storage: "+localPath)
+			df.Context.CaptureErr(g.Error(err, "error writing dataflow to local storage: "+localPath))
+			df.Context.Cancel()
+			return
+		}
+
+	}()
+
+	copyFromLocal := func(localURI string, tableFName string) {
+		defer conn.Context().Wg.Write.Done()
+		g.Debug("Loading %s", localURI)
+
+		err := conn.CopyFromLocal(localURI, tableFName, df.Columns)
+		if err != nil {
+			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", localURI, tableFName))
+			df.Context.Cancel()
+		}
+	}
+
+	inferred := false
+	for localPartPath := range fileReadyChn {
+		if !inferred {
+			// the schema matters with using the load tool
+			// so let's make sure we infer once again
+			df.Inferred = false
+			df.SyncStats()
+			inferred = true
+		}
+
+		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
+		conn.Context().Wg.Write.Add()
+		go copyFromLocal(localPartPath, tableFName)
+	}
+
+	conn.Context().Wg.Write.Wait()
+	if df.Err() != nil {
+		return df.Count(), g.Error(df.Context.Err(), "Error importing to BigQuery")
+	}
+
+	return df.Count(), nil
+}
+
+func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Dataflow) (count uint64, err error) {
+	settingMppBulkImportFlow(conn, iop.GzipCompressorType)
+
+	gcBucket := conn.GetProp("GC_BUCKET")
 
 	if gcBucket == "" {
 		return count, g.Error("Need to set 'GC_BUCKET' to copy to google storage")
@@ -599,7 +657,18 @@ func (conn *BigQueryConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	return df.Count(), nil
 }
 
+// CopyFromGCS into bigquery from google storage
+func (conn *BigQueryConn) CopyFromLocal(localURI string, tableFName string, dsColumns []iop.Column) error {
+
+	file, err := os.Open(localURI)
+	if err != nil {
+		return g.Error(err, "Failed to open temp file")
+	}
+	return conn.LoadCSVFromReader(tableFName, file, dsColumns)
+}
+
 // LoadCSVFromReader demonstrates loading data into a BigQuery table using a file on the local filesystem.
+// https://cloud.google.com/bigquery/docs/batch-loading-data#loading_data_from_local_files
 func (conn *BigQueryConn) LoadCSVFromReader(tableFName string, reader io.Reader, dsColumns []iop.Column) error {
 	client, err := conn.getNewClient()
 	if err != nil {
@@ -653,7 +722,6 @@ func (conn *BigQueryConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	return conn.BulkImportFlow(tableFName, df)
 }
 
-// CopyFromGCS into bigquery from google storage
 func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumns []iop.Column) error {
 	client, err := conn.getNewClient()
 	if err != nil {

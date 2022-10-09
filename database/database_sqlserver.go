@@ -3,11 +3,11 @@ package database
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/flarco/dbio"
 
@@ -194,11 +194,12 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 	}
 
 	// Write the ds to a temp file
-	filePath := fmt.Sprintf(
-		"/tmp/sqlserver.bcp.%d.%s.csv",
-		time.Now().Unix(),
-		g.RandString(g.AlphaRunes, 3),
-	)
+	file, err := ioutil.TempFile("sqlserver", tableFName+".*.csv")
+	if err != nil {
+		err = g.Error(err, "Error opening temp file")
+		return
+	}
+	filePath := file.Name()
 
 	csv := iop.CSV{Path: filePath, Delimiter: ','}
 	delimiterRep := `$~d$~`

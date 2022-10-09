@@ -3,10 +3,10 @@ package database
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/flarco/dbio"
 
@@ -485,11 +485,11 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (filePath string, err 
 	)
 
 	// Write the each stage file to temp file, read to ds
-	folderPath := fmt.Sprintf(
-		"/tmp/snowflake.get.%d.%s.csv",
-		time.Now().Unix(),
-		g.RandString(g.AlphaRunes, 3),
-	)
+	folderPath, err := ioutil.TempDir("snowflake", g.F("get.%s.csv", g.NowFileStr()))
+	if err != nil {
+		err = g.Error(err, "Could not create temp folder")
+		return
+	}
 
 	unload := func(sql string, stagePartPath string) {
 
@@ -573,11 +573,10 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 
 	// Write the ds to a temp file
-	folderPath := fmt.Sprintf(
-		"/tmp/snowflake.put.%d.%s.csv",
-		time.Now().Unix(),
-		g.RandString(g.AlphaRunes, 3),
-	)
+	folderPath, err := ioutil.TempDir("snowflake", g.F("put.%s.csv", g.NowFileStr()))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// delete folder when done
 	df.Defer(func() { os.RemoveAll(folderPath) })

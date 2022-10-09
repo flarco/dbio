@@ -123,11 +123,13 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		return
 	}
 
-	ctlPath := fmt.Sprintf(
-		"/tmp/oracle.%d.%s.sqlldr.ctl",
-		time.Now().Unix(),
-		g.RandString(g.AlphaRunes, 3),
-	)
+	file, err := ioutil.TempFile("oracle", tableFName+".*.sqlldr.ctl")
+	if err != nil {
+		err = g.Error(err, "Error opening temp file")
+		return
+	}
+
+	ctlPath := file.Name()
 
 	// write to ctlPath
 	ctlStr := g.R(
