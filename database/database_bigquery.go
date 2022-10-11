@@ -765,6 +765,10 @@ func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumn
 
 // BulkExportFlow reads in bulk
 func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+	if conn.GetProp("GC_BUCKET") == "" {
+		g.Warn("No GCS Bucket was provided, pulling from cursor (which may be slower for big datasets). ")
+		return conn.BaseConn.BulkExportFlow(sqls...)
+	}
 
 	gsURL, err := conn.Unload(sqls...)
 	if err != nil {
@@ -824,42 +828,26 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 			return
 		}
 
-		// create temp table
-		dropTable := true
-		tableName := g.F(
-			"pg_home.tmp_%s",
-			g.RandString(g.AlphaRunes, 5),
-		)
+		table, err := ParseTableName(sql, conn.Type)
+		if err != nil {
+			conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
+			return
+		}
 
 		if strings.HasPrefix(sql, "select * from ") {
-			tableName = strings.TrimPrefix(sql, "select * from ")
-			dropTable = false
-		} else {
-			_, err := conn.Exec(g.F(
-				"create table `%s.%s` as \n%s",
-				conn.ProjectID,
-				tableName, sql,
-			))
+			table, err = ParseTableName(strings.TrimPrefix(sql, "select * from "), conn.Type)
 			if err != nil {
-				conn.Context().CaptureErr(g.Error(err, "Could not create table"))
+				conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
 				return
+			} else if table.IsQuery() {
+				table.SQL = sql
 			}
 		}
 
-		// export
-		err = conn.CopyToGCS(tableName, gsPartURL)
+		err = conn.CopyToGCS(table, gsPartURL)
 		if err != nil {
 			conn.Context().CaptureErr(g.Error(err, "Could not Copy to GS"))
 		}
-
-		// drop temp table
-		if dropTable {
-			err = conn.DropTable(tableName)
-			if err != nil {
-				conn.Context().CaptureErr(g.Error(err, "Could not Drop table: "+tableName))
-			}
-		}
-
 	}
 
 	gsFs, err := filesys.NewFileSysClient(dbio.TypeFileGoogle, conn.PropArr()...)
@@ -888,17 +876,30 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 }
 
 // CopyToGCS Copy table to gc storage
-func (conn *BigQueryConn) CopyToGCS(tableFName string, gcsURI string) error {
+func (conn *BigQueryConn) ExportToGCS(sql string, gcsURI string) error {
+
+	unloadSQL := g.R(
+		conn.template.Core["copy_to_gcs"],
+		"sql", sql,
+		"gcs_path", gcsURI,
+	)
+	_, err := conn.Exec(unloadSQL)
+	if err != nil {
+		err = g.Error(err, "could not export data")
+	}
+	return err
+}
+
+func (conn *BigQueryConn) CopyToGCS(table Table, gcsURI string) error {
+	if table.IsQuery() {
+		return conn.ExportToGCS(table.SQL, gcsURI)
+	}
+
 	client, err := conn.getNewClient()
 	if err != nil {
 		return g.Error(err, "Failed to connect to client")
 	}
 	defer client.Close()
-
-	table, err := ParseTableName(tableFName, conn.Type)
-	if err != nil {
-		return g.Error(err, "could not parse table name: "+tableFName)
-	}
 
 	if strings.ToUpper(conn.GetProp("COMPRESSION")) == "GZIP" {
 		gcsURI = gcsURI + ".gz"

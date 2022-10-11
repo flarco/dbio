@@ -9,6 +9,17 @@ core:
   alter_columns: alter table {table} alter column {col_ddls}
   modify_column: '{column} set data type {type}'
   # column_names: select * from ({sql}) as t limit 1
+  copy_to_gcs: |
+      EXPORT DATA OPTIONS(
+        uri = '{gcs_path}',
+        format = 'CSV',
+        overwrite = true,
+        header = true,
+        field_delimiter = ',',
+        compression = 'GZIP'
+      ) AS (
+        {sql}
+      )
 
 metadata:
 
