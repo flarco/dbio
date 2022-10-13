@@ -124,7 +124,7 @@ func NewConnectionFromProfiles(name string) (c Connection, err error) {
 		if strings.TrimSpace(path) == "" {
 			continue
 		}
-		conns, err := ReadConnections(path)
+		conns, err := ReadConnectionsFromFile(path)
 		if err != nil {
 			err = g.Error(err)
 			return c, err
@@ -590,7 +590,7 @@ func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection
 	return
 }
 
-func ReadConnections(path string) (conns map[string]Connection, err error) {
+func ReadConnectionsFromFile(path string) (conns map[string]Connection, err error) {
 	conns = map[string]Connection{}
 
 	if !g.PathExists(path) {
@@ -615,6 +615,12 @@ func ReadConnections(path string) (conns map[string]Connection, err error) {
 		err = g.Error(err, "error parsing yaml string")
 		return
 	}
+
+	return ReadConnections(env)
+}
+
+func ReadConnections(env map[string]interface{}) (conns map[string]Connection, err error) {
+	conns = map[string]Connection{}
 
 	if connections, ok := env["connections"]; ok {
 		switch connectionsV := connections.(type) {
