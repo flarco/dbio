@@ -196,8 +196,8 @@ var DBs = map[string]*testDB{
 		URL:  os.Getenv("BIGTABLE_URL"),
 		propStrs: []string{
 			"PROJECT=proven-cider-633",
-			"INSTANCE=proven-cider-633",
-			"GOOGLE_APPLICATION_CREDENTIALS=/__/devbox/slingelt-prod-10fbedc838ea.json",
+			"INSTANCE=test-instance-1",
+			"GOOGLE_APPLICATION_CREDENTIALS=/Users/fritz/.sling/proven-cider-633-ce219ceaef95.json",
 		},
 	},
 
@@ -325,7 +325,7 @@ func TestBigQuery(t *testing.T) {
 }
 
 func connect(db *testDB) (conn Connection, err error) {
-	conn, err = NewConn(db.URL)
+	conn, err = NewConn(db.URL, db.propStrs...)
 	if err != nil {
 		return
 	}

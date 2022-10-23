@@ -172,6 +172,11 @@ func (conn *BigTableConn) Connect(timeOut ...int) error {
 		return g.Error(err, "Failed to connect to client")
 	}
 
+	_, err = conn.GetTables("")
+	if err != nil {
+		return g.Error(err, "Failed to connect to client")
+	}
+
 	conn.SetProp("connected", "true")
 
 	return nil
@@ -289,6 +294,36 @@ func (conn *BigTableConn) GetTables(schema string) (data iop.Dataset, err error)
 	for _, table := range tables {
 		data.Rows = append(data.Rows, []interface{}{table})
 	}
+	return
+}
+
+func (conn *BigTableConn) GetSchemata(schemaName, tableName string) (schemata Schemata, err error) {
+	schemata = Schemata{
+		Databases: map[string]Database{},
+		conn:      conn,
+	}
+
+	tableData, err := conn.GetTables("")
+	if err != nil {
+		err = g.Error(err, "could not get tables")
+		return
+	}
+
+	schema := Schema{Name: "", Tables: map[string]Table{}}
+	for _, row := range tableData.Rows {
+		table := cast.ToString(row[0])
+		schema.Tables[strings.ToLower(table)] = Table{
+			Name:     table,
+			Database: "default",
+			Dialect:  dbio.TypeDbBigTable,
+		}
+	}
+
+	schemata.Databases["default"] = Database{
+		Name:    "default",
+		Schemas: map[string]Schema{"": schema},
+	}
+
 	return
 }
 

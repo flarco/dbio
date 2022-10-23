@@ -320,8 +320,11 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 
 func GetQualifierQuote(dialect dbio.Type) string {
 	quote := `"`
-	if g.In(dialect, dbio.TypeDbMySQL, dbio.TypeDbBigQuery) {
+	switch dialect {
+	case dbio.TypeDbMySQL, dbio.TypeDbBigQuery:
 		quote = "`"
+	case dbio.TypeDbBigTable:
+		quote = ""
 	}
 	return quote
 }
