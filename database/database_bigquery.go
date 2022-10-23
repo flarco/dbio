@@ -347,11 +347,12 @@ func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Colum
 	return
 }
 
-func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error) {
+func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error) {
 	bQTC := bQTypeCols{}
+	opts := getQueryOptions(options)
 	Limit := uint64(0) // infinite
-	if len(limit) > 0 && limit[0] != 0 {
-		Limit = cast.ToUint64(limit[0])
+	if val := cast.ToUint64(opts["limit"]); val > 0 {
+		Limit = val
 	}
 
 	start := time.Now()

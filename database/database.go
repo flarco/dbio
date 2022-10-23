@@ -113,8 +113,8 @@ type Connection interface {
 	Prepare(query string) (stmt *sql.Stmt, err error)
 	Props() map[string]string
 	PropsArr() []string
-	Query(sql string, limit ...int) (iop.Dataset, error)
-	QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error)
+	Query(sql string, options ...map[string]interface{}) (iop.Dataset, error)
+	QueryContext(ctx context.Context, sql string, options ...map[string]interface{}) (iop.Dataset, error)
 	Quote(field string) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
@@ -126,8 +126,8 @@ type Connection interface {
 	setContext(ctx context.Context, concurrency int)
 	SetProp(string, string)
 	StreamRecords(sql string) (<-chan map[string]interface{}, error)
-	StreamRows(sql string, limit ...int) (*iop.Datastream, error)
-	StreamRowsContext(ctx context.Context, sql string, limit ...int) (ds *iop.Datastream, err error)
+	StreamRows(sql string, options ...map[string]interface{}) (*iop.Datastream, error)
+	StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error)
 	SwapTable(srcTable string, tgtTable string) (err error)
 	TableExists(tableFName string) (exists bool, err error)
 	Template() Template
@@ -277,6 +277,8 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		// concurrency = 2
 	} else if strings.HasPrefix(URL, "bigquery:") {
 		conn = &BigQueryConn{URL: URL}
+	} else if strings.HasPrefix(URL, "bigtable:") {
+		conn = &BigTableConn{URL: URL}
 	} else if strings.HasPrefix(URL, "clickhouse:") {
 		conn = &ClickhouseConn{URL: URL}
 	} else if strings.HasPrefix(URL, "snowflake") {
@@ -400,6 +402,11 @@ func (conn *BaseConn) Init() (err error) {
 	if err != nil {
 		return err
 	}
+
+	conn.schemata = Schemata{
+		Databases: map[string]Database{},
+	}
+
 	conn.SetProp("connected", "false")
 	return nil
 }
@@ -499,9 +506,6 @@ func (conn *BaseConn) Kill() error {
 
 // Connect connects to the database
 func (conn *BaseConn) Connect(timeOut ...int) (err error) {
-	conn.schemata = Schemata{
-		Databases: map[string]Database{},
-	}
 
 	to := 15
 	if len(timeOut) > 0 && timeOut[0] != 0 {
@@ -817,15 +821,15 @@ func (conn *BaseConn) BulkImportStream(tableFName string, ds *iop.Datastream) (c
 }
 
 // StreamRows the rows of a sql query, returns `result`, `error`
-func (conn *BaseConn) StreamRows(sql string, limit ...int) (ds *iop.Datastream, err error) {
-	return conn.Self().StreamRowsContext(conn.Context().Ctx, sql, limit...)
+func (conn *BaseConn) StreamRows(sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error) {
+	return conn.Self().StreamRowsContext(conn.Context().Ctx, sql, options...)
 }
 
 // StreamRowsContext streams the rows of a sql query with context, returns `result`, `error`
-func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, limit ...int) (ds *iop.Datastream, err error) {
+func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, options ...map[string]interface{}) (ds *iop.Datastream, err error) {
 	Limit := uint64(0) // infinite
-	if len(limit) > 0 && limit[0] != 0 {
-		Limit = cast.ToUint64(limit[0])
+	if val := cast.ToUint64(getQueryOptions(options)["limit"]); val > 0 {
+		Limit = val
 	}
 
 	start := time.Now()
@@ -1138,7 +1142,7 @@ func (conn *BaseConn) MustExec(sql string, args ...interface{}) (result sql.Resu
 }
 
 // Query runs a sql query, returns `result`, `error`
-func (conn *BaseConn) Query(sql string, limit ...int) (data iop.Dataset, err error) {
+func (conn *BaseConn) Query(sql string, options ...map[string]interface{}) (data iop.Dataset, err error) {
 	if conn.GetProp("connected") != "true" {
 		err = conn.Self().Connect()
 		if err != nil {
@@ -1147,7 +1151,7 @@ func (conn *BaseConn) Query(sql string, limit ...int) (data iop.Dataset, err err
 		}
 	}
 
-	ds, err := conn.Self().StreamRows(sql, limit...)
+	ds, err := conn.Self().StreamRows(sql, options...)
 	if err != nil {
 		err = g.Error(err, "Error with StreamRows")
 		return iop.Dataset{SQL: sql}, err
@@ -1161,9 +1165,9 @@ func (conn *BaseConn) Query(sql string, limit ...int) (data iop.Dataset, err err
 }
 
 // QueryContext runs a sql query with ctx, returns `result`, `error`
-func (conn *BaseConn) QueryContext(ctx context.Context, sql string, limit ...int) (iop.Dataset, error) {
+func (conn *BaseConn) QueryContext(ctx context.Context, sql string, options ...map[string]interface{}) (iop.Dataset, error) {
 
-	ds, err := conn.Self().StreamRowsContext(ctx, sql, limit...)
+	ds, err := conn.Self().StreamRowsContext(ctx, sql, options...)
 	if err != nil {
 		return iop.Dataset{SQL: sql}, err
 	}
@@ -3238,4 +3242,12 @@ func Clone(conn Connection) (newConn Connection, err error) {
 		err = g.Error(err, "could not clone database connection")
 	}
 	return
+}
+
+func getQueryOptions(options []map[string]interface{}) (opts map[string]interface{}) {
+	opts = g.M()
+	if len(options) > 0 && options[0] != nil {
+		opts = options[0]
+	}
+	return opts
 }

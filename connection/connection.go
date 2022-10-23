@@ -371,6 +371,11 @@ func (c *Connection) setURL() (err error) {
 		if _, ok := c.Data["keyfile"]; ok {
 			template = template + "&credentialsFile={keyfile}"
 		}
+	case dbio.TypeDbBigTable:
+		template = "bigtable://{project}/{instance}?"
+		if _, ok := c.Data["keyfile"]; ok {
+			template = template + "&credentialsFile={keyfile}"
+		}
 	case dbio.TypeDbSnowflake:
 		// setIfMissing("schema", "public")
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"

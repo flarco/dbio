@@ -38,6 +38,7 @@ const (
 	TypeDbRedshift   Type = "redshift"
 	TypeDbMySQL      Type = "mysql"
 	TypeDbOracle     Type = "oracle"
+	TypeDbBigTable   Type = "bigtable"
 	TypeDbBigQuery   Type = "bigquery"
 	TypeDbSnowflake  Type = "snowflake"
 	TypeDbSQLite     Type = "sqlite"
@@ -106,7 +107,7 @@ func (t Type) DefPort() int {
 // Kind returns the kind of connection
 func (t Type) Kind() Kind {
 	switch t {
-	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery,
+	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbBigTable,
 		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse:
 		return KindDatabase
 	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
@@ -123,6 +124,11 @@ func (t Type) Kind() Kind {
 // IsDb returns true if database connection
 func (t Type) IsDb() bool {
 	return t.Kind() == KindDatabase
+}
+
+// IsDb returns true if database connection
+func (t Type) IsNoSQL() bool {
+	return t == TypeDbBigTable
 }
 
 // IsFile returns true if file connection

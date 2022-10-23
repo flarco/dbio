@@ -165,7 +165,7 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 			if !ok {
 				col = &Column{
 					Name:     colName,
-					Type:     "string",
+					Type:     StringType,
 					Position: len(js.ds.Columns) + 1,
 				}
 				js.addColumn(col)

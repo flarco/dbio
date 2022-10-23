@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
@@ -225,6 +224,10 @@ func (ds *Datastream) IsClosed() bool {
 
 // WaitReady waits until datastream is ready
 func (ds *Datastream) WaitReady() error {
+	if ds.Ready {
+		return ds.Context.Err()
+	}
+
 	select {
 	case <-ds.readyChn:
 		return ds.Context.Err()
@@ -366,16 +369,9 @@ func (ds *Datastream) Collect(limit int) (Dataset, error) {
 
 	// wait for first ds to start streaming.
 	// columns/buffer need to be populated
-	for {
-		if ds.Ready {
-			break
-		}
-
-		if ds.Err() != nil {
-			return data, g.Error(ds.Err())
-		}
-
-		time.Sleep(50 * time.Millisecond)
+	err := ds.WaitReady()
+	if err != nil {
+		return data, g.Error(err)
 	}
 
 	data.Result = nil
@@ -1320,6 +1316,10 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 	}()
 
 	return pipeR
+}
+
+func (it *Iterator) Ds() *Datastream {
+	return it.ds
 }
 
 func (it *Iterator) close() {

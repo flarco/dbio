@@ -191,6 +191,16 @@ var DBs = map[string]*testDB{
 		},
 	},
 
+	"bigtable": {
+		name: "bigtable",
+		URL:  os.Getenv("BIGTABLE_URL"),
+		propStrs: []string{
+			"PROJECT=proven-cider-633",
+			"INSTANCE=proven-cider-633",
+			"GOOGLE_APPLICATION_CREDENTIALS=/__/devbox/slingelt-prod-10fbedc838ea.json",
+		},
+	},
+
 	"snowflake": {
 		name:        "snowflake",
 		URL:         os.Getenv("SNOWFLAKE_URL"),
@@ -1325,5 +1335,68 @@ func TestSchemataAll(t *testing.T) {
 	g.AssertNoError(t, err)
 	g.P(schemata)
 	_ = schemata
+
+}
+
+func TestBigTable(t *testing.T) {
+	db := DBs["bigtable"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+
+	tableName := "test_table3"
+	numRows := 10 * 1000
+
+	// // drop if exists
+	// err = conn.DropTable(tableName)
+	// if !g.AssertNoError(t, err) {
+	// 	return
+	// }
+
+	// // create table
+	g.Debug("Creating table")
+	query := BigTableQuery{
+		Action:         BTCreateTable,
+		Table:          tableName,
+		ColumnFamilies: []string{"default"},
+	}
+	_, err = conn.Exec(g.Marshal(query))
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	// tables, err := conn.GetTables("")
+	// if !g.AssertNoError(t, err) {
+	// 	return
+	// }
+	// g.P(tables.Rows)
+
+	// columns, err := conn.GetColumns(tableName)
+	// if !g.AssertNoError(t, err) {
+	// 	return
+	// }
+	// g.P(columns.Names())
+
+	// // insert data
+	g.Debug("Inserting data")
+	data := generateLargeDataset("/tmp/MediumDataset.csv", numRows)
+	count, err := conn.InsertBatchStream(tableName, data.Stream())
+	assert.Equal(t, numRows, count)
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	// read table
+	g.Debug("Reading data")
+	ds, err := conn.BulkExportStream(tableName)
+	if !g.AssertNoError(t, err) {
+		return
+	}
+
+	data1, err := ds.Collect(0)
+	// g.PP(data1.Columns)
+	g.P(data1.Columns.Names())
+	g.P(data1.Rows[0])
+	assert.EqualValues(t, numRows, len(data1.Rows))
+	g.AssertNoError(t, err)
 
 }
