@@ -2814,12 +2814,7 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	conn.SetProp("PARALLEL", "true")
 }
 
-func AddMissingColumns(conn Connection, tableName string, newCols iop.Columns) (ok bool, err error) {
-	table, err := ParseTableName(tableName, conn.GetType())
-	if err != nil {
-		return ok, g.Error(err, "could not parse table name")
-	}
-
+func AddMissingColumns(conn Connection, table Table, newCols iop.Columns) (ok bool, err error) {
 	cols, err := conn.GetColumns(table.FullName())
 	if err != nil {
 		err = g.Error(err, "could not obtain table columns")
