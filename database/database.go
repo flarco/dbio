@@ -43,7 +43,7 @@ import (
 
 // InferDBStream may need to be `true`, since precision and scale is not guaranteed.
 // If `false`, will use the database stream source schema
-var InferDBStream = false
+var InferDBStream = true
 
 func init() {
 	if val := os.Getenv("SLING_INFER_DB_STREAM"); val != "" {
@@ -932,7 +932,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = strings.Contains(query, noTraceKey)
-	ds.Inferred = InferDBStream
+	ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
 
 	err = ds.Start()
@@ -3245,4 +3245,72 @@ func getQueryOptions(options []map[string]interface{}) (opts map[string]interfac
 		opts = options[0]
 	}
 	return opts
+}
+
+// ChangeColumnTypeViaAdd swaps a new column with the old in order to change the type
+// need to use this with snowflake when changing from date to string, or number to string
+func ChangeColumnTypeViaAdd(conn Connection, table Table, col iop.Column) (err error) {
+	// Add new Column with _ suffix with correct type
+	newCol := iop.Column{
+		Name:     col.Name + "_",
+		Position: col.Position,
+		Type:     col.Type,
+	}
+
+	err = conn.Begin()
+	if err != nil {
+		err = g.Error(err, "could not being tx for column new type")
+		return
+	}
+
+	_, err = AddMissingColumns(conn, table, iop.Columns{newCol})
+	if err != nil {
+		err = g.Error(err, "could not add new column")
+		return
+	}
+
+	// UPDATE set new_col value equal old column value
+	colAsString := g.R(
+		conn.GetTemplateValue("function.cast_to_string"),
+		"field", conn.Quote(col.Name),
+	)
+	sql := g.F("update %s set %s = %s", table.FDQN(), conn.Quote(newCol.Name), colAsString)
+	_, err = conn.Exec(sql)
+	if err != nil {
+		err = g.Error(err, "could not set new column value")
+		return
+	}
+
+	// Drop old column
+	sql = g.R(
+		conn.GetTemplateValue("core.drop_column"),
+		"table", table.FDQN(),
+		"column", conn.Quote(col.Name),
+	)
+	_, err = conn.Exec(sql)
+	if err != nil {
+		err = g.Error(err, "could not drop old column")
+		return
+	}
+
+	// rename new column name to old column name
+	sql = g.R(
+		conn.GetTemplateValue("core.rename_column"),
+		"table", table.FDQN(),
+		"column", conn.Quote(col.Name),
+		"new_column", conn.Quote(newCol.Name),
+	)
+	_, err = conn.Exec(sql)
+	if err != nil {
+		err = g.Error(err, "could not rename new column to old")
+		return
+	}
+
+	err = conn.Commit()
+	if err != nil {
+		err = g.Error(err, "could not commit column new type")
+		return
+	}
+
+	return
 }

@@ -55,12 +55,22 @@ func NewStreamProcessor() *StreamProcessor {
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
 	}
+
+	// if val is '0400', '0401'. Such as codes.
+	hasZeroPrefix := func(s string) bool { return len(s) >= 2 && s[0] == '0' && s[1] != '.' }
+
 	sp.parseFuncs = map[string]func(s string) (interface{}, error){
 		"int": func(s string) (interface{}, error) {
+			if hasZeroPrefix(s) {
+				return s, g.Error("number has zero prefix, treat as string")
+			}
 			// return fastfloat.ParseInt64(s)
 			return strconv.ParseInt(s, 10, 64)
 		},
 		"float": func(s string) (interface{}, error) {
+			if hasZeroPrefix(s) {
+				return s, g.Error("number has zero prefix, treat as string")
+			}
 			return strconv.ParseFloat(s, 64)
 		},
 		"time": func(s string) (interface{}, error) {

@@ -411,37 +411,37 @@ func (ds *Datastream) Start() (err error) {
 		return g.Error(err, "need to define iterator")
 	}
 
-	if !ds.Inferred {
-	loop:
-		for ds.it.next() {
-			select {
-			case <-ds.Context.Ctx.Done():
-				if ds.Context.Err() != nil {
-					err = g.Error(ds.Context.Err())
-					return
-				}
-				break loop
-			case <-ds.it.Context.Ctx.Done():
-				if ds.it.Context.Err() != nil {
-					err = g.Error(ds.it.Context.Err())
-					ds.Context.CaptureErr(err, "Failed to scan")
-					return
-				}
-				break loop
-			default:
-				if ds.it.Counter == 1 && !ds.NoTrace {
-					g.Trace("%#v", ds.it.Row) // trace first row for debugging
-				}
+loop:
+	for ds.it.next() {
+		select {
+		case <-ds.Context.Ctx.Done():
+			if ds.Context.Err() != nil {
+				err = g.Error(ds.Context.Err())
+				return
+			}
+			break loop
+		case <-ds.it.Context.Ctx.Done():
+			if ds.it.Context.Err() != nil {
+				err = g.Error(ds.it.Context.Err())
+				ds.Context.CaptureErr(err, "Failed to scan")
+				return
+			}
+			break loop
+		default:
+			if ds.it.Counter == 1 && !ds.NoTrace {
+				g.Trace("%#v", ds.it.Row) // trace first row for debugging
+			}
 
-				row := ds.Sp.ProcessRow(ds.it.Row)
-				ds.Buffer = append(ds.Buffer, row)
-				if ds.it.Counter >= cast.ToUint64(SampleSize) {
-					break loop
-				}
+			row := ds.Sp.ProcessRow(ds.it.Row)
+			ds.Buffer = append(ds.Buffer, row)
+			if ds.it.Counter >= cast.ToUint64(SampleSize) {
+				break loop
 			}
 		}
+	}
 
-		// infer types
+	// infer types
+	if !ds.Inferred {
 		sampleData := NewDataset(ds.Columns)
 		sampleData.Rows = ds.Buffer
 		sampleData.NoTrace = ds.NoTrace

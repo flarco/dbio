@@ -214,6 +214,7 @@ func (data *Dataset) InferColumnTypes() {
 		column.Type = lo.Ternary(column.Type == "", StringType, column.Type)
 		column.Stats = ColumnStats{
 			Min:    math.MaxInt64,
+			Max:    math.MinInt64,
 			MinLen: math.MaxInt32,
 		}
 		column.Position = i + 1
