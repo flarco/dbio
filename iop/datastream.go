@@ -288,6 +288,8 @@ func (ds *Datastream) Close() {
 func (ds *Datastream) schemaChange(i int, newType ColumnType) {
 	if ds == nil || ds.Columns[i].Type == newType {
 		return
+	} else if ds.Columns[i].Type == TextType && newType == StringType {
+		return
 	}
 
 	g.Debug("column type change for %s (%s to %s)", ds.Columns[i].Name, ds.Columns[i].Type, newType)
