@@ -43,7 +43,7 @@ import (
 
 // InferDBStream may need to be `true`, since precision and scale is not guaranteed.
 // If `false`, will use the database stream source schema
-var InferDBStream = true
+var InferDBStream = false
 
 func init() {
 	if val := os.Getenv("SLING_INFER_DB_STREAM"); val != "" {
@@ -200,7 +200,7 @@ var (
 	ddlMaxDecLength = 30
 	ddlMaxDecScale  = 9
 
-	ddlMinDecScale = 4
+	ddlMinDecScale = 6
 
 	filePathStorageSlug = "temp"
 
@@ -2190,6 +2190,10 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 					scale = ddlMinDecScale
 				} else if scale > ddlMaxDecScale {
 					scale = ddlMaxDecScale
+				}
+
+				if length-scale < ddlDefDecLength {
+					length = scale + ddlDefDecLength
 				}
 			}
 		}
