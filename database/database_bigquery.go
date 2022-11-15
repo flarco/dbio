@@ -186,6 +186,10 @@ func (r bqResult) RowsAffected() (int64, error) {
 }
 
 // ExecContext runs a sql query with context, returns `error`
+func (conn *BigQueryConn) ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
+	return conn.ExecContext(ctx, sql, args...)
+}
+
 func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
 
 	if len(args) > 0 {
@@ -216,43 +220,35 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 	}
 
 	res := bqResult{}
-	exec := func(sql string) error {
-		noTrace := strings.Contains(sql, noTraceKey)
-		if !noTrace {
-			g.Debug(sql)
-		}
-
-		q := conn.Client.Query(sql)
-		q.QueryConfig = bigquery.QueryConfig{
-			Q:                sql,
-			DefaultDatasetID: conn.GetProp("schema"),
-		}
-		it, err := q.Read(ctx)
-		if err != nil {
-			if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
-				return g.Error(err, "SQL Error")
-			}
-			return g.Error(err, "SQL Error for:\n"+sql)
-		}
-
-		if err != nil {
-			if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
-				return g.Error(err, "Error executing query")
-			} else {
-				return g.Error(err, "Error executing "+CleanSQL(conn, sql))
-			}
-		} else {
-			res.TotalRows = it.TotalRows + res.TotalRows
-		}
-		return nil
+	noTrace := strings.Contains(sql, noTraceKey)
+	if !noTrace {
+		g.Debug(sql)
 	}
 
-	for _, sql := range ParseSQLMultiStatements(sql) {
-		err = exec(sql)
-		if err != nil {
+	q := conn.Client.Query(sql)
+	q.QueryConfig = bigquery.QueryConfig{
+		Q:                sql,
+		DefaultDatasetID: conn.GetProp("schema"),
+		CreateSession:    true,
+	}
+
+	it, err := q.Read(ctx)
+	if err != nil {
+		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
 			err = g.Error(err, "Error executing query")
+			return
+		} else {
+			err = g.Error(err, "Error executing "+CleanSQL(conn, sql))
+			return
 		}
+	} else {
+		res.TotalRows = it.TotalRows + res.TotalRows
 	}
+
+	if bp, cj := getBytesProcessed(it); bp > 0 {
+		g.Trace("BigQuery job %s (%d children) => Processed %d bytes", q.JobID, cj, bp)
+	}
+
 	result = res
 
 	return
@@ -441,6 +437,10 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 		queryContext.Cancel()
 		return ds, g.Error(err, "could start datastream")
 	}
+
+	// if bp, cj := getBytesProcessed(it); bp > 0 {
+	// 	g.Debug("BigQuery job %s (%d children) => Processed %d bytes", q.JobID, cj, bp)
+	// }
 
 	return
 }
@@ -1116,4 +1116,17 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 	ctx.Wg.Read.Wait()
 
 	return schemata, nil
+}
+
+func getBytesProcessed(it *bigquery.RowIterator) (bytesProcessed int64, childJobs int64) {
+	if job := it.SourceJob(); job != nil {
+		if status, err := job.Status(context.Background()); err == nil {
+			if stats := status.Statistics; stats != nil {
+				childJobs = stats.NumChildJobs
+				bytesProcessed = stats.TotalBytesProcessed
+				g.Debug("BigQuery job %s (%d children) => Processed %d bytes", job.ID(), stats.NumChildJobs, stats.TotalBytesProcessed)
+			}
+		}
+	}
+	return
 }
