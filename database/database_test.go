@@ -1339,6 +1339,8 @@ func TestSchemataAll(t *testing.T) {
 }
 
 func TestBigTable(t *testing.T) {
+	// https://console.cloud.google.com/bigtable/instances?project=proven-cider-633
+
 	db := DBs["bigtable"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
