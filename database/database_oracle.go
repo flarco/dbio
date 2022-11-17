@@ -198,12 +198,13 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 	setCols := []string{}
 	for c := range pu.cols {
 		col := ds.Columns[c]
+		colName := conn.Quote(col.Name)
 		expr := fmt.Sprintf(
 			`REPLACE(REPLACE(%s, chr(13)), '~/N/~', chr(10))`,
-			conn.Quote(col.Name),
+			conn.Quote(colName),
 		)
 		setCols = append(
-			setCols, fmt.Sprintf(`%s = %s`, conn.Quote(col.Name), expr),
+			setCols, fmt.Sprintf(`%s = %s`, conn.Quote(colName), expr),
 		)
 	}
 
@@ -224,6 +225,7 @@ func (conn *OracleConn) getColumnsString(ds *iop.Datastream) string {
 	columnsString := ""
 	for _, col := range ds.Columns {
 		expr := ""
+		colName := conn.Quote(col.Name)
 		if col.Type == "datetime" || col.Type == "date" {
 			expr = fmt.Sprintf(
 				`"TO_DATE(:%s, 'YYYY-MM-DD HH24:MI:SS')"`,
@@ -235,9 +237,9 @@ func (conn *OracleConn) getColumnsString(ds *iop.Datastream) string {
 				strings.ToUpper(col.Name),
 			)
 		} else if col.IsString() {
-			expr = g.F("char(400000) NULLIF %s=BLANKS", col.Name)
+			expr = g.F("char(400000) NULLIF %s=BLANKS", colName)
 		}
-		columnsString += fmt.Sprintf("  %s %s,\n", col.Name, expr)
+		columnsString += fmt.Sprintf("  %s %s,\n", colName, expr)
 	}
 	return strings.TrimSuffix(columnsString, ",\n")
 }
