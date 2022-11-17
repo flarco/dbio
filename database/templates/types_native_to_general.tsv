@@ -310,8 +310,10 @@ azuredwh	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE
 azuredwh	varbinary	binary	col_varbinary varbinary(100)	FALSE	FALSE	
 azuredwh	varchar	string	col_varchar varchar	TRUE	TRUE	
 clickhouse	array	string	col_array array	FALSE	FALSE	
+clickhouse	uuid	string	col_uuid array	FALSE	FALSE	
 clickhouse	date	date	col_date date	TRUE	TRUE	
 clickhouse	datetime	datetime	col_datetime datetime	TRUE	TRUE	
+clickhouse	datetime64	datetime	col_datetime64 datetime64	TRUE	TRUE	
 clickhouse	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 clickhouse	enum	string	col_enum enum	FALSE	FALSE	
 clickhouse	fixedstring	string	col_fixedstring fixedstring	TRUE	TRUE	
@@ -328,3 +330,7 @@ clickhouse	uint32	integer	col_uint32 uint32	TRUE	TRUE
 clickhouse	uint64	bigint	col_uint64 uint64	TRUE	TRUE	
 clickhouse	uint8	integer	col_uint8 uint8	TRUE	TRUE	
 clickhouse	json	json	col_json json	FALSE	FALSE	
+clickhouse	map	json	col_map json	FALSE	FALSE	
+clickhouse	lowcardinality	string	col_lowcardinality json	FALSE	FALSE	
+clickhouse	enum8	string	col_enum8 json	FALSE	FALSE	
+clickhouse	ipv6	string	col_enum8 json	FALSE	FALSE	

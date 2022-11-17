@@ -1294,33 +1294,11 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 	columns = make(iop.Columns, len(colTypes))
 
 	for i, colType := range colTypes {
-		dbType := strings.ToLower(colType.DatabaseTypeName)
-
-		if conn.GetType() == dbio.TypeDbClickhouse {
-			if strings.HasPrefix(dbType, "nullable(") {
-				dbType = strings.ReplaceAll(dbType, "nullable(", "")
-				dbType = strings.TrimSuffix(dbType, ")")
-			}
-		}
-
-		dbType = strings.Split(strings.ToLower(dbType), "(")[0]
-		dbType = strings.Split(dbType, "<")[0]
-
-		var Type iop.ColumnType
-		if matchedType, ok := conn.Template().NativeTypeMap[dbType]; ok {
-			Type = iop.ColumnType(matchedType)
-		} else {
-			if dbType != "" {
-				g.Warn("using string since type '%s' not mapped for col '%s': %#v", dbType, colType.Name, colType)
-			}
-			Type = "string" // default as string
-		}
-
 		col := iop.Column{
 			Name:     colType.Name,
 			Position: i + 1,
-			Type:     Type,
-			DbType:   dbType,
+			Type:     NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
+			DbType:   colType.DatabaseTypeName,
 		}
 
 		col.Stats.MaxLen = colType.Length
@@ -1335,6 +1313,30 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 		// g.Trace("%s -> %s (%s)", colType.Name(), Type, dbType)
 	}
 	return columns
+}
+
+func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.ColumnType) {
+	dbType = strings.ToLower(dbType)
+
+	if conn.GetType() == dbio.TypeDbClickhouse {
+		if strings.HasPrefix(dbType, "nullable(") {
+			dbType = strings.ReplaceAll(dbType, "nullable(", "")
+			dbType = strings.TrimSuffix(dbType, ")")
+		}
+	}
+
+	dbType = strings.Split(strings.ToLower(dbType), "(")[0]
+	dbType = strings.Split(dbType, "<")[0]
+
+	if matchedType, ok := conn.Template().NativeTypeMap[dbType]; ok {
+		colType = iop.ColumnType(matchedType)
+	} else {
+		if dbType != "" {
+			g.Warn("using string since type '%s' not mapped for col '%s': %#v", dbType, name, colType)
+		}
+		colType = "string" // default as string
+	}
+	return
 }
 
 // GetSQLColumns return columns from a sql query result
@@ -1678,7 +1680,7 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 		schemaName = cast.ToString(rec["schema_name"])
 		tableName := cast.ToString(rec["table_name"])
 		columnName := cast.ToString(rec["column_name"])
-		dataType := strings.ToLower(cast.ToString(rec["data_type"]))
+		dataType := cast.ToString(rec["data_type"])
 
 		// if any of the names contains a period, skip. This messes with the keys
 		if strings.Contains(tableName, ".") ||

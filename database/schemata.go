@@ -209,20 +209,7 @@ func (s *Schemata) Columns() map[string]iop.Column {
 			for _, table := range schema.Tables {
 				for _, column := range table.Columns {
 					// get general type
-					dType := strings.Split(strings.ToLower(column.DbType), "(")[0]
-					generalType, ok := s.conn.Template().NativeTypeMap[dType]
-					if !ok {
-						g.Warn(
-							"No general type mapping defined for col '%s', with type '%s' for '%s'",
-							column.Name,
-							dType,
-							s.conn.GetType(),
-						)
-						column.Type = "string"
-						generalType = "string"
-					}
-
-					column.Type = iop.ColumnType(generalType)
+					column.Type = NativeTypeToGeneral(column.Name, column.DbType, s.conn)
 					key := strings.ToLower(g.F("%s.%s.%s.%s", db.Name, schema.Name, table.Name, column.Name))
 					columns[key] = column
 				}

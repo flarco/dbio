@@ -327,9 +327,15 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		cs.NullCnt++
 		sp.rowBlankValCnt++
 		return nil
-	case string:
+	case string, *string:
+		switch v2 := v.(type) {
+		case string:
+			sVal = v2
+		case *string:
+			sVal = *v2
+		}
+
 		isString = true
-		sVal = v
 		if sp.config.trimSpace {
 			sVal = strings.TrimSpace(sVal)
 			val = sVal

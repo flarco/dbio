@@ -63,7 +63,6 @@ metadata:
     select
       cols.database as schema_name,
       cols.table as table_name,
-      tables.is_view as is_view,
       cols.name as column_name,
       cols.type as data_type,
       cols.position as position
