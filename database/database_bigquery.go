@@ -426,7 +426,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	ds.SetMetadata(conn.GetProp("METADATA"))
 
 	// add first row pulled to buffer
-	row := make([]interface{}, len(ds.Columns))
+	row := make([]interface{}, len(values))
 	for i := range values {
 		row[i] = values[i]
 	}

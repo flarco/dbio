@@ -461,7 +461,7 @@ loop:
 	}
 
 	// add metadata
-	metaValues := []interface{}{}
+	metaValuesMap := map[int]interface{}{}
 	{
 		// ensure there are no duplicates
 		ensureName := func(name string) string {
@@ -480,7 +480,7 @@ loop:
 				Position: len(ds.Columns) + 1,
 			}
 			ds.Columns = append(ds.Columns, col)
-			metaValues = append(metaValues, ds.Metadata.LoadedAt.Value)
+			metaValuesMap[col.Position-1] = ds.Metadata.LoadedAt.Value
 		}
 
 		if ds.Metadata.StreamURL.Key != "" && ds.Metadata.StreamURL.Value != nil {
@@ -491,15 +491,18 @@ loop:
 				Position: len(ds.Columns) + 1,
 			}
 			ds.Columns = append(ds.Columns, col)
-			metaValues = append(metaValues, ds.Metadata.StreamURL.Value)
+			metaValuesMap[col.Position-1] = ds.Metadata.StreamURL.Value
 		}
 	}
 
 	// setMetaValues sets mata column values
 	setMetaValues := func(row []interface{}) []interface{} { return row }
-	if len(metaValues) > 0 {
+	if len(metaValuesMap) > 0 {
 		setMetaValues = func(row []interface{}) []interface{} {
-			return append(row, metaValues...)
+			for i, v := range metaValuesMap {
+				row[i] = v
+			}
+			return row
 		}
 	}
 
@@ -1100,6 +1103,11 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			c++
 			// convert to csv string
 			row := make([]string, len(row0))
+			if len(row0) > len(ds.Columns) {
+				g.Warn("len(row) > len(ds.Columns)")
+				g.Debug("%#v", row0)
+				g.Debug("%#v", ds.Columns.Names())
+			}
 			for i, val := range row0 {
 				row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 			}

@@ -775,6 +775,10 @@ func (sp *StreamProcessor) CastRow(row []interface{}, columns []Column) []interf
 		row[i] = sp.CastVal(i, val, &columns[i])
 	}
 
+	for len(row) < len(columns) {
+		row = append(row, nil)
+	}
+
 	// debug a row, prev
 	if sp.warn {
 		g.Trace("%s -> %#v", sp.unrecognizedDate, row)

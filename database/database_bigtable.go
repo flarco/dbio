@@ -297,6 +297,13 @@ func (conn *BigTableConn) GetTables(schema string) (data iop.Dataset, err error)
 	return
 }
 
+func (conn *BigTableConn) GetSchemas() (iop.Dataset, error) {
+	// fields: [schema_name]
+	data := iop.NewDataset(iop.NewColumnsFromFields("schema_name"))
+	data.Append([]interface{}{"bigtable"})
+	return data, nil
+}
+
 func (conn *BigTableConn) GetSchemata(schemaName, tableName string) (schemata Schemata, err error) {
 	schemata = Schemata{
 		Databases: map[string]Database{},
@@ -325,6 +332,37 @@ func (conn *BigTableConn) GetSchemata(schemaName, tableName string) (schemata Sc
 	}
 
 	return
+}
+
+func (conn *BigTableConn) GetColumnsFull(tableFName string) (iop.Dataset, error) {
+	table, err := ParseTableName(tableFName, conn.Type)
+	if err != nil {
+		return iop.Dataset{}, g.Error(err, "could not parse table name: "+tableFName)
+	}
+
+	// ds, err := conn.StreamRowsContext(conn.context.Ctx, table.Name, g.M("limit", 1000))
+	// if err != nil {
+	// 	return iop.Dataset{}, g.Error(err, "could not get sample data: "+tableFName)
+	// }
+
+	// for range ds.Rows { // drain channel
+	// }
+
+	// data := iop.NewDataset(iop.NewColumnsFromFields("schema_name", "table_name", "column_name", "data_type", "position"))
+	// for i, col := range ds.Columns {
+	// 	data.Append([]interface{}{"", table.Name, col.Name, col.Type, i + 1})
+	// }
+
+	data := iop.NewDataset(iop.NewColumnsFromFields("schema_name", "table_name", "column_name", "data_type", "position"))
+	cols, err := conn.GetColumns(table.Name)
+	if err != nil {
+		return iop.Dataset{}, g.Error(err, "could not get columns for table: "+table.Name)
+	}
+	for i, col := range cols {
+		data.Append([]interface{}{"", table.Name, col.Name, col.Type, i + 1})
+	}
+
+	return data, nil
 }
 
 // GetTables returns tables for given schema
