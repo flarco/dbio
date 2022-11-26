@@ -547,9 +547,9 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 	if fileExt == "" {
 		switch {
-		case strings.Contains(url, ".jsonl"):
+		case strings.Contains(strings.ToLower(url), ".jsonl"):
 			fileExt = "jsonlines"
-		case strings.Contains(url, ".json"):
+		case strings.HasSuffix(strings.ToLower(url), ".json"):
 			fileExt = "json"
 		default:
 			fileExt = "csv"
@@ -673,7 +673,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	partCnt := 1
-	for ds := range df.StreamCh {
+	for ds := range df.MakeStreamCh() {
 
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
 		if singleFile {

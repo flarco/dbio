@@ -121,7 +121,7 @@ func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow)
 		}
 	}
 
-	for ds := range df.StreamCh {
+	for ds := range df.MakeStreamCh() {
 		df.Context.Wg.Write.Add()
 		go importStream(ds)
 	}

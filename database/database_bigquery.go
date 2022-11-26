@@ -246,7 +246,7 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 	}
 
 	if bp, cj := getBytesProcessed(it); bp > 0 {
-		g.Trace("BigQuery job %s (%d children) => Processed %d bytes", q.JobID, cj, bp)
+		g.DebugLow("BigQuery job %s (%d children) => Processed %d bytes", q.JobID, cj, bp)
 	}
 
 	result = res
@@ -1124,7 +1124,6 @@ func getBytesProcessed(it *bigquery.RowIterator) (bytesProcessed int64, childJob
 			if stats := status.Statistics; stats != nil {
 				childJobs = stats.NumChildJobs
 				bytesProcessed = stats.TotalBytesProcessed
-				g.Debug("BigQuery job %s (%d children) => Processed %d bytes", job.ID(), stats.NumChildJobs, stats.TotalBytesProcessed)
 			}
 		}
 	}

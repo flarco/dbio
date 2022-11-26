@@ -314,36 +314,6 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 	return columns
 }
 
-// MakeDataFlow create a dataflow from datastreams
-func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
-
-	if len(dss) == 0 {
-		err = g.Error("Provided 0 datastreams for: %#v", dss)
-		return
-	}
-
-	df = NewDataflow()
-	dsCh := make(chan *Datastream)
-
-	go func() {
-		defer close(dsCh)
-		for _, ds := range dss {
-			dsCh <- ds
-		}
-	}()
-
-	go df.PushStreamChan(dsCh)
-
-	// wait for first ds to start streaming.
-	// columns need to be populated
-	err = df.WaitReady()
-	if err != nil {
-		return df, err
-	}
-
-	return df, nil
-}
-
 // MakeRowsChan returns a buffered channel with default size
 func MakeRowsChan() chan []interface{} {
 	return make(chan []interface{})

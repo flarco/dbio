@@ -209,6 +209,39 @@ func (df *Dataflow) GetFinal(dsID string) (ds *Datastream) {
 	}
 }
 
+// MakeStreamCh determines whether to merge all the streams into one
+// or keep them separate. If data is small per stream, it's best to merge
+// For example, Bigquery has limits on number of operations can be called within a time limit
+func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
+	streamCh = make(chan *Datastream, df.Context.Wg.Limit)
+	totalBufferRows := 0
+	totalCnt := 0
+	minBufferRows := SampleSize
+	for _, ds := range df.Streams {
+		if ds.Ready && len(ds.Buffer) < minBufferRows {
+			minBufferRows = len(ds.Buffer)
+			totalBufferRows = totalBufferRows + len(ds.Buffer)
+			totalCnt++
+		}
+	}
+	avgBufferRows := cast.ToFloat64(totalBufferRows) / cast.ToFloat64(totalCnt)
+
+	// buffer should be at least 90% full on average, 80% full at minimum
+	if avgBufferRows < 0.9*cast.ToFloat64(SampleSize) || cast.ToFloat64(minBufferRows) < 0.8*cast.ToFloat64(SampleSize) {
+		go func() {
+			streamCh <- MergeDataflow(df)
+			close(streamCh)
+		}()
+	} else {
+		go func() {
+			for ds := range df.StreamCh {
+				streamCh <- ds
+			}
+		}()
+	}
+	return
+}
+
 // SyncStats sync stream processor stats aggregated to the df.Columns
 func (df *Dataflow) SyncStats() {
 	df.ResetStats()
@@ -377,7 +410,7 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 	if len(df.Streams) == 0 {
 		df.SetReady()
 	} else {
-		g.Debug("pushed %d datastreams", pushCnt)
+		g.DebugLow("pushed %d datastreams", pushCnt)
 	}
 
 }
@@ -416,6 +449,36 @@ func (df *Dataflow) Collect() (data Dataset, err error) {
 	}
 
 	return
+}
+
+// MakeDataFlow create a dataflow from datastreams
+func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
+
+	if len(dss) == 0 {
+		err = g.Error("Provided 0 datastreams for: %#v", dss)
+		return
+	}
+
+	df = NewDataflow()
+	dsCh := make(chan *Datastream)
+
+	go func() {
+		defer close(dsCh)
+		for _, ds := range dss {
+			dsCh <- ds
+		}
+	}()
+
+	go df.PushStreamChan(dsCh)
+
+	// wait for first ds to start streaming.
+	// columns need to be populated
+	err = df.WaitReady()
+	if err != nil {
+		return df, err
+	}
+
+	return df, nil
 }
 
 // MergeDataflow merges the dataflow streams into one

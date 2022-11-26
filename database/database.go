@@ -1909,7 +1909,7 @@ func (conn *BaseConn) CastColumnsForSelect(srcColumns iop.Columns, tgtColumns io
 		selectExpr := conn.Self().Quote(srcCol.Name)
 
 		if srcCol.DbType != tgtCol.DbType {
-			g.Debug(
+			g.DebugLow(
 				"inserting %s [%s] into %s [%s]",
 				srcCol.Name, srcCol.DbType, tgtCol.Name, tgtCol.DbType,
 			)
