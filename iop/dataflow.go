@@ -226,19 +226,19 @@ func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
 	}
 	avgBufferRows := cast.ToFloat64(totalBufferRows) / cast.ToFloat64(totalCnt)
 
-	// buffer should be at least 90% full on average, 80% full at minimum
-	if avgBufferRows < 0.9*cast.ToFloat64(SampleSize) || cast.ToFloat64(minBufferRows) < 0.8*cast.ToFloat64(SampleSize) {
-		go func() {
+	go func() {
+		defer close(streamCh)
+
+		// buffer should be at least 90% full on average, 80% full at minimum
+		if avgBufferRows < 0.9*cast.ToFloat64(SampleSize) || cast.ToFloat64(minBufferRows) < 0.8*cast.ToFloat64(SampleSize) {
 			streamCh <- MergeDataflow(df)
-			close(streamCh)
-		}()
-	} else {
-		go func() {
+		} else {
 			for ds := range df.StreamCh {
 				streamCh <- ds
 			}
-		}()
-	}
+		}
+	}()
+
 	return
 }
 

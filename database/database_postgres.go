@@ -129,7 +129,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	}
 
 	// set OnSchemaChange
-	if df := ds.Df(); df != nil && conn.GetProp("adjust_column_type") != "false" {
+	if df := ds.Df(); df != nil && conn.GetProp("adjust_column_type") == "true" {
 
 		df.OnSchemaChange = func(i int, newType iop.ColumnType) error {
 
