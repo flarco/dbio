@@ -453,6 +453,7 @@ loop:
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
+		ds.Inferred = true
 	}
 
 	if ds.it.Context.Err() != nil {
