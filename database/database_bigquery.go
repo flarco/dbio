@@ -475,10 +475,11 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 		iop.BinaryType:     bigquery.BytesFieldType,
 		iop.DateType:       bigquery.TimestampFieldType,
 		iop.DatetimeType:   bigquery.TimestampFieldType,
-		iop.FloatType:      bigquery.FloatFieldType,
-		iop.SmallIntType:   bigquery.IntegerFieldType,
-		iop.IntegerType:    bigquery.IntegerFieldType,
-		iop.BigIntType:     bigquery.IntegerFieldType,
+		// iop.FloatType:      bigquery.FloatFieldType,
+		iop.FloatType:    bigquery.NumericFieldType,
+		iop.SmallIntType: bigquery.IntegerFieldType,
+		iop.IntegerType:  bigquery.IntegerFieldType,
+		iop.BigIntType:   bigquery.IntegerFieldType,
 		// https://stackoverflow.com/questions/55904464/big-query-does-now-cast-automatically-long-decimal-values-to-numeric-when-runni
 		iop.DecimalType: bigquery.NumericFieldType,
 		// "decimal":   bigquery.FloatFieldType,
@@ -555,7 +556,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 
 	inferred := false
 	for localPartPath := range fileReadyChn {
-		if !inferred {
+		if conn.GetProp("adjust_column_type") == "true" && !inferred {
 			// the schema matters with using the load tool
 			// so let's make sure we infer once again
 			df.Inferred = false
