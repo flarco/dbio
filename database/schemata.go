@@ -234,10 +234,7 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 
 	quote := GetQualifierQuote(dialect)
 
-	defCaseUpper := false
-	if g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
-		defCaseUpper = true
-	}
+	defCaseUpper := g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake)
 
 	inQuote := false
 	words := []string{}
