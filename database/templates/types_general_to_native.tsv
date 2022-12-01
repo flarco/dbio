@@ -12,6 +12,6 @@ string	varchar()	varchar()	varchar()	varchar()	varchar()	varchar()	varchar(65535
 text	clob	text	mediumtext	text	text	varchar(max)	varchar(65535)	text	text	string	Nullable(String)
 timestamp	timestamp(9)	timestamp	datetime(6)	datetime2	datetime2	datetime2	timestamp	timestamp	text	timestamp	Nullable(DateTime64(6))
 timestampz	timestamp(9)	timestamptz	datetime(6)	datetime2	datetime2	datetime2	timestamptz	timestamp_tz	text	timestamp	Nullable(DateTime64(6))
-float	float	double precision	double	float	float	float	double precision	float	real	float64	Nullable(Float64)
+float	float	double precision	double	float	float	float	double precision	float	real	numeric	Nullable(Float64)
 time	timestamp	time	time	time	time	time	timestamp	time	text	time	Nullable(String)
 timez	timestamp	timetz	time	time	time	time	timetz	time	text	time	Nullable(String)
