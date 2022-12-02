@@ -37,6 +37,21 @@ func (t *Table) FullName() string {
 	return strings.Join(fdqnArr, ".")
 }
 
+func (t *Table) DatabaseQ() string {
+	q := GetQualifierQuote(t.Dialect)
+	return q + t.Database + q
+}
+
+func (t *Table) SchemaQ() string {
+	q := GetQualifierQuote(t.Dialect)
+	return q + t.Schema + q
+}
+
+func (t *Table) NameQ() string {
+	q := GetQualifierQuote(t.Dialect)
+	return q + t.Name + q
+}
+
 func (t *Table) FDQN() string {
 	q := GetQualifierQuote(t.Dialect)
 
