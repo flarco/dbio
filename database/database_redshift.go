@@ -199,7 +199,7 @@ func (conn *RedshiftConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (c
 	if err != nil {
 		return df.Count(), g.Error(err, "error writing to s3")
 	}
-	g.Debug("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), s3Path)
+	g.DebugLow("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), s3Path)
 
 	_, err = conn.CopyFromS3(tableFName, s3Path)
 	if err != nil {

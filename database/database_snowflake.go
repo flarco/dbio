@@ -376,7 +376,7 @@ func (conn *SnowflakeConn) CopyViaAWS(tableFName string, df *iop.Dataflow) (coun
 	if err != nil {
 		return df.Count(), g.Error(err, "Error in FileSysWriteDataflow")
 	}
-	g.Debug("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), s3Path)
+	g.DebugLow("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), s3Path)
 
 	return df.Count(), conn.CopyFromS3(tableFName, s3Path)
 }
@@ -444,7 +444,7 @@ func (conn *SnowflakeConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (co
 	if err != nil {
 		return df.Count(), g.Error(err, "Error in FileSysWriteDataflow")
 	}
-	g.Debug("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), azPath)
+	g.DebugLow("total written: %s to %s", humanize.Bytes(cast.ToUint64(bw)), azPath)
 
 	return df.Count(), conn.CopyFromAzure(tableFName, azPath)
 }
