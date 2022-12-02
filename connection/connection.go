@@ -311,6 +311,9 @@ func (c *Connection) setURL() (err error) {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
 			} else if c.Type == dbio.TypeDbBigQuery {
 				setIfMissing("project", U.Hostname())
+			} else if c.Type == dbio.TypeDbBigTable {
+				setIfMissing("project", U.Hostname())
+				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
 			}
 		}
 	}

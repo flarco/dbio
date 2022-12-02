@@ -1360,7 +1360,11 @@ func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err er
 	limitSQL = limitSQL + " /* GetSQLColumns */ " + noTraceKey
 	ds, err := conn.Self().StreamRows(limitSQL)
 	if err != nil {
-		err = g.Error(err, "SQL Error for:\n"+limitSQL)
+		if g.IsDebugLow() {
+			err = g.Error(err, "GetSQLColumns Error for:\n"+limitSQL)
+		} else {
+			err = g.Error(err, "GetSQLColumns Error")
+		}
 		return columns, err
 	}
 
