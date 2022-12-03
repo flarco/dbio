@@ -96,7 +96,7 @@ analysis:
       sum(case when {field}::text ~ '"' then 1 else 0 end) as cnt_dquote, 
       min(length({field}::text)) as f_min_len, 
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   fields: |
   fields_deep: |

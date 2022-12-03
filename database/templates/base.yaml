@@ -28,7 +28,7 @@ analysis:
       '{schema}' as schema_nm,
       '{table}' as table_nm,
       count(*) cnt
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   table_join_match: |
     -- table_join_match "{t1}" vs "{t2}"
@@ -92,7 +92,7 @@ analysis:
       sum(case when regexp_like({field}, '\\t') then 1 else 0 end) as cnt_tab,
       sum(case when regexp_like({field}, ',') then 1 else 0 end) as cnt_comma,
       sum(case when regexp_like({field}, '"') then 1 else 0 end) as cnt_dquote
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_pk_test: |
     -- field_pk_test {table}
@@ -101,7 +101,7 @@ analysis:
       case when count(*) = count(distinct {field}) then 'PASS' else 'FAIL' end as result,
       count(*) as tot_cnt,
       count(distinct {field}) as dstct_cnt
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat: |
     -- field_stat {field}
@@ -116,7 +116,7 @@ analysis:
       count(distinct {field}) as f_dstct_cnt,
       round(100.0 * count(distinct {field}) / count(*), 1) as f_dstct_prct,
       count(*) - count(distinct {field}) as f_dup_cnt
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat_group: |
     -- field_stat_group {field}
@@ -132,7 +132,7 @@ analysis:
       count(distinct {field}) as f_dstct_cnt,
       round(100.0 * count(distinct {field}) / count(*), 1) as f_dstct_prct,
       count(*) - count(distinct {field}) as f_dup_cnt
-    from {schema}.{table}
+    from "{schema}"."{table}"
     group by {group_expr}
 
   field_stat_len: |
@@ -145,7 +145,7 @@ analysis:
       count(*) as tot_cnt,
       min(length({field})) as f_min_len,
       max(length({field})) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat_deep: |
     -- field_stat_deep {field}
@@ -165,14 +165,14 @@ analysis:
       cast(max({field}) as string) as f_max,
       min(length({field})) as f_min_len,
       max(length({field})) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   fill_cnt_group_field: |
     -- fill_cnt_group_field {field}
     select
       {field},
       {columns_sql}
-    from {schema}.{table}
+    from "{schema}"."{table}"
     group by {field}
     order by {field}
 
@@ -181,7 +181,7 @@ analysis:
     select
       {field},
       {fill_rate_fields_sql}
-    from {schema}.{table}
+    from "{schema}"."{table}"
     group by {field}
     order by {field}
 
@@ -192,7 +192,7 @@ analysis:
         '{field}' as field,
         {field},
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}
       order by count(1) desc
     )
@@ -200,7 +200,7 @@ analysis:
       select
         '{field}' as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
@@ -221,7 +221,7 @@ analysis:
         {group_expr} as group_exp,
         {field},        
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}, {group_expr}
       order by count(1) desc
     )
@@ -229,7 +229,7 @@ analysis:
       select
         '{field}' as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
@@ -251,13 +251,13 @@ analysis:
           year({field}) as year,
           month({field}) as month,
           count(1) cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
         group by year({field}), month({field})
         order by year({field}), month({field})
       )
       , t2 as (
         select '{field}' as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
       )
       select 
         '{schema}' as schema_nm,
@@ -279,7 +279,7 @@ analysis:
       year({date_field}) as year,
       month({date_field}) as month,
       {columns_sql}
-    from {schema}.{table}
+    from "{schema}"."{table}"
     {where_clause}
     group by year({date_field}), month({date_field})
     order by year({date_field}), month({date_field})
@@ -293,7 +293,7 @@ analysis:
       count(distinct {fields_exp}) as expression_cnt,
       count(1) - count(distinct {fields_exp}) as delta_cnt,
       sum(case when {fields_exp} is null then 1 else 0 end) as null_cnt
-    from {schema}.{table}
+    from "{schema}"."{table}"
     {where_clause}
 
 routine:
@@ -303,12 +303,12 @@ routine:
       count({field}) as field_cnt,
       min({field}) as min_val,
       max({field}) as max_val
-    from {table}
+    from "{schema}"."{table}"
 
   number_trunc_min_max: |
     select
       {fields}
-    from {table}
+    from "{schema}"."{table}"
     where {where}
       (({partition_col_trunc} >= '{min_val}'
       and {partition_col_trunc} <= '{max_val}')
@@ -318,7 +318,7 @@ routine:
     select
       {partition_col_trunc} as day_field,
       count(1) cnt
-    from {table}
+    from "{schema}"."{table}"
     {where}
     group by {partition_col_trunc}
     order by {partition_col_trunc}
@@ -327,7 +327,7 @@ routine:
     select
       {partition_col_trunc} as trunc_field,
       count(1) cnt
-    from {table}
+    from "{schema}"."{table}"
     {where}
     group by {partition_col_trunc}
     order by {partition_col_trunc}

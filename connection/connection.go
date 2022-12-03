@@ -398,6 +398,9 @@ func (c *Connection) setURL() (err error) {
 		if _, ok := c.Data["authenticator"]; ok {
 			template = template + "&authenticator={authenticator}"
 		}
+		if _, ok := c.Data["passcode"]; ok {
+			template = template + "&passcode={passcode}"
+		}
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:

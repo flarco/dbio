@@ -449,7 +449,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	columns, err := conn.GetColumns(db.schema + ".person")
 	g.AssertNoError(t, err)
 	assert.Len(t, columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "string"}, columns[0].DbType)
+	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "string"}, strings.ToLower(columns[0].DbType))
 
 	// GetPrimaryKeys
 	if !strings.Contains("redshift,bigquery,snowflake,clickhouse", db.name) {
@@ -521,7 +521,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		// select back to assert equality
 		count, err := conn.GetCount(csvTable)
 		g.AssertNoError(t, err)
-		assert.Equal(t, uint64(1000), count)
+		assert.Equal(t, 1000, cast.ToInt(count))
 
 		// err = conn.Commit()
 		g.AssertNoError(t, err)
@@ -540,7 +540,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, sData.Tables, "place_vw")
 	personTable := sData.Tables["person"]
 	assert.Len(t, personTable.Columns, 3)
-	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "character varying(255)", "string"}, personTable.ColumnsMap()["email"].DbType)
+	assert.Contains(t, []string{"text", "varchar(255)", "varchar2", "character varying", "varchar", "text", "string", "character varying(255)", "string"}, strings.ToLower(personTable.ColumnsMap()["email"].DbType))
 	assert.Equal(t, true, sData.Tables["place_vw"].IsView)
 	// assert.EqualValues(t, int64(3), conn.Schemata().Tables[db.schema+".person"].ColumnsMap["email"].Position)
 	if t.Failed() {
@@ -574,7 +574,8 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	assert.Contains(t, []int{2, 3}, cast.ToInt(data.Records()[1]["cnt"]))
 
 	// RunAnalysisField field_stat_deep
-	m = g.M("schema", db.schema, "table", "person")
+	table, _ := ParseTableName(db.schema+".person", conn.GetType())
+	m = g.M("schema", table.Schema, "table", table.Name)
 	data, err = conn.RunAnalysis("field_stat_deep", m)
 	if g.AssertNoError(t, err) {
 		assert.Len(t, data.Rows, 3)
@@ -855,7 +856,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["clickhouse"]}
+	// dbs = []*testDB{DBs["bigquery"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {

@@ -194,7 +194,7 @@ analysis:
       cast(max({field}) as varchar(4000)) as f_max,
       min(length({field})) as f_min_len,
       max(length({field})) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   distro_field_date: |
     -- distro_field_date {field}
@@ -204,13 +204,13 @@ analysis:
           extract(year from {field}) as year,
           extract(month from {field}) as month,
           count(1) cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
         group by extract(year from {field}), extract(month from {field})
         order by extract(year from {field}), extract(month from {field})
       )
       , t2 as (
         select '{field}' as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
       )
       select 
         '{schema}' as schema_nm,
@@ -233,7 +233,7 @@ analysis:
           extract(month from {field}) as month,
           extract(day from {field}) as day,
       {columns_sql}
-    from {schema}.{table}
+    from "{schema}"."{table}"
     {where_clause}
     group by extract(year from {field}), extract(month from {field}), extract(day from {field})
     order by extract(year from {field}), extract(month from {field}), extract(day from {field})

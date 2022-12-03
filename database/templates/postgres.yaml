@@ -205,7 +205,7 @@ metadata:
     from table_ddl
     "
   ddl_view: |
-    SELECT pg_get_viewdef(to_regclass('{schema}.{table}'))::text as ddl
+    SELECT pg_get_viewdef(to_regclass('"{schema}"."{table}"'))::text as ddl
 
   sessions: select *
     from pg_stat_activity
@@ -224,7 +224,7 @@ analysis:
       sum(case when {field}::text ~ '"' then 1 else 0 end) as cnt_dquote, 
       min(length({field}::text)) as f_min_len, 
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat_len: |
     -- field_stat_len {field}
@@ -236,7 +236,7 @@ analysis:
       -- max(length(abs(({field} - round({field},0)))::text)-2) as f_max_dec_len,
       min(length({field}::text)) as f_min_len,
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat_deep: |
     select
@@ -254,7 +254,7 @@ analysis:
       max({field})::text as f_max,
       min(length({field}::text)) as f_min_len,
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   distro_field: |
     with t1 as (
@@ -262,7 +262,7 @@ analysis:
         '{field}'::text as field,
         {field},
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}
       order by count(1) desc
     )
@@ -270,7 +270,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
@@ -290,7 +290,7 @@ analysis:
         {group_expr} as group_exp,
         {field},        
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}, {group_expr}
       order by count(1) desc
     )
@@ -298,7 +298,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
@@ -320,13 +320,13 @@ analysis:
           extract(month from {field}) as month,
           extract(day from {field}) as day,
           count(1) cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
         group by 2, 3, 4
         order by 2, 3, 4
       )
       , t2 as (
         select '{field}'::text as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from "{schema}"."{table}"
       )
       select 
         '{schema}' as schema_nm,

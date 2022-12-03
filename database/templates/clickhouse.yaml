@@ -97,10 +97,10 @@ metadata:
     order by cols.database, cols.table, cols.position
   
   ddl_table:
-    SHOW CREATE TABLE {schema}.{table}
+    SHOW CREATE TABLE `{schema}`.`{table}`
   
   ddl_view: |
-    SHOW CREATE VIEW {schema}.{table}
+    SHOW CREATE VIEW `{schema}`.`{table}`
   
   sessions:
     select *
@@ -121,7 +121,7 @@ analysis:
       sum(case when cast({field} as text) ~ '"' then 1 else 0 end) as cnt_dquote, 
       min(char_length(cast({field} as text))) as f_min_len, 
       max(char_length(cast({field} as text))) as f_max_len
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_stat_len: |
     -- field_stat_len {table}
@@ -133,7 +133,7 @@ analysis:
       count(*) as tot_cnt,
       min(char_length({field})) as f_min_len,
       max(char_length({field})) as f_max_len
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_stat_deep: |
     select
@@ -151,7 +151,7 @@ analysis:
       max({field}) as f_max,
       min(char_length(cast({field} as text))) as f_min_len,
       max(char_length(cast({field} as text))) as f_max_len
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   distro_field: |
     with t1 as (
@@ -159,7 +159,7 @@ analysis:
         '{field}'::text as field,
         {field},
         count(1) cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
       group by {field}
       order by count(1) desc
     )
@@ -167,7 +167,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
     )
     select
       '{table}' as table_nm,
@@ -187,7 +187,7 @@ analysis:
         {group_expr} as group_exp,
         {field},        
         count(1) cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
       group by {field}, {group_expr}
       order by count(1) desc
     )
@@ -195,7 +195,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
     )
     select
       '{table}' as table_nm,
@@ -216,13 +216,13 @@ analysis:
           extract(year from {field}) as year,
           extract(month from {field}) as month,
           count(1) cnt
-        from {schema}.{table}
+        from `{schema}`.`{table}`
         group by extract(year from {field}), extract(month from {field})
         order by extract(year from {field}), extract(month from {field})
       )
       , t2 as (
         select '{field}'::text as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from `{schema}`.`{table}`
       )
       select 
         '{schema}' as schema_nm,

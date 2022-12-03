@@ -5,7 +5,7 @@ core:
   create_index: create index {index} on {table} ({cols})
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
-  truncate_table: create or replace table {table} as select * from {table} limit 0
+  truncate_table: create or replace table {table} as select * from `{schema}`.`{table}` limit 0
   alter_columns: alter table {table} alter column {col_ddls}
   modify_column: '{column} set data type {type}'
   # column_names: select * from ({sql}) as t limit 1
@@ -36,19 +36,19 @@ metadata:
     
   tables: |
     select table_name
-    from {schema}.INFORMATION_SCHEMA.TABLES
+    from `{schema}`.INFORMATION_SCHEMA.TABLES
     where table_type = 'BASE TABLE'
     order by table_name
     
   views: |
     select table_name
-    from {schema}.INFORMATION_SCHEMA.TABLES
+    from `{schema}`.INFORMATION_SCHEMA.TABLES
     where table_type = 'VIEW'
     order by table_name
 
   columns: |
     select column_name, data_type
-    from {schema}.INFORMATION_SCHEMA.COLUMNS
+    from `{schema}`.INFORMATION_SCHEMA.COLUMNS
     where table_name = '{table}'
     order by ordinal_position  
   
@@ -62,7 +62,7 @@ metadata:
           when 'VIEW' then true
           else false
         end as is_view
-      from {schema}.INFORMATION_SCHEMA.TABLES
+      from `{schema}`.INFORMATION_SCHEMA.TABLES
       where table_name = '{table}'
     )
     select
@@ -71,7 +71,7 @@ metadata:
       cols.column_name as column_name,
       cols.data_type as data_type,
       cols.ordinal_position as position
-    from {schema}.INFORMATION_SCHEMA.COLUMNS cols
+    from `{schema}`.INFORMATION_SCHEMA.COLUMNS cols
     join tables
       on tables.table_catalog = cols.table_catalog
       and tables.table_schema = cols.table_schema
@@ -88,7 +88,7 @@ metadata:
           when 'VIEW' then true
           else false
         end as is_view
-      from {schema}.INFORMATION_SCHEMA.TABLES
+      from `{schema}`.INFORMATION_SCHEMA.TABLES
       where 1=1
         {{if .schema -}} and table_schema = '{schema}' {{- end}}
         {{if .table -}} and table_name = '{table}' {{- end}}
@@ -100,7 +100,7 @@ metadata:
       cols.column_name as column_name,
       cols.data_type as data_type,
       cols.ordinal_position as position
-    from {schema}.INFORMATION_SCHEMA.COLUMNS cols
+    from `{schema}`.INFORMATION_SCHEMA.COLUMNS cols
     join tables
       on tables.table_catalog = cols.table_catalog
       and tables.table_schema = cols.table_schema
@@ -123,7 +123,7 @@ analysis:
       '{schema}' as schema_nm,
       '{table}' as table_nm,
       count(*) cnt
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_chars: |
     -- field_chars {field}
@@ -135,16 +135,16 @@ analysis:
       sum(case when regexp_like({field}, '\\t') then 1 else 0 end) as cnt_tab,
       sum(case when regexp_like({field}, ',') then 1 else 0 end) as cnt_comma,
       sum(case when regexp_like({field}, '"') then 1 else 0 end) as cnt_dquote
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_pk_test: |
     -- field_pk_test {field}
     select
-      '{schema}.{table}' as table_nm,
+      '`{schema}`.`{table}`' as table_nm,
       case when count(*) = count(distinct {field}) then 'PASS' else 'FAIL' end as result,
       count(*) as tot_cnt,
       count(distinct {field}) as dstct_cnt
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_stat: |
     -- field_stat {field}
@@ -159,7 +159,7 @@ analysis:
       count(distinct {field}) as f_dstct_cnt,
       round(100.0 * count(distinct {field}) / count(*), 1) as f_dstct_prct,
       count(*) - count(distinct {field}) as f_dup_cnt
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   field_stat_group: |
     -- field_stat_group {field}
@@ -175,7 +175,7 @@ analysis:
       count(distinct {field}) as f_dstct_cnt,
       round(100.0 * count(distinct {field}) / count(*), 1) as f_dstct_prct,
       count(*) - count(distinct {field}) as f_dup_cnt
-    from {schema}.{table}
+    from `{schema}`.`{table}`
     group by {group_expr}
 
   field_stat_len: |
@@ -188,7 +188,7 @@ analysis:
       count(*) as tot_cnt,
       min(length(cast({field} as string))) as f_min_len,
       max(length(cast({field} as string))) as f_max_len
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   
   field_stat_deep: |
@@ -209,14 +209,14 @@ analysis:
       cast(max({field}) as string) as f_max,
       min(length({field})) as f_min_len,
       max(length({field})) as f_max_len
-    from {schema}.{table}
+    from `{schema}`.`{table}`
 
   fill_cnt_group_field: |
     -- fill_cnt_group_field {field}
     select
       {field},
       {columns_sql}
-    from {schema}.{table}
+    from `{schema}`.`{table}`
     group by {field}
     order by {field}
 
@@ -225,7 +225,7 @@ analysis:
     select
       {field},
       {fill_rate_fields_sql}
-    from {schema}.{table}
+    from `{schema}`.`{table}`
     group by {field}
     order by {field}
 
@@ -236,7 +236,7 @@ analysis:
         '{field}' as field,
         {field},
         count(1) cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
       group by {field}
       order by count(1) desc
     )
@@ -244,7 +244,7 @@ analysis:
       select
         '{field}' as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
     )
     select
       '{table}' as table_nm,
@@ -265,7 +265,7 @@ analysis:
         {group_expr} as group_exp,
         {field},        
         count(1) cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
       group by {field}, {group_expr}
       order by count(1) desc
     )
@@ -273,7 +273,7 @@ analysis:
       select
         '{field}' as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from `{schema}`.`{table}`
     )
     select
       '{table}' as table_nm,
@@ -296,13 +296,13 @@ analysis:
           extract(month from {field}) as month,
           extract(day from {field}) as day,
           count(1) cnt
-        from {schema}.{table}
+        from `{schema}`.`{table}`
         group by 2, 3, 4
         order by 2, 3, 4
       )
       , t2 as (
         select '{field}' as field, count(1) ttl_cnt
-        from {schema}.{table}
+        from `{schema}`.`{table}`
       )
       select 
         '{schema}' as schema_nm,
@@ -325,21 +325,21 @@ analysis:
       year({date_field}) as year,
       month({date_field}) as month,
       {columns_sql}
-    from {schema}.{table}
+    from `{schema}`.`{table}`
     {where_clause}
     group by year({date_field}), month({date_field})
     order by year({date_field}), month({date_field})
 
   test_pk: |
     select
-      '{schema}.{table}' as table_nm,
+      '`{schema}`.`{table}`' as table_nm,
       '{fields_exp}' as expression,
       case when count(1) = count(distinct {fields_exp}) then 'PASS' else 'FAIL' end as pk_result,
       count(1) as tot_cnt,
       count(distinct {fields_exp}) as expression_cnt,
       count(1) - count(distinct {fields_exp}) as delta_cnt,
       sum(case when {fields_exp} is null then 1 else 0 end) as null_cnt
-    from {schema}.{table}
+    from `{schema}`.`{table}`
     {where_clause}
 
 routine:
@@ -349,12 +349,12 @@ routine:
       count({field}) as field_cnt,
       min({field}) as min_val,
       max({field}) as max_val
-    from {table}
+    from `{schema}`.`{table}`
 
   number_trunc_min_max: |
     select
       {fields}
-    from {table}
+    from `{schema}`.`{table}`
     where {where}
       (({partition_col_trunc} >= '{min_val}'
       and {partition_col_trunc} <= '{max_val}')
@@ -364,7 +364,7 @@ routine:
     select
       {partition_col_trunc} as day_field,
       count(1) cnt
-    from {table}
+    from `{schema}`.`{table}`
     {where}
     group by {partition_col_trunc}
     order by {partition_col_trunc}
@@ -373,7 +373,7 @@ routine:
     select
       {partition_col_trunc} as trunc_field,
       count(1) cnt
-    from {table}
+    from `{schema}`.`{table}`
     {where}
     group by {partition_col_trunc}
     order by {partition_col_trunc}

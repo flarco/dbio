@@ -404,7 +404,7 @@ metadata:
         and tablename = '{table}'
     
   ddl_view: |
-    SELECT pg_get_viewdef('{schema}.{table}')::text as ddl
+    SELECT pg_get_viewdef('"{schema}"."{table}"')::text as ddl
 
 analysis:
   field_chars: |
@@ -417,7 +417,7 @@ analysis:
       sum(case when {field}::text ~ '"' then 1 else 0 end) as cnt_dquote, 
       min(length({field}::text)) as f_min_len, 
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   field_stat_len: |
     -- field_stat_len {table}
@@ -428,7 +428,7 @@ analysis:
       count(*) as tot_cnt,
       min(length({field}::text)) as f_min_len,
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
   
   field_stat_deep: |
     select
@@ -446,7 +446,7 @@ analysis:
       max({field})::text as f_max,
       min(length({field}::text)) as f_min_len,
       max(length({field}::text)) as f_max_len
-    from {schema}.{table}
+    from "{schema}"."{table}"
 
   distro_field: |
     with t1 as (
@@ -454,7 +454,7 @@ analysis:
         '{field}'::text as field,
         {field},
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}
       order by count(1) desc
     )
@@ -462,7 +462,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
@@ -482,7 +482,7 @@ analysis:
         {group_expr} as group_exp,
         {field},        
         count(1) cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
       group by {field}, {group_expr}
       order by count(1) desc
     )
@@ -490,7 +490,7 @@ analysis:
       select
         '{field}'::text as field,
         count(1) ttl_cnt
-      from {schema}.{table}
+      from "{schema}"."{table}"
     )
     select
       '{table}' as table_nm,
