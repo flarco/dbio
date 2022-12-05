@@ -1334,7 +1334,7 @@ func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.Colu
 		if dbType != "" {
 			g.Warn("using string since type '%s' not mapped for col '%s': %#v", dbType, name, colType)
 		}
-		colType = "string" // default as string
+		colType = iop.StringType // default as string
 	}
 	return
 }

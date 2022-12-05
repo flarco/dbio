@@ -308,27 +308,12 @@ func processBQTypeCols(row []interface{}, bqTC *bQTypeCols, ds *iop.Datastream) 
 // StreamRowsContext streams the rows of a sql query with context, returns `result`, `error`
 func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Columns, bQTC bQTypeCols) {
 	cols = make(iop.Columns, len(itSchema))
-	NativeTypeMap := conn.template.NativeTypeMap
 	for i, field := range itSchema {
-		dbType := strings.ToLower(string(field.Type))
-		dbType = strings.Split(dbType, "<")[0]
-		dbType = strings.Split(dbType, "(")[0]
-
-		var Type iop.ColumnType
-		if matchedType, ok := NativeTypeMap[dbType]; ok {
-			Type = iop.ColumnType(matchedType)
-		} else {
-			if dbType != "" {
-				g.Warn("type '%s' not mapped for col '%s': %#v", dbType, field.Name, field.Type)
-			}
-			Type = iop.StringType // default as string
-		}
-
 		cols[i] = iop.Column{
 			Name:     field.Name,
 			Position: i + 1,
-			Type:     Type,
-			DbType:   dbType,
+			Type:     NativeTypeToGeneral(field.Name, string(field.Type), conn),
+			DbType:   string(field.Type),
 		}
 		if g.In(field.Type, bigquery.NumericFieldType, bigquery.FloatFieldType) {
 			bQTC.numericCols = append(bQTC.numericCols, i)
