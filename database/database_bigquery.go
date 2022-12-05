@@ -483,7 +483,7 @@ func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
 		// https://stackoverflow.com/questions/55904464/big-query-does-now-cast-automatically-long-decimal-values-to-numeric-when-runni
 		iop.DecimalType: bigquery.NumericFieldType,
 		// "decimal":   bigquery.FloatFieldType,
-		iop.TimeType:       bigquery.TimeFieldType,
+		iop.TimeType:       bigquery.StringFieldType,
 		iop.TimestampType:  bigquery.TimestampFieldType,
 		iop.TimestampzType: bigquery.TimestampFieldType,
 	}
