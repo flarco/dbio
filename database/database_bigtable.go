@@ -594,7 +594,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = !strings.Contains(table, noTraceKey)
-	ds.Inferred = InferDBStream
+	// ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
 
 	err = ds.Start()
