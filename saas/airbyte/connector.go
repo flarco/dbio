@@ -21,6 +21,7 @@ import (
 const SourceDefinitionsURL = "https://raw.githubusercontent.com/airbytehq/airbyte/master/airbyte-config/init/src/main/resources/seed/source_definitions.yaml"
 
 // AirbyteFolder is the airbyte folder
+//
 //go:embed *
 var AirbyteFolder embed.FS
 
@@ -102,7 +103,7 @@ func (c *Connector) InitTempDir() (err error) {
 }
 
 func (c *Connector) file(name string) string {
-	return c.tempFolder + "/" + name
+	return path.Join(c.tempFolder, name)
 }
 
 func (c *Connector) Key() string {

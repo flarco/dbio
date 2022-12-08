@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/flarco/dbio"
@@ -480,9 +481,9 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 
 	profileDir := strings.TrimSuffix(os.Getenv("DBT_PROFILES_DIR"), "/")
 	if profileDir == "" {
-		profileDir = g.UserHomeDir() + "/.dbt"
+		profileDir = path.Join(g.UserHomeDir(), ".dbt")
 	}
-	path := profileDir + "/profiles.yml"
+	path := path.Join(profileDir, "profiles.yml")
 	if !g.PathExists(path) {
 		return
 	}

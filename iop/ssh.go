@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ func (s *SSHClient) Connect() (err error) {
 	}
 
 	homeDir := g.UserHomeDir()
-	hostKeyCallback, err := knownhosts.New(homeDir + "/.ssh/known_hosts")
+	hostKeyCallback, err := knownhosts.New(path.Join(homeDir, ".ssh", "known_hosts"))
 	if err != nil {
 		g.Info("could not create hostkeycallback function, using InsecureIgnoreHostKey")
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
