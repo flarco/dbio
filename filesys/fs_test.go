@@ -405,7 +405,7 @@ func TestFileSysSftp(t *testing.T) {
 	root := os.Getenv("SSH_TEST_PASSWD_URL")
 	rootU, err := net.NewURL(root)
 	assert.NoError(t, err)
-	root = strings.ReplaceAll(root, ":"+rootU.Password(), "")
+	root = "sftp://" + rootU.Hostname()
 
 	testString := "abcde"
 	testPath := root + "/tmp/test/test1"
