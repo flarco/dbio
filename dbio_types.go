@@ -100,6 +100,7 @@ func (t Type) DefPort() int {
 		TypeDbSQLServer:  1433,
 		TypeDbAzure:      1433,
 		TypeDbClickhouse: 9000,
+		TypeFileSftp:     22,
 	}
 	return connTypesDefPort[t]
 }

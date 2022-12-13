@@ -138,7 +138,7 @@ func NewFileSysClientFromURLContext(ctx context.Context, url string, props ...st
 		}
 		return NewFileSysClientContext(ctx, dbio.TypeFileS3, props...)
 	case strings.HasPrefix(url, "sftp://"):
-		props = append(props, "SFTP_URL="+url)
+		props = append(props, "URL="+url)
 		return NewFileSysClientContext(ctx, dbio.TypeFileSftp, props...)
 	case strings.HasPrefix(url, "gs://"):
 		return NewFileSysClientContext(ctx, dbio.TypeFileGoogle, props...)

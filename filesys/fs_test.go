@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/flarco/g/net"
 
 	"github.com/flarco/dbio/iop"
 
@@ -397,11 +398,14 @@ func TestFileSysSftp(t *testing.T) {
 	fs, err := NewFileSysClient(
 		dbio.TypeFileSftp,
 		// "SSH_PRIVATE_KEY=/root/.ssh/id_rsa",
-		"SFTP_URL="+os.Getenv("SSH_TEST_PASSWD_URL"),
+		"URL="+os.Getenv("SSH_TEST_PASSWD_URL"),
 	)
 	assert.NoError(t, err)
 
 	root := os.Getenv("SSH_TEST_PASSWD_URL")
+	rootU, err := net.NewURL(root)
+	assert.NoError(t, err)
+	root = strings.ReplaceAll(root, ":"+rootU.Password(), "")
 
 	testString := "abcde"
 	testPath := root + "/tmp/test/test1"

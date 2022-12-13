@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -35,12 +36,19 @@ func (fs *SftpFileSysClient) Init(ctx context.Context) (err error) {
 // Connect initiates the Google Cloud Storage client
 func (fs *SftpFileSysClient) Connect() (err error) {
 
-	if fs.GetProp("SSH_PRIVATE_KEY") == "" {
-		fs.SetProp("SFTP_PRIVATE_KEY", os.Getenv("SSH_PRIVATE_KEY"))
+	if fs.GetProp("PRIVATE_KEY") == "" {
+		if os.Getenv("SSH_PRIVATE_KEY") != "" {
+			fs.SetProp("PRIVATE_KEY", os.Getenv("SSH_PRIVATE_KEY"))
+		} else {
+			defPrivKey := path.Join(g.UserHomeDir(), ".ssh", "id_rsa")
+			if g.PathExists(defPrivKey) {
+				fs.SetProp("PRIVATE_KEY", defPrivKey)
+			}
+		}
 	}
 
-	if fs.GetProp("SFTP_URL") != "" {
-		u, err := url.Parse(fs.GetProp("SFTP_URL"))
+	if fs.GetProp("URL") != "" {
+		u, err := url.Parse(fs.GetProp("URL"))
 		if err != nil {
 			return g.Error(err, "could not parse SFTP URL")
 		}
@@ -54,25 +62,25 @@ func (fs *SftpFileSysClient) Connect() (err error) {
 		}
 
 		if user != "" {
-			fs.SetProp("SFTP_USER", user)
+			fs.SetProp("USER", user)
 		}
 		if password != "" {
-			fs.SetProp("SFTP_PASSWORD", password)
+			fs.SetProp("PASSWORD", password)
 		}
 		if host != "" {
-			fs.SetProp("SFTP_HOST", host)
+			fs.SetProp("HOST", host)
 		}
 		if sshPort != 0 {
-			fs.SetProp("SFTP_PORT", cast.ToString(sshPort))
+			fs.SetProp("PORT", cast.ToString(sshPort))
 		}
 	}
 
 	fs.sshClient = &iop.SSHClient{
-		Host:       fs.GetProp("SFTP_HOST"),
-		Port:       cast.ToInt(fs.GetProp("SFTP_PORT")),
-		User:       fs.GetProp("SFTP_USER"),
-		Password:   fs.GetProp("SFTP_PASSWORD"),
-		PrivateKey: fs.GetProp("SFTP_PRIVATE_KEY"),
+		Host:       fs.GetProp("HOST"),
+		Port:       cast.ToInt(fs.GetProp("PORT")),
+		User:       fs.GetProp("USER"),
+		Password:   fs.GetProp("PASSWORD"),
+		PrivateKey: fs.GetProp("PRIVATE_KEY"), // path to ssh key file
 	}
 
 	err = fs.sshClient.Connect()
@@ -91,19 +99,15 @@ func (fs *SftpFileSysClient) Connect() (err error) {
 func (fs *SftpFileSysClient) getPrefix() string {
 	return g.F(
 		"sftp://%s@%s:%s",
-		fs.GetProp("SFTP_USER"),
-		fs.GetProp("SFTP_HOST"),
-		fs.GetProp("SFTP_PORT"),
+		fs.GetProp("USER"),
+		fs.GetProp("HOST"),
+		fs.GetProp("PORT"),
 	)
 }
 
 func (fs *SftpFileSysClient) cleanKey(key string) string {
-	if strings.HasPrefix(key, "/") {
-		key = key[1:]
-	}
-	if strings.HasSuffix(key, "/") {
-		key = key[:len(key)-1]
-	}
+	key = strings.TrimPrefix(key, "/")
+	key = strings.TrimSuffix(key, "/")
 	return key
 }
 

@@ -317,6 +317,12 @@ func (c *Connection) setURL() (err error) {
 				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
 			}
 		}
+		if c.Type == dbio.TypeFileSftp {
+			setIfMissing("user", U.Username())
+			setIfMissing("host", U.Hostname())
+			setIfMissing("password", U.Password())
+			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+		}
 	}
 
 	template := ""
@@ -415,8 +421,12 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("schema", c.Data["database"])
 		setIfMissing("port", c.Type.DefPort())
 		template = "clickhouse://{username}:{password}@{host}:{port}/{database}"
+	case dbio.TypeFileSftp:
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
+		template = "sftp://{user}:{password}@{host}:{port}/"
 	case dbio.TypeFileS3, dbio.TypeFileGoogle, dbio.TypeFileAzure,
-		dbio.TypeFileLocal, dbio.TypeFileSftp:
+		dbio.TypeFileLocal:
 		return nil
 	default:
 		if c.Type.IsUnknown() {
