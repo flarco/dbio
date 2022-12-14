@@ -221,7 +221,12 @@ func CompareColumns(columns1 Columns, columns2 Columns) (reshape bool, err error
 			// too unpredictable to mark as error? sometimes one column
 			// has not enough data to represent true type. Warn instead
 			// eG.Add(g.Error("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
-			g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
+
+			switch {
+			case g.In(c1.Type, TextType, StringType) && g.In(c2.Type, TextType, StringType):
+			default:
+				g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
+			}
 		}
 	}
 	return reshape, eG.Err()
