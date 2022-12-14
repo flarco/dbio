@@ -18,7 +18,7 @@ we have tables and where have no info on primary keys.
 - get columns
 - get a sample, and iterate on each row. do
 select
-	count(1) tot_cnt,
+	count(*) tot_cnt,
 	count({field}) {field}_cnt,
 	count({field}) {field}_distct_cnt,
 	min,
@@ -122,8 +122,8 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 
 	fieldAsString := da.Conn.Template().Function["cast_to_string"]
 	var statsFields = []StatFieldSQL{
-		{"total_cnt", `count(1)`},
-		{"null_cnt", `count(1) - count({field})`},
+		{"total_cnt", `count(*)`},
+		{"null_cnt", `count(*) - count({field})`},
 		{"uniq_cnt", `count(distinct {field})`},
 		{"min_len", g.F(`min(length(%s))`, fieldAsString)},
 		{"max_len", g.F(`max(length(%s))`, fieldAsString)},

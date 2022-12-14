@@ -235,15 +235,15 @@ analysis:
       select
         '{field}' as field,
         {field},
-        count(1) cnt
+        count(*) cnt
       from `{schema}`.`{table}`
       group by {field}
-      order by count(1) desc
+      order by count(*) desc
     )
     , t2 as (
       select
         '{field}' as field,
-        count(1) ttl_cnt
+        count(*) ttl_cnt
       from `{schema}`.`{table}`
     )
     select
@@ -264,15 +264,15 @@ analysis:
         '{field}' as field,
         {group_expr} as group_exp,
         {field},        
-        count(1) cnt
+        count(*) cnt
       from `{schema}`.`{table}`
       group by {field}, {group_expr}
-      order by count(1) desc
+      order by count(*) desc
     )
     , t2 as (
       select
         '{field}' as field,
-        count(1) ttl_cnt
+        count(*) ttl_cnt
       from `{schema}`.`{table}`
     )
     select
@@ -295,13 +295,13 @@ analysis:
           extract(year from {field}) as year,
           extract(month from {field}) as month,
           extract(day from {field}) as day,
-          count(1) cnt
+          count(*) cnt
         from `{schema}`.`{table}`
         group by 2, 3, 4
         order by 2, 3, 4
       )
       , t2 as (
-        select '{field}' as field, count(1) ttl_cnt
+        select '{field}' as field, count(*) ttl_cnt
         from `{schema}`.`{table}`
       )
       select 
@@ -334,10 +334,10 @@ analysis:
     select
       '`{schema}`.`{table}`' as table_nm,
       '{fields_exp}' as expression,
-      case when count(1) = count(distinct {fields_exp}) then 'PASS' else 'FAIL' end as pk_result,
-      count(1) as tot_cnt,
+      case when count(*) = count(distinct {fields_exp}) then 'PASS' else 'FAIL' end as pk_result,
+      count(*) as tot_cnt,
       count(distinct {fields_exp}) as expression_cnt,
-      count(1) - count(distinct {fields_exp}) as delta_cnt,
+      count(*) - count(distinct {fields_exp}) as delta_cnt,
       sum(case when {fields_exp} is null then 1 else 0 end) as null_cnt
     from `{schema}`.`{table}`
     {where_clause}
@@ -345,7 +345,7 @@ analysis:
 routine:
   number_min_max: |
     select
-      count(1) as tot_cnt,
+      count(*) as tot_cnt,
       count({field}) as field_cnt,
       min({field}) as min_val,
       max({field}) as max_val
@@ -363,7 +363,7 @@ routine:
   date_trunc_uniques: |
     select
       {partition_col_trunc} as day_field,
-      count(1) cnt
+      count(*) cnt
     from `{schema}`.`{table}`
     {where}
     group by {partition_col_trunc}
@@ -372,7 +372,7 @@ routine:
   number_trunc_uniques: |
     select
       {partition_col_trunc} as trunc_field,
-      count(1) cnt
+      count(*) cnt
     from `{schema}`.`{table}`
     {where}
     group by {partition_col_trunc}
@@ -384,7 +384,7 @@ function:
   string_type: string
   cast_to_string: cast({field} as string)
   fill_cnt_field: count({field}) as cnt_{field}
-  fill_rate_field: round(100.0 * count({field}) / count(1), 2) as prct_{field}
+  fill_rate_field: round(100.0 * count({field}) / count(*), 2) as prct_{field}
   checksum_datetime: unix_micros({field})
   checksum_boolean: 'length(cast({field} as string))'
   checksum_json: "length(replace(nullif(to_json_string({field}), 'null'), ' ', ''))"

@@ -1215,7 +1215,7 @@ func (conn *BaseConn) SumbitTemplate(level string, templateMap map[string]string
 
 // GetCount returns count of records
 func (conn *BaseConn) GetCount(tableFName string) (uint64, error) {
-	sql := fmt.Sprintf(`select count(1) cnt from %s`, tableFName)
+	sql := fmt.Sprintf(`select count(*) cnt from %s`, tableFName)
 	data, err := conn.Self().Query(sql)
 	if err != nil {
 		return 0, err

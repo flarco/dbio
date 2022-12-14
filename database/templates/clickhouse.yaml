@@ -158,15 +158,15 @@ analysis:
       select
         '{field}'::text as field,
         {field},
-        count(1) cnt
+        count(*) cnt
       from `{schema}`.`{table}`
       group by {field}
-      order by count(1) desc
+      order by count(*) desc
     )
     , t2 as (
       select
         '{field}'::text as field,
-        count(1) ttl_cnt
+        count(*) ttl_cnt
       from `{schema}`.`{table}`
     )
     select
@@ -186,15 +186,15 @@ analysis:
         '{field}'::text as field,
         {group_expr} as group_exp,
         {field},        
-        count(1) cnt
+        count(*) cnt
       from `{schema}`.`{table}`
       group by {field}, {group_expr}
-      order by count(1) desc
+      order by count(*) desc
     )
     , t2 as (
       select
         '{field}'::text as field,
-        count(1) ttl_cnt
+        count(*) ttl_cnt
       from `{schema}`.`{table}`
     )
     select
@@ -215,13 +215,13 @@ analysis:
           '{field}'::text as field,
           extract(year from {field}) as year,
           extract(month from {field}) as month,
-          count(1) cnt
+          count(*) cnt
         from `{schema}`.`{table}`
         group by extract(year from {field}), extract(month from {field})
         order by extract(year from {field}), extract(month from {field})
       )
       , t2 as (
-        select '{field}'::text as field, count(1) ttl_cnt
+        select '{field}'::text as field, count(*) ttl_cnt
         from `{schema}`.`{table}`
       )
       select 

@@ -105,7 +105,7 @@ func TestBatchInsertClickhouse(t *testing.T) {
 	assert.NoError(t, err)
 
 	rows, err := conn.Query(`
-		select count(1) cnt, sum(Col1) total from example
+		select count(*) cnt, sum(Col1) total from example
 	`)
 	assert.NoError(t, err)
 
