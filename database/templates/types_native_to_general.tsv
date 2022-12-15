@@ -257,7 +257,9 @@ sqlite	null	text	col_null null	TRUE	TRUE
 sqlite	real	decimal	col_real real	TRUE	TRUE	
 sqlite	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 sqlite	date	datetime	col_date date	TRUE	TRUE	
+sqlite	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 sqlite	text	text	col_text text	TRUE	TRUE	
+sqlite	json	json	col_json json	TRUE	TRUE	
 sqlserver	bigint	bigint	col_bigint bigint	TRUE	TRUE	
 sqlserver	binary	binary	col_binary binary(100)	TRUE	FALSE	
 sqlserver	bit	smallint	col_bit bit	FALSE	FALSE	

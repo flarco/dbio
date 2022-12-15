@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/flarco/g"
+	"github.com/flarco/g/net"
 	"github.com/spf13/cast"
 )
 
@@ -469,5 +471,28 @@ func (fs *S3FileSysClient) doList(svc *s3.S3, input *s3.ListObjectsV2Input, urlP
 	sort.Strings(prefixes)
 	sort.Strings(paths)
 	paths = append(prefixes, paths...)
+	return
+}
+
+func (fs *S3FileSysClient) GenerateS3PreSignedURL(s3URL string, dur time.Duration) (httpURL string, err error) {
+
+	s3U, err := net.NewURL(s3URL)
+	if err != nil {
+		err = g.Error(err, "Could not parse s3 url")
+		return
+	}
+
+	svc := s3.New(fs.getSession())
+	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(s3U.Hostname()),
+		Key:    aws.String(strings.TrimPrefix(s3U.Path(), "/")),
+	})
+
+	httpURL, err = req.Presign(dur)
+	if err != nil {
+		err = g.Error(err, "Could not request pre-signed s3 url")
+		return
+	}
+
 	return
 }

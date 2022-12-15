@@ -7,12 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/flarco/dbio"
-	"github.com/flarco/g/net"
+	"github.com/flarco/dbio/filesys"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
@@ -118,11 +114,10 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 
 func (conn *SQLiteConn) setHttpURL() (err error) {
 
-	// handle S3 url
-	s3URL := conn.GetProp("s3_url")
 	httpURL := conn.GetProp("http_url")
 
-	if s3URL != "" && httpURL == "" {
+	// handle S3 url
+	if strings.HasPrefix(httpURL, "s3://") {
 
 		expireDur := time.Minute
 		if val := conn.GetProp("pre_signed_duration"); val != "" {
@@ -131,7 +126,18 @@ func (conn *SQLiteConn) setHttpURL() (err error) {
 		}
 
 		// need to generate pre-signed URL
-		httpURL, err = generateS3PreSignedURL(s3URL, conn.GetProp("aws_access_key_id"), conn.GetProp("aws_secret_access_key"), expireDur)
+		props := g.MapToKVArr(conn.Props())
+		fs, err := filesys.NewFileSysClientFromURL(httpURL, props...)
+		if err != nil {
+			return g.Error(err, "could not connect to s3 bucket")
+		}
+
+		s3Fs, ok := fs.(*filesys.S3FileSysClient)
+		if !ok {
+			return g.Error("Could not convert to S3FileSysClient")
+		}
+
+		httpURL, err = s3Fs.GenerateS3PreSignedURL(httpURL, expireDur)
 		if err != nil {
 			return g.Error(err, "could not create Pre-Signed HTTP URL for s3 file")
 		}
@@ -181,47 +187,4 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return tr.RoundTrip(req)
-}
-
-func generateS3PreSignedURL(s3URL, accessKey, secretKey string, dur time.Duration) (httpURL string, err error) {
-	if accessKey == "" || secretKey == "" {
-		return "", g.Error("Must provide AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY")
-	}
-
-	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(
-			accessKey,
-			secretKey,
-			"",
-		),
-		Region:                         aws.String("us-east-1"),
-		S3ForcePathStyle:               aws.Bool(true),
-		DisableRestProtocolURICleaning: aws.Bool(true),
-		Endpoint:                       aws.String(""),
-		// LogLevel: aws.LogLevel(aws.LogDebugWithHTTPBody),
-	})
-	if err != nil {
-		err = g.Error(err, "Could not create AWS session")
-		return
-	}
-
-	s3U, err := net.NewURL(s3URL)
-	if err != nil {
-		err = g.Error(err, "Could not parse s3 url")
-		return
-	}
-
-	svc := s3.New(sess)
-	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(s3U.Hostname()),
-		Key:    aws.String(strings.TrimPrefix(s3U.Path(), "/")),
-	})
-
-	httpURL, err = req.Presign(dur)
-	if err != nil {
-		err = g.Error(err, "Could not request pre-signed s3 url")
-		return
-	}
-
-	return
 }
