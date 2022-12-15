@@ -409,10 +409,14 @@ func (c *Connection) setURL() (err error) {
 			template = template + "&passcode={passcode}"
 		}
 	case dbio.TypeDbSQLite:
-		template = "sqlite:///{database}"
-		if _, ok := c.Data["http_url"]; ok {
-			setIfMissing("database", ".db")
+		if val, ok := c.Data["database"]; ok {
+			dbURL, err := net.NewURL(cast.ToString(val))
+			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
+				setIfMissing("http_url", dbURL.String())
+				c.Data["database"] = dbURL.Path()
+			}
 		}
+		template = "sqlite://{database}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
