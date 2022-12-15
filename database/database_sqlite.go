@@ -137,6 +137,14 @@ func (conn *SQLiteConn) setHttpURL() (err error) {
 			return g.Error("Could not convert to S3FileSysClient")
 		}
 
+		// check access
+		paths, err := s3Fs.List(httpURL)
+		if err != nil {
+			return g.Error(err, "could not access s3 files")
+		} else if len(paths) == 0 {
+			return g.Error("Did not find any files with URL provided")
+		}
+
 		httpURL, err = s3Fs.GenerateS3PreSignedURL(httpURL, expireDur)
 		if err != nil {
 			return g.Error(err, "could not create Pre-Signed HTTP URL for s3 file")
