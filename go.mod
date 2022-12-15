@@ -28,9 +28,11 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/compress v1.15.11
 	github.com/lib/pq v1.10.2
-	github.com/mattn/go-sqlite3 v1.14.5
+	github.com/mattn/go-sqlite3 v1.14.8
 	github.com/nqd/flat v0.1.1
 	github.com/pkg/sftp v1.12.0
+	github.com/psanford/sqlite3vfs v0.0.0-20220823065410-bd28ac7ee3c2
+	github.com/psanford/sqlite3vfshttp v0.0.0-20220827153928-a19f096e6eb4
 	github.com/samber/lo v1.25.0
 	github.com/snowflakedb/gosnowflake v1.6.15
 	github.com/spf13/cast v1.5.0
