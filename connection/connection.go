@@ -410,6 +410,9 @@ func (c *Connection) setURL() (err error) {
 		}
 	case dbio.TypeDbSQLite:
 		template = "sqlite:///{database}"
+		if _, ok := c.Data["s3_url"]; ok {
+			setIfMissing("database", ".db")
+		}
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")

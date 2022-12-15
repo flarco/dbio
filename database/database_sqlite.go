@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
 
@@ -122,8 +123,15 @@ func (conn *SQLiteConn) setHttpURL() (err error) {
 	httpURL := conn.GetProp("http_url")
 
 	if s3URL != "" && httpURL == "" {
+
+		expireDur := time.Minute
+		if val := conn.GetProp("pre_signed_duration"); val != "" {
+			mins := cast.ToInt64(val)
+			expireDur = time.Duration(mins) * time.Minute
+		}
+
 		// need to generate pre-signed URL
-		httpURL, err = generateS3PreSignedURL(s3URL, conn.GetProp("aws_access_key_id"), conn.GetProp("aws_secret_access_key"))
+		httpURL, err = generateS3PreSignedURL(s3URL, conn.GetProp("aws_access_key_id"), conn.GetProp("aws_secret_access_key"), expireDur)
 		if err != nil {
 			return g.Error(err, "could not create Pre-Signed HTTP URL for s3 file")
 		}
@@ -175,7 +183,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return tr.RoundTrip(req)
 }
 
-func generateS3PreSignedURL(s3URL, accessKey, secretKey string) (httpURL string, err error) {
+func generateS3PreSignedURL(s3URL, accessKey, secretKey string, dur time.Duration) (httpURL string, err error) {
 	if accessKey == "" || secretKey == "" {
 		return "", g.Error("Must provide AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY")
 	}
@@ -209,7 +217,7 @@ func generateS3PreSignedURL(s3URL, accessKey, secretKey string) (httpURL string,
 		Key:    aws.String(strings.TrimPrefix(s3U.Path(), "/")),
 	})
 
-	httpURL, err = req.Presign(time.Minute)
+	httpURL, err = req.Presign(dur)
 	if err != nil {
 		err = g.Error(err, "Could not request pre-signed s3 url")
 		return
