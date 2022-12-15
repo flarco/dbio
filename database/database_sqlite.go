@@ -1,5 +1,5 @@
-//go:build !linux
-// +build !linux
+//go:build ignore
+// +build ignore
 
 package database
 
@@ -43,10 +43,6 @@ func (conn *SQLiteConn) GetURL(newURL ...string) string {
 		"sqlite://",
 		"file:",
 	)
-
-	if httpURL := conn.GetProp("http_url"); httpURL != "" {
-		URL = URL + "?vfs=httpvfs&mode=ro"
-	}
 
 	return URL
 }

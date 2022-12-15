@@ -1,10 +1,6 @@
-//go:build linux
-// +build linux
-
 package database
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,29 +37,8 @@ func (conn *SQLiteConn) Init() error {
 	conn.BaseConn.instance = &instance
 
 	// handle S3 url
-	s3URL := conn.GetProp("s3_url")
-	httpURL := conn.GetProp("http_url")
-
-	if s3URL != "" && httpURL == "" {
-		// need to generate pre-signed URL
-		httpURL, err := generateS3PreSignedURL(s3URL, conn.GetProp("aws_access_key_id"), conn.GetProp("aws_secret_access_key"))
-		if err != nil {
-			return g.Error(err, "could not create Pre-Signed HTTP URL for s3 file")
-		}
-		conn.SetProp("http_url", httpURL)
-
-		vfs := sqlite3vfshttp.HttpVFS{
-			URL: httpURL,
-			RoundTripper: &roundTripper{
-				referer:   os.Getenv("DBIO_APP"),
-				userAgent: os.Getenv("DBIO_APP"),
-			},
-		}
-
-		err = sqlite3vfs.RegisterVFS("httpvfs", &vfs)
-		if err != nil {
-			return g.Error(err, "register vfs err")
-		}
+	if err := conn.setHttpURL(); err != nil {
+		return g.Error(err, "could not set http url")
 	}
 
 	return conn.BaseConn.Init()
@@ -138,6 +113,39 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 	)
 
 	return
+}
+
+func (conn *SQLiteConn) setHttpURL() (err error) {
+
+	// handle S3 url
+	s3URL := conn.GetProp("s3_url")
+	httpURL := conn.GetProp("http_url")
+
+	if s3URL != "" && httpURL == "" {
+		// need to generate pre-signed URL
+		httpURL, err = generateS3PreSignedURL(s3URL, conn.GetProp("aws_access_key_id"), conn.GetProp("aws_secret_access_key"))
+		if err != nil {
+			return g.Error(err, "could not create Pre-Signed HTTP URL for s3 file")
+		}
+		conn.SetProp("http_url", httpURL)
+	}
+
+	if httpURL != "" {
+		vfs := sqlite3vfshttp.HttpVFS{
+			URL: httpURL,
+			RoundTripper: &roundTripper{
+				referer:   os.Getenv("DBIO_APP"),
+				userAgent: os.Getenv("DBIO_APP"),
+			},
+		}
+
+		err = sqlite3vfs.RegisterVFS("httpvfs", &vfs)
+		if err != nil {
+			return g.Error(err, "register vfs err")
+		}
+	}
+
+	return nil
 }
 
 type roundTripper struct {
