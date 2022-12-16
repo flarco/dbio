@@ -477,7 +477,7 @@ loop:
 			ds.Metadata.LoadedAt.Key = ensureName(ds.Metadata.LoadedAt.Key)
 			col := Column{
 				Name:     ds.Metadata.LoadedAt.Key,
-				Type:     BigIntType,
+				Type:     IntegerType,
 				Position: len(ds.Columns) + 1,
 			}
 			ds.Columns = append(ds.Columns, col)
