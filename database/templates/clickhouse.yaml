@@ -81,7 +81,7 @@ metadata:
       from system.tables
       where 1=1
         {{if .schema -}} and database = '{schema}' {{- end}}
-        {{if .table -}} and name = '{table}' {{- end}}
+        {{if .tables -}} and name in ({tables}) {{- end}}
     )
     select
       cols.database as schema_name,

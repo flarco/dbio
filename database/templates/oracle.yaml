@@ -159,7 +159,7 @@ metadata:
       and views.view_name = col.table_name
     where 1=1
       {{if .schema -}} and col.owner = '{schema}' {{- end}}
-      {{if .table -}} and table_name = '{table}' {{- end}}
+      {{if .tables -}} and table_name in ({tables}) {{- end}}
     order by col.owner, col.table_name, col.column_id
   
   sessions:

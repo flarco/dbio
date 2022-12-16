@@ -327,3 +327,128 @@ func GetQualifierQuote(dialect dbio.Type) string {
 	}
 	return quote
 }
+
+// GetTablesSchemata obtains the schemata for specified tables
+func GetTablesSchemata(conn Connection, tableNames ...string) (schemata Schemata, err error) {
+	schemata = Schemata{Databases: map[string]Database{}}
+
+	schemaTableGroups := map[string][]Table{}
+	for _, tableName := range tableNames {
+		table, err := ParseTableName(tableName, conn.GetType())
+		if err != nil {
+			return schemata, g.Error(err, "could not parse table: %s", tableName)
+		}
+		if arr, ok := schemaTableGroups[table.Schema]; ok {
+			schemaTableGroups[table.Schema] = append(arr, table)
+		} else {
+			schemaTableGroups[table.Schema] = []Table{table}
+		}
+	}
+
+	getSchemata := func(schema string, tables []Table) {
+		defer conn.Context().Wg.Read.Done()
+
+		// pull down schemata
+		names := lo.Map(tables, func(t Table, i int) string { return t.Name })
+		newSchemata, err := conn.GetSchemata(schema, names...)
+		if err != nil {
+			g.Warn("could not obtain schemata for schema: %s. %s", schema, err)
+			return
+		}
+
+		// merge all schematas
+		database := schemata.Database()
+		schemas := database.Schemas
+		if len(schemas) == 0 {
+			schemas = map[string]Schema{}
+		}
+
+		for name, schema := range newSchemata.Database().Schemas {
+			g.Debug(
+				"   collected %d columns, in %d tables/views from schema %s",
+				len(schema.Columns()),
+				len(schema.Tables),
+				schema.Name,
+			)
+			schemas[name] = schema
+		}
+		database.Schemas = schemas
+		schemata.Databases[strings.ToLower(schemata.Database().Name)] = database
+	}
+
+	// loop an connect to each
+	for schema, tables := range schemaTableGroups {
+		conn.Context().Wg.Read.Add()
+		go getSchemata(schema, tables)
+	}
+
+	conn.Context().Wg.Read.Wait()
+
+	return schemata, nil
+}
+
+// GetSchemataAll obtains the schemata for all databases detected
+func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
+	schemata = Schemata{Databases: map[string]Database{}}
+
+	connInfo := conn.Info()
+
+	// get all databases
+	data, err := conn.GetDatabases()
+	if err != nil {
+		err = g.Error(err, "could not obtain list of databases")
+		return
+	}
+	dbNames := data.ColValuesStr(0)
+
+	getSchemata := func(dbName string) {
+		defer conn.Context().Wg.Read.Done()
+
+		// create new connection for database
+		g.Debug("getting schemata for database: %s", dbName)
+
+		// remove schema if specified
+		connInfo.URL.PopParam("schema")
+
+		// replace database with new one
+		connURL := strings.ReplaceAll(
+			connInfo.URL.String(),
+			"/"+connInfo.Database,
+			"/"+dbName,
+		)
+
+		newConn, err := NewConn(connURL)
+		if err != nil {
+			g.Warn("could not connect using database %s. %s", dbName, err)
+			return
+		}
+
+		// pull down schemata
+		newSchemata, err := newConn.GetSchemata("", "")
+		if err != nil {
+			g.Warn("could not obtain schemata for database: %s. %s", dbName, err)
+			return
+		}
+
+		// merge all schematas
+		for name, database := range newSchemata.Databases {
+			g.Debug(
+				"   collected %d columns, in %d tables/views from database %s",
+				len(database.Columns()),
+				len(database.Tables()),
+				database.Name,
+			)
+			schemata.Databases[name] = database
+		}
+	}
+
+	// loop an connect to each
+	for _, dbName := range dbNames {
+		conn.Context().Wg.Read.Add()
+		go getSchemata(dbName)
+	}
+
+	conn.Context().Wg.Read.Wait()
+
+	return schemata, nil
+}

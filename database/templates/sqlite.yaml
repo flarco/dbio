@@ -75,6 +75,8 @@ metadata:
     left join sqlite_master as sm2
       on sm2.name = sm.name
       and sm2.type = 'view'
+    where 1=1
+    {{if .tables -}} and sm.name in ({tables}) {{- end}}
     order by sm.name, pti.cid
   
   ddl_table: |

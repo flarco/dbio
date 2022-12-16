@@ -141,7 +141,7 @@ metadata:
       from information_schema.tables
       where 1=1
         {{if .schema -}} and table_schema = '{schema}' {{- end}}
-        {{if .table -}} and table_name = '{table}' {{- end}}
+        {{if .tables -}} and table_name in ({tables}) {{- end}}
     )
     select
       cols.table_schema as schema_name,

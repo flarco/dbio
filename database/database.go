@@ -91,7 +91,7 @@ type Connection interface {
 	GetNativeType(col iop.Column) (nativeType string, err error)
 	GetPrimaryKeys(string) (iop.Dataset, error)
 	GetProp(string) string
-	GetSchemata(schemaName, tableName string) (Schemata, error)
+	GetSchemata(schemaName string, tableNames ...string) (Schemata, error)
 	CurrentDatabase() (string, error)
 	GetDatabases() (iop.Dataset, error)
 	GetSchemas() (iop.Dataset, error)
@@ -1648,7 +1648,7 @@ func (conn *BaseConn) Import(data iop.Dataset, tableName string) error {
 }
 
 // GetSchemata obtain full schemata info for a schema and/or table in current database
-func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error) {
+func (conn *BaseConn) GetSchemata(schemaName string, tableNames ...string) (Schemata, error) {
 
 	schemata := Schemata{
 		Databases: map[string]Database{},
@@ -1659,8 +1659,9 @@ func (conn *BaseConn) GetSchemata(schemaName, tableName string) (Schemata, error
 	if schemaName != "" {
 		values["schema"] = schemaName
 	}
-	if tableName != "" {
-		values["table"] = tableName
+	if len(tableNames) > 0 {
+		tablesQ := lo.Map(tableNames, func(t string, i int) string { return `'` + t + `'` })
+		values["tables"] = strings.Join(tablesQ, ", ")
 	}
 
 	currDbData, err := conn.SumbitTemplate("single", conn.template.Metadata, "current_database", g.M())
@@ -3117,72 +3118,6 @@ func ParseSQLMultiStatements(sql string) (sqls g.Strings) {
 	}
 
 	return
-}
-
-// GetSchemataAll obtains the schemata for all databases detected
-func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
-	schemata = Schemata{Databases: map[string]Database{}}
-
-	connInfo := conn.Info()
-
-	// get all databases
-	data, err := conn.GetDatabases()
-	if err != nil {
-		err = g.Error(err, "could not obtain list of databases")
-		return
-	}
-	dbNames := data.ColValuesStr(0)
-
-	getSchemata := func(dbName string) {
-		defer conn.Context().Wg.Read.Done()
-
-		// create new connection for database
-		g.Debug("getting schemata for database: %s", dbName)
-
-		// remove schema if specified
-		connInfo.URL.PopParam("schema")
-
-		// replace database with new one
-		connURL := strings.ReplaceAll(
-			connInfo.URL.String(),
-			"/"+connInfo.Database,
-			"/"+dbName,
-		)
-
-		newConn, err := NewConn(connURL)
-		if err != nil {
-			g.Warn("could not connect using database %s. %s", dbName, err)
-			return
-		}
-
-		// pull down schemata
-		newSchemata, err := newConn.GetSchemata("", "")
-		if err != nil {
-			g.Warn("could not obtain schemata for database: %s. %s", dbName, err)
-			return
-		}
-
-		// merge all schematas
-		for name, database := range newSchemata.Databases {
-			g.Debug(
-				"   collected %d columns, in %d tables/views from database %s",
-				len(database.Columns()),
-				len(database.Tables()),
-				database.Name,
-			)
-			schemata.Databases[name] = database
-		}
-	}
-
-	// loop an connect to each
-	for _, dbName := range dbNames {
-		conn.Context().Wg.Read.Add()
-		go getSchemata(dbName)
-	}
-
-	conn.Context().Wg.Read.Wait()
-
-	return schemata, nil
 }
 
 // GenerateDDL genrate a DDL based on a dataset

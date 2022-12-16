@@ -17,6 +17,7 @@ import (
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/g/net"
+	"github.com/samber/lo"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
@@ -980,7 +981,7 @@ func (conn *BigQueryConn) GetSchemas() (iop.Dataset, error) {
 }
 
 // GetSchemata obtain full schemata info for a schema and/or table in current database
-func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, error) {
+func (conn *BigQueryConn) GetSchemata(schemaName string, tableNames ...string) (Schemata, error) {
 
 	schemata := Schemata{
 		Databases: map[string]Database{},
@@ -1091,8 +1092,9 @@ func (conn *BigQueryConn) GetSchemata(schemaName, tableName string) (Schemata, e
 	for _, dataset := range datasets {
 		g.Debug("getting schemata for %s", dataset)
 		values := g.M("schema", dataset)
-		if tableName != "" {
-			values["table"] = tableName
+		if len(tableNames) > 0 {
+			tablesQ := lo.Map(tableNames, func(t string, i int) string { return `'` + t + `'` })
+			values["tables"] = strings.Join(tablesQ, ", ")
 		}
 
 		ctx.Wg.Read.Add()

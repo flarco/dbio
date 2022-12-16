@@ -151,7 +151,7 @@ metadata:
       and not a.attisdropped
       and t.relkind in ('r', 'v', 'm', 'f')
       {{if .schema -}} and s.nspname = '{schema}' {{- end}}
-      {{if .table -}} and t.relnam = '{table}' {{- end}}
+      {{if .tables -}} and t.relname in ({tables}) {{- end}}
     order by s.nspname, t.relname, a.attnum
   
   row_count_estimates: |
