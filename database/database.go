@@ -1659,9 +1659,17 @@ func (conn *BaseConn) GetSchemata(schemaName string, tableNames ...string) (Sche
 	if schemaName != "" {
 		values["schema"] = schemaName
 	}
-	if len(tableNames) > 0 {
-		tablesQ := lo.Map(tableNames, func(t string, i int) string { return `'` + t + `'` })
-		values["tables"] = strings.Join(tablesQ, ", ")
+	if len(tableNames) > 0 && (tableNames[0] == "" && len(tableNames) == 1) {
+		tablesQ := []string{}
+		for _, tableName := range tableNames {
+			if strings.TrimSpace(tableName) == "" {
+				continue
+			}
+			tablesQ = append(tablesQ, `'`+tableName+`'`)
+		}
+		if len(tablesQ) > 0 {
+			values["tables"] = strings.Join(tablesQ, ", ")
+		}
 	}
 
 	currDbData, err := conn.SumbitTemplate("single", conn.template.Metadata, "current_database", g.M())
