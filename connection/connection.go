@@ -144,8 +144,12 @@ func NewConnectionFromProfiles(name string) (c Connection, err error) {
 
 // Info returns connection information
 func (c *Connection) Info() Info {
+	name := c.Name
+	if strings.Contains(name, "://") {
+		name = strings.Split(name, "://")[0] + "://" // avoid leaking sensitive info
+	}
 	return Info{
-		Name:     c.Name,
+		Name:     name,
 		Type:     c.Type,
 		LongType: c.Type.NameLong(),
 		Database: c.DataS(true)["database"],
