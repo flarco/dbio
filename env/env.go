@@ -1,63 +1,162 @@
 package env
 
 import (
+	"embed"
+	"io/ioutil"
 	"os"
+	"path"
+	"sort"
+	"strings"
+
+	"github.com/flarco/g"
+	"github.com/samber/lo"
+	"github.com/spf13/cast"
+	"gopkg.in/yaml.v2"
 )
 
-var envVars = []string{
-	"PARALLEL", "CONCURRENCY", "USE_BUFFERED_STREAM", "CONCURENCY_LIMIT",
+var (
+	Env      = &EnvFile{}
+	HomeDirs = map[string]string{}
+)
 
-	"BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN", "ENDPOINT", "REGION",
+//go:embed *
+var EnvFolder embed.FS
 
-	"AWS_BUCKET", "AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_ENDPOINT", "AWS_REGION",
-
-	"COMPRESSION", "FILE_MAX_ROWS", "SAMPLE_SIZE",
-
-	"KEY_FILE", "KEY_BODY", "CRED_API_KEY",
-
-	"GC_BUCKET", "GOOGLE_APPLICATION_CREDENTIALS", "GSHEETS_CRED_FILE",
-	"GC_KEY_BODY", "GC_CRED_API_KEY",
-
-	"ACCOUNT", "CONTAINER", "SAS_SVC_URL", "CONN_STR",
-
-	"AZURE_ACCOUNT", "AZURE_KEY", "AZURE_CONTAINER", "AZURE_SAS_SVC_URL",
-	"AZURE_CONN_STR",
-
-	"SSH_TUNNEL", "SSH_PRIVATE_KEY", "SSH_PUBLIC_KEY",
-
-	"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM_EMAIL", "SMTP_REPLY_EMAIL",
-
-	"HTTP_USER", "HTTP_PASSWORD", "GSHEET_CLIENT_JSON_BODY",
-	"GSHEET_SHEET_NAME", "GSHEET_MODE",
-
-	"DIGITALOCEAN_ACCESS_TOKEN", "GITHUB_ACCESS_TOKEN",
-	"SURVEYMONKEY_ACCESS_TOKEN",
-
-	"SEND_ANON_USAGE", "DBIO_HOME",
+type EnvFile struct {
+	Connections map[string]map[string]interface{} `json:"connections,omitempty" yaml:"connections,omitempty"`
+	Variables   map[string]interface{}            `json:"variables,omitempty" yaml:"variables,omitempty"`
 }
 
-// Vars are the variables we are using
-func Vars() (vars map[string]string) {
-	vars = map[string]string{}
-	// get default from environment
-	for _, k := range envVars {
-		val := os.Getenv(k)
-		if vars[k] == "" && val != "" {
-			vars[k] = val
+func SetHomeDir(name string) string {
+	envKey := strings.ToUpper(name) + "_HOME_DIR"
+	dir := os.Getenv(envKey)
+	if dir == "" {
+		dir = path.Join(g.UserHomeDir(), "."+name)
+		os.Setenv(envKey, dir)
+	}
+	HomeDirs[name] = dir
+	return dir
+}
+
+func WriteEnvFile(path string, ef EnvFile) (err error) {
+	connsMap := yaml.MapSlice{}
+
+	// order connections names
+	names := lo.Keys(ef.Connections)
+	sort.Strings(names)
+	for _, name := range names {
+		keyMap := ef.Connections[name]
+		// order connection keys (type first)
+		cMap := yaml.MapSlice{}
+		keys := lo.Keys(keyMap)
+		sort.Strings(keys)
+		if v, ok := keyMap["type"]; ok {
+			cMap = append(cMap, yaml.MapItem{Key: "type", Value: v})
 		}
+
+		for _, k := range keys {
+			if k == "type" {
+				continue // already put first
+			}
+			k = cast.ToString(k)
+			cMap = append(cMap, yaml.MapItem{Key: k, Value: keyMap[k]})
+		}
+
+		// add to connection map
+		connsMap = append(connsMap, yaml.MapItem{Key: name, Value: cMap})
 	}
 
-	// default as true
-	for _, k := range []string{} {
-		if vars[k] == "" {
-			vars[k] = "true"
-		}
+	efMap := yaml.MapSlice{
+		{Key: "connections", Value: connsMap},
+		{Key: "variables", Value: ef.Variables},
 	}
 
-	if vars["SAMPLE_SIZE"] == "" {
-		vars["SAMPLE_SIZE"] = "900"
+	envBytes, err := yaml.Marshal(efMap)
+	if err != nil {
+		return g.Error(err, "could not marshal into YAML")
+	}
+
+	output := []byte("# Environment Credentials for Sling CLI\n# See https://docs.slingdata.io/sling-cli/environment\n" + string(envBytes))
+
+	err = ioutil.WriteFile(path, formatYAML(output), 0644)
+	if err != nil {
+		return g.Error(err, "could not write YAML file")
 	}
 
 	return
+}
+
+func formatYAML(input []byte) []byte {
+	newOutput := []byte{}
+	pIndent := 0
+	indent := 0
+	inIndent := true
+	prevC := byte('-')
+	for _, c := range input {
+		add := false
+		if c == ' ' && inIndent {
+			indent++
+			add = true
+		} else if c == '\n' {
+			pIndent = indent
+			indent = 0
+			add = true
+			inIndent = true
+		} else if prevC == '\n' {
+			newOutput = append(newOutput, '\n') // add extra space
+			add = true
+		} else if prevC == ' ' && pIndent > indent && inIndent {
+			newOutput = append(newOutput, '\n') // add extra space
+			for i := 0; i < indent; i++ {
+				newOutput = append(newOutput, ' ')
+			}
+			add = true
+			inIndent = false
+		} else {
+			add = true
+			inIndent = false
+		}
+
+		if add {
+			newOutput = append(newOutput, c)
+		}
+		prevC = c
+	}
+	return newOutput
+}
+
+func LoadEnvFile(path string) (ef EnvFile) {
+	bytes, _ := ioutil.ReadFile(path)
+	err := yaml.Unmarshal(bytes, &ef)
+	if err != nil {
+		err = g.Error(err, "error parsing yaml string")
+		_ = err
+	}
+
+	if ef.Connections == nil {
+		ef.Connections = map[string]map[string]interface{}{}
+	}
+
+	if ef.Variables == nil {
+		ef.Variables = map[string]interface{}{}
+	}
+
+	// set env vars
+	envMap := map[string]string{}
+	for _, tuple := range os.Environ() {
+		key := strings.Split(tuple, "=")[0]
+		val := strings.TrimPrefix(tuple, key+"=")
+		envMap[key] = val
+	}
+
+	for k, v := range ef.Variables {
+		if _, found := envMap[k]; !found {
+			os.Setenv(k, cast.ToString(v))
+		}
+	}
+	return ef
+}
+
+func GetEnvFilePath(dir string) string {
+	return path.Join(dir, "env.yaml")
 }
