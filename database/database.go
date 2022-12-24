@@ -53,8 +53,8 @@ func init() {
 
 // Connection is the Base interface for Connections
 type Connection interface {
+	Base() *BaseConn
 	BaseURL() string
-	ConnString() string
 	Begin(options ...*sql.TxOptions) error
 	BeginContext(ctx context.Context, options ...*sql.TxOptions) error
 	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
@@ -67,41 +67,44 @@ type Connection interface {
 	Commit() error
 	CompareChecksums(tableName string, columns iop.Columns) (err error)
 	Connect(timeOut ...int) error
+	ConnString() string
 	Context() *g.Context
-	CreateTemporaryTable(tableName string, cols iop.Columns) (err error)
 	CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error)
+	CreateTemporaryTable(tableName string, cols iop.Columns) (err error)
+	CurrentDatabase() (string, error)
 	Db() *sqlx.DB
 	DbX() *DbX
 	DropTable(...string) error
 	DropView(...string) error
-	ExecMulti(sql string, args ...interface{}) (result sql.Result, err error)
-	ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
 	Exec(sql string, args ...interface{}) (result sql.Result, err error)
 	ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
+	ExecMulti(sql string, args ...interface{}) (result sql.Result, err error)
+	ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error)
 	GenerateDDL(tableFName string, data iop.Dataset, temporary bool) (string, error)
 	GenerateInsertStatement(tableName string, fields []string, numRows int) string
 	GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error)
+	GetAnalysis(string, map[string]interface{}) (string, error)
 	GetColumns(tableFName string, fields ...string) (iop.Columns, error)
 	GetColumnsFull(string) (iop.Dataset, error)
 	GetColumnStats(tableName string, fields ...string) (columns iop.Columns, err error)
 	GetCount(string) (uint64, error)
+	GetDatabases() (iop.Dataset, error)
 	GetDDL(string) (string, error)
 	GetGormConn(config *gorm.Config) (*gorm.DB, error)
 	GetIndexes(string) (iop.Dataset, error)
 	GetNativeType(col iop.Column) (nativeType string, err error)
 	GetPrimaryKeys(string) (iop.Dataset, error)
 	GetProp(string) string
-	GetSchemata(schemaName string, tableNames ...string) (Schemata, error)
-	CurrentDatabase() (string, error)
-	GetDatabases() (iop.Dataset, error)
 	GetSchemas() (iop.Dataset, error)
+	GetSchemata(schemaName string, tableNames ...string) (Schemata, error)
 	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
-	GetTables(string) (iop.Dataset, error)
 	GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error)
+	GetTables(string) (iop.Dataset, error)
 	GetTemplateValue(path string) (value string)
 	GetType() dbio.Type
 	GetURL(newURL ...string) string
 	GetViews(string) (iop.Dataset, error)
+	Info() ConnInfo
 	Init() error
 	InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
 	InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
@@ -111,6 +114,7 @@ type Connection interface {
 	NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error)
 	OptimizeTable(table *Table, columns iop.Columns) (ok bool, err error)
 	Prepare(query string) (stmt *sql.Stmt, err error)
+	ProcessTemplate(level, text string, values map[string]interface{}) (sql string, err error)
 	Props() map[string]string
 	PropsArr() []string
 	Query(sql string, options ...map[string]interface{}) (iop.Dataset, error)
@@ -118,9 +122,7 @@ type Connection interface {
 	Quote(field string) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
-	ProcessTemplate(level, text string, values map[string]interface{}) (sql string, err error)
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
-	GetAnalysis(string, map[string]interface{}) (string, error)
 	Schemata() Schemata
 	Self() Connection
 	setContext(ctx context.Context, concurrency int)
@@ -128,16 +130,14 @@ type Connection interface {
 	StreamRecords(sql string) (<-chan map[string]interface{}, error)
 	StreamRows(sql string, options ...map[string]interface{}) (*iop.Datastream, error)
 	StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error)
+	SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error)
 	SwapTable(srcTable string, tgtTable string) (err error)
 	TableExists(tableFName string) (exists bool, err error)
 	Template() Template
-	SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error)
 	Tx() Transaction
 	Unquote(string) string
 	Upsert(srcTable string, tgtTable string, pkFields []string) (rowAffCnt int64, err error)
 	ValidateColumnNames(tgtColName []string, colNames []string, quote bool) (newColNames []string, err error)
-	Base() *BaseConn
-	Info() ConnInfo
 }
 
 type ConnInfo struct {
@@ -601,7 +601,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 				switch conn.Type {
 				case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 					if val := conn.GetProp("sslmode"); !strings.EqualFold(val, "require") {
-						msg = " (try adding sslmode=require)"
+						msg = " (try adding `sslmode=require` or `sslmode=disable`)"
 					}
 				}
 				return g.Error(err, "could not connect to database"+msg)
