@@ -288,3 +288,18 @@ func TestParseDecimal(t *testing.T) {
 	g.P(iVal)
 	assert.Error(t, err)
 }
+
+func TestDatasetSort(t *testing.T) {
+	columns := NewColumnsFromFields("col1", "col2")
+	data := NewDataset(columns)
+	data.Append([]any{2, 3})
+	data.Append([]any{1, 4})
+	data.Append([]any{-1, 6})
+	data.Append([]any{10, 1})
+	g.P(data.Rows)
+	data.Sort(0, true)
+	g.P(data.Rows)
+	data.Sort(1, false)
+	g.P(data.Rows)
+	// g.P(data.ColValuesStr(0))
+}

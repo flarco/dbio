@@ -2,10 +2,13 @@ package steampipe
 
 import (
 	"context"
+	"io/ioutil"
 	"testing"
 
 	"github.com/flarco/g"
+	"github.com/hashicorp/hcl"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/turbot/steampipe-plugin-github/github"
 )
 
@@ -29,4 +32,13 @@ func TestGithub(t *testing.T) {
 	g.PP(lo.Keys(github.ConfigSchema))
 	g.PP(uniqueReqFields)
 	g.PP(tableReqFields)
+}
+
+func TestCredentials(t *testing.T) {
+	credPath := "/Users/fritz/.steampipe/config/github.spc"
+	bytes, _ := ioutil.ReadFile(credPath)
+	m := g.M()
+	err := hcl.Decode(&m, string(bytes))
+	assert.NoError(t, err)
+	g.Info(g.Pretty(m))
 }

@@ -32,7 +32,11 @@ func (t *Table) FullName() string {
 		fdqnArr = append(fdqnArr, q+t.Schema+q)
 	}
 	if t.Name != "" {
-		fdqnArr = append(fdqnArr, q+t.Name+q)
+		if t.Name == "*" {
+			fdqnArr = append(fdqnArr, t.Name)
+		} else {
+			fdqnArr = append(fdqnArr, q+t.Name+q)
+		}
 	}
 	return strings.Join(fdqnArr, ".")
 }
@@ -63,7 +67,11 @@ func (t *Table) FDQN() string {
 		fdqnArr = append(fdqnArr, q+t.Schema+q)
 	}
 	if t.Name != "" {
-		fdqnArr = append(fdqnArr, q+t.Name+q)
+		if t.Name == "*" {
+			fdqnArr = append(fdqnArr, t.Name)
+		} else {
+			fdqnArr = append(fdqnArr, q+t.Name+q)
+		}
 	}
 	return strings.Join(fdqnArr, ".")
 }
@@ -320,7 +328,7 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 func GetQualifierQuote(dialect dbio.Type) string {
 	quote := `"`
 	switch dialect {
-	case dbio.TypeDbMySQL, dbio.TypeDbBigQuery:
+	case dbio.TypeDbMySQL, dbio.TypeDbBigQuery, dbio.TypeDbClickhouse:
 		quote = "`"
 	case dbio.TypeDbBigTable:
 		quote = ""

@@ -111,6 +111,17 @@ func IsDummy(columns []Column) bool {
 }
 
 // NewColumnsFromFields creates Columns from fields
+func NewColumns(cols ...Column) Columns {
+	for i, col := range cols {
+		if string(col.Type) == "" {
+			cols[i].Type = StringType
+		}
+		cols[i].Position = i + 1
+	}
+	return cols
+}
+
+// NewColumnsFromFields creates Columns from fields
 func NewColumnsFromFields(fields ...string) (cols Columns) {
 	cols = make(Columns, len(fields))
 	for i, field := range fields {

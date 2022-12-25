@@ -46,12 +46,14 @@ func TestCSV(t *testing.T) {
 	}
 
 	err = os.Remove("test0.csv")
-
-	err = data.WriteCsv("test0.csv")
 	assert.NoError(t, err)
 
-	err = os.Remove("test0.csv")
-	err = os.Remove("test2.csv")
+	file, _ := os.Create("test0.csv")
+	_, err = data.WriteCsv(file)
+	assert.NoError(t, err)
+
+	os.Remove("test0.csv")
+	os.Remove("test2.csv")
 
 	// csv3 := CSV{
 	// 	File:   data.Reader,

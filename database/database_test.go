@@ -817,7 +817,8 @@ func generateLargeDataset(path string, numRows int) (data iop.Dataset) {
 		data.Rows[i] = data.Rows[i%50]
 	}
 
-	err := data.WriteCsv(path)
+	file, _ := os.Create(path)
+	_, err := data.WriteCsv(file)
 	if err != nil {
 		log.Fatal(g.Error(err, "Could not create file: "+path))
 	}

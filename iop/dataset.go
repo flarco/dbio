@@ -1,13 +1,15 @@
 package iop
 
 import (
-	"encoding/csv"
+	"fmt"
+	"io"
 	"math"
-	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/flarco/g/csv"
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -30,7 +32,7 @@ type Dataset struct {
 func NewDataset(columns Columns) (data Dataset) {
 	data = Dataset{
 		Result:  nil,
-		Columns: columns,
+		Columns: NewColumns(columns...),
 		Rows:    [][]interface{}{},
 		Sp:      NewStreamProcessor(),
 	}
@@ -63,29 +65,82 @@ func NewDatasetFromMap(m map[string]interface{}) (data Dataset) {
 	return
 }
 
-// WriteCsv writes to a csv file
-func (data *Dataset) WriteCsv(path string) error {
-	file, err := os.Create(path)
+// Sort sorts by cols
+// example: `data.Sort(0, 2, 3, false)` will sort
+// col0, col2, col3 descending
+// example: `data.Sort(0, 2, true)` will sort
+// col0, col2 ascending
+func (data *Dataset) Sort(args ...any) {
 
-	w := csv.NewWriter(file)
+	colIDs := []int{}
+
+	asc := true
+	for _, arg := range args {
+		switch val := arg.(type) {
+		case int:
+			colIDs = append(colIDs, val)
+		case bool:
+			asc = val
+		}
+	}
+
+	less := func(i, j int) bool {
+		arrA := []string{}
+		arrB := []string{}
+		var a, b string
+
+		for _, colID := range colIDs {
+			colType := data.Columns[colID].Type
+			valI := data.Rows[i][colID]
+			valJ := data.Rows[j][colID]
+
+			if colType.IsInteger() {
+				// zero pad for correct sorting
+				a = fmt.Sprintf("%20d", valI)
+				b = fmt.Sprintf("%20d", valJ)
+			} else if colType.IsDecimal() {
+				// zero pad for correct sorting
+				a = fmt.Sprintf("%20.9f", valI)
+				b = fmt.Sprintf("%20.9f", valJ)
+			} else {
+				a = data.Sp.CastToString(colID, valI, colType)
+				b = data.Sp.CastToString(colID, valJ, colType)
+			}
+
+			arrA = append(arrA, a)
+			arrB = append(arrB, b)
+		}
+		if asc {
+			return strings.Join(arrA, "-") < strings.Join(arrB, "-")
+		}
+		return strings.Join(arrA, "-") > strings.Join(arrB, "-")
+	}
+
+	sort.SliceStable(data.Rows, less)
+}
+
+// WriteCsv writes to a writer
+func (data *Dataset) WriteCsv(dest io.Writer) (tbw int, err error) {
+	w := csv.NewWriter(dest)
 	defer w.Flush()
 
-	err = w.Write(data.GetFields())
+	tbw, err = w.Write(data.GetFields())
 	if err != nil {
-		return g.Error(err, "error write row to csv file")
+		return tbw, g.Error(err, "error write row to csv file")
 	}
 
 	for _, row := range data.Rows {
 		rec := make([]string, len(row))
 		for i, val := range row {
-			rec[i] = cast.ToString(val)
+			rec[i] = data.Sp.CastToString(i, val, data.Columns[i].Type)
 		}
-		err := w.Write(rec)
+		bw, err := w.Write(rec)
 		if err != nil {
-			return g.Error(err, "error write row to csv file")
+			return tbw, g.Error(err, "error write row to csv file")
 		}
+		tbw = tbw + bw
 	}
-	return nil
+	return
 }
 
 // GetFields return the fields of the Data
@@ -177,7 +232,7 @@ func (data *Dataset) ColValues(col int) []interface{} {
 func (data *Dataset) ColValuesStr(col int) []string {
 	vals := make([]string, len(data.Rows))
 	for i, row := range data.Rows {
-		vals[i] = cast.ToString(row[col])
+		vals[i] = data.Sp.CastToString(i, row[col], data.Columns[i].Type)
 	}
 	return vals
 

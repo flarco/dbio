@@ -121,7 +121,7 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 	go func() {
 		if os.Getenv("DBIO_CSV_BYTES") == "TRUE" {
 			for row := range ds.bwRows {
-				ds.writeBwCsv(ds.castRowToString(row))
+				ds.writeBwCsv(ds.CastRowToString(row))
 				ds.bwCsv.Flush()
 			}
 		} else {
@@ -166,8 +166,8 @@ func (ds *Datastream) IsEmpty() bool {
 	return ds.empty
 }
 
-// castRowToString returns the row as string casted
-func (ds *Datastream) castRowToString(row []any) []string {
+// CastRowToString returns the row as string casted
+func (ds *Datastream) CastRowToString(row []any) []string {
 	rowStr := make([]string, len(row))
 	for i, val := range row {
 		rowStr[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)

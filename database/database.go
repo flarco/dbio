@@ -1659,7 +1659,7 @@ func (conn *BaseConn) GetSchemata(schemaName string, tableNames ...string) (Sche
 	if schemaName != "" {
 		values["schema"] = schemaName
 	}
-	if len(tableNames) > 0 && (tableNames[0] == "" && len(tableNames) == 1) {
+	if len(tableNames) > 0 && !(tableNames[0] == "" && len(tableNames) == 1) {
 		tablesQ := []string{}
 		for _, tableName := range tableNames {
 			if strings.TrimSpace(tableName) == "" {

@@ -27,6 +27,16 @@ func TestParseTableName(t *testing.T) {
 			output:  Table{Schema: "SCHEMA", Name: "TABLE"},
 		},
 		{
+			input:   `schema.*`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  Table{Schema: "SCHEMA", Name: "*"},
+		},
+		{
+			input:   `*`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  Table{Name: "*"},
+		},
+		{
 			input:   `"ScheMa".table`,
 			dialect: dbio.TypeDbSnowflake,
 			output:  Table{Schema: "ScheMa", Name: "TABLE"},
