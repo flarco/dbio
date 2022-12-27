@@ -269,10 +269,10 @@ func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *i
 }
 
 // InsertBatchStream inserts a stream into a table in batch
-func InsertBatchStream(conn Connection, tx *BaseTransaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
+func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	context := conn.Context()
 	if tx != nil {
-		context = tx.context
+		context = tx.Context()
 	}
 
 	// make sure fields match

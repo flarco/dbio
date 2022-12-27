@@ -2025,7 +2025,7 @@ func (conn *BaseConn) castDsBoolColumns(ds *iop.Datastream) *iop.Datastream {
 
 // InsertBatchStream inserts a stream into a table in batch
 func (conn *BaseConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	count, err = InsertBatchStream(conn.Self(), nil, tableFName, ds)
+	count, err = InsertBatchStream(conn.Self(), conn.tx, tableFName, ds)
 	if err != nil {
 		err = g.Error(err, "Could not batch insert into %s", tableFName)
 	}

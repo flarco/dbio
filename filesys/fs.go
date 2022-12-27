@@ -191,6 +191,34 @@ func (pn PathNodes) List() (paths []string) {
 	return paths
 }
 
+type FileType string
+
+const FileTypeCsv FileType = "csv"
+const FileTypeXml FileType = "xml"
+const FileTypeJson FileType = "json"
+
+// PeekFileType peeks into the file to try determine the file type
+// CSV is the default
+func PeekFileType(reader io.Reader) (ft FileType, reader2 io.Reader, err error) {
+
+	data, reader2, err := g.Peek(reader, 0)
+	if err != nil {
+		err = g.Error(err, "could not peek file")
+		return
+	}
+
+	peekStr := strings.TrimSpace(string(data))
+	if strings.HasPrefix(peekStr, "[") || strings.HasPrefix(peekStr, "{") {
+		ft = FileTypeJson
+	} else if strings.HasPrefix(peekStr, "<") {
+		ft = FileTypeXml
+	} else {
+		ft = FileTypeCsv
+	}
+
+	return
+}
+
 // ParseURL parses a URL
 func ParseURL(urlStr string) (host string, path string, err error) {
 
