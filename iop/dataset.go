@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
+	"github.com/jedib0t/go-pretty/table"
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -117,6 +119,51 @@ func (data *Dataset) Sort(args ...any) {
 	}
 
 	sort.SliceStable(data.Rows, less)
+}
+
+// Print pretty prints the data with a limit
+// 0 is unlimited
+func (data *Dataset) Print(limit int) {
+
+	tf := "2006-01-02 15:04:05"
+	T := table.NewWriter()
+	header := table.Row{}
+	for _, val := range data.Columns.Names() {
+		header = append(header, val)
+	}
+	T.AppendHeader(header)
+
+	limited := false
+	for j, row := range data.Rows {
+		for i, col := range data.Columns {
+			sVal := cast.ToString(row[i])
+			switch {
+			case col.IsDatetime() || (strings.HasPrefix(sVal, "20") && strings.HasSuffix(sVal, "Z")):
+				val, err := data.Sp.CastToTime(row[i])
+				if err != nil {
+					row[i] = sVal
+				} else {
+					row[i] = val.Format(tf)
+				}
+			case col.IsNumber():
+				row[i] = humanize.Comma(cast.ToInt64(row[i]))
+			default:
+				row[i] = sVal
+			}
+		}
+		T.AppendRow(row)
+
+		if limit > 0 && j+1 == limit {
+			limited = true
+			break
+		}
+	}
+
+	println(T.Render())
+
+	if limited {
+		g.Warn("results were limited to %d rows.", limit)
+	}
 }
 
 // WriteCsv writes to a writer
