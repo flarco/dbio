@@ -382,6 +382,10 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("dataset", c.Data["schema"])
 		setIfMissing("schema", c.Data["dataset"])
 		template = "bigquery://{project}/{location}/{dataset}?"
+		if val, ok := c.Data["key_file"]; ok {
+			c.Data["keyfile"] = val
+			delete(c.Data, "key_file")
+		}
 		if _, ok := c.Data["keyfile"]; ok {
 			template = template + "&credentialsFile={keyfile}"
 		}
