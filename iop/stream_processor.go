@@ -397,8 +397,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				sp.ds.schemaChange(i, StringType)
 				cs.StringCnt++
 				cs.TotalCnt++
+				sVal = cast.ToString(val)
 				cs.Checksum = cs.Checksum + uint64(len(sVal))
-				return cast.ToString(val)
+				return sVal
 			}
 			// is decimal
 			sp.ds.schemaChange(i, DecimalType)
@@ -427,8 +428,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				sp.ds.schemaChange(i, StringType)
 				cs.StringCnt++
 				cs.TotalCnt++
+				sVal = cast.ToString(val)
 				cs.Checksum = cs.Checksum + uint64(len(sVal))
-				return cast.ToString(val)
+				return sVal
 			}
 			// is decimal
 			sp.ds.schemaChange(i, DecimalType)
@@ -455,8 +457,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
+			sVal = cast.ToString(val)
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
-			return cast.ToString(val)
+			return sVal
 		}
 
 		if int64(fVal) > cs.Max {
@@ -485,8 +488,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
+			sVal = cast.ToString(val)
 			cs.Checksum = cs.Checksum + uint64(len(sVal))
-			return cast.ToString(val)
+			return sVal
 		} else {
 			nVal = strconv.FormatBool(bVal)
 			cs.Checksum = cs.Checksum + uint64(len(nVal.(string)))
@@ -500,9 +504,11 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			// 	"N: %d, ind: %d, val: %s", sp.N, i, cast.ToString(val),
 			// )
 			// sp.warn = true
-			nVal = val // keep string
 			sp.ds.schemaChange(i, StringType)
 			cs.StringCnt++
+			sVal = cast.ToString(val)
+			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			nVal = sVal
 		} else if dVal.IsZero() {
 			nVal = nil
 			cs.NullCnt++
