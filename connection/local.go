@@ -25,8 +25,10 @@ var (
 	localConnsTs time.Time
 )
 
-func GetLocalConns() []ConnEntry {
-	if time.Since(localConnsTs).Seconds() < 10 {
+func GetLocalConns(force ...bool) []ConnEntry {
+	if len(force) > 0 && force[0] {
+		// force refresh
+	} else if time.Since(localConnsTs).Seconds() < 10 {
 		return localConns // cachine to not re-read from disk. once every 10s
 	}
 
@@ -84,6 +86,8 @@ func GetLocalConns() []ConnEntry {
 		if !strings.Contains(val, ":/") || strings.Contains(val, "{") {
 			continue
 		}
+		g.P(key)
+		g.P(val)
 
 		key = strings.ToUpper(key)
 		conn, err := NewConnectionFromURL(key, val)
