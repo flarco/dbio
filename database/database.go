@@ -935,6 +935,11 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
 
+	// drivers that need inferring
+	if conn.Type == dbio.TypeDbSQLite {
+		ds.Inferred = false
+	}
+
 	err = ds.Start()
 	if err != nil {
 		queryContext.Cancel()

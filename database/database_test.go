@@ -81,7 +81,7 @@ var DBs = map[string]*testDB{
 
 	"sqlite3": {
 		name:   "sqlite3",
-		URL:    "sqlite://./test.db",
+		URL:    "sqlite://./test.db?_journal=WAL",
 		schema: "main",
 
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
@@ -334,6 +334,7 @@ func connect(db *testDB) (conn Connection, err error) {
 }
 
 func DBTest(t *testing.T, db *testDB, conn Connection) {
+	defer conn.Close()
 	if t.Failed() {
 		return
 	}
@@ -631,7 +632,6 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 		<-cancelDone // wait for cancel to be done
 	}
 
-	conn.Close()
 }
 
 func ELTest(t *testing.T, db *testDB, srcTable string) {
@@ -844,6 +844,7 @@ func TestLargeDataset(t *testing.T) {
 		// DBs["azuredwh"],
 		DBs["snowflake"],
 		DBs["bigquery"],
+		DBs["sqlite3"],
 	}
 	// test snowflake Azure and AWS
 	DBs["snowflake_aws"] = &testDB{
@@ -857,7 +858,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["bigquery"]}
+	// dbs = []*testDB{DBs["sqlite3"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
@@ -888,8 +889,6 @@ func TestLargeDataset(t *testing.T) {
 		if !assert.EqualValues(t, numRows, cnt, "Got %d", cnt) {
 			return
 		}
-
-		// return
 
 		dfMult := 1
 		cnt = tSelectStreamLarge(t, conn, tableName, dfMult)
