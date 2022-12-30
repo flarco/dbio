@@ -86,8 +86,6 @@ func GetLocalConns(force ...bool) []ConnEntry {
 		if !strings.Contains(val, ":/") || strings.Contains(val, "{") {
 			continue
 		}
-		g.P(key)
-		g.P(val)
 
 		key = strings.ToUpper(key)
 		conn, err := NewConnectionFromURL(key, val)
