@@ -25,6 +25,9 @@ var EnvFolder embed.FS
 type EnvFile struct {
 	Connections map[string]map[string]interface{} `json:"connections,omitempty" yaml:"connections,omitempty"`
 	Variables   map[string]interface{}            `json:"variables,omitempty" yaml:"variables,omitempty"`
+
+	Path       string `json:"-" yaml:"-"`
+	TopComment string `json:"-" yaml:"-"`
 }
 
 func SetHomeDir(name string) string {
@@ -38,7 +41,7 @@ func SetHomeDir(name string) string {
 	return dir
 }
 
-func WriteEnvFile(path string, ef EnvFile) (err error) {
+func (ef *EnvFile) WriteEnvFile() (err error) {
 	connsMap := yaml.MapSlice{}
 
 	// order connections names
@@ -76,9 +79,9 @@ func WriteEnvFile(path string, ef EnvFile) (err error) {
 		return g.Error(err, "could not marshal into YAML")
 	}
 
-	output := []byte("# Environment Credentials for Sling CLI\n# See https://docs.slingdata.io/sling-cli/environment\n" + string(envBytes))
+	output := []byte(ef.TopComment + string(envBytes))
 
-	err = ioutil.WriteFile(path, formatYAML(output), 0644)
+	err = ioutil.WriteFile(ef.Path, formatYAML(output), 0644)
 	if err != nil {
 		return g.Error(err, "could not write YAML file")
 	}
@@ -132,6 +135,8 @@ func LoadEnvFile(path string) (ef EnvFile) {
 		err = g.Error(err, "error parsing yaml string")
 		_ = err
 	}
+
+	ef.Path = path
 
 	if ef.Connections == nil {
 		ef.Connections = map[string]map[string]interface{}{}
