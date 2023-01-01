@@ -213,18 +213,23 @@ func (ec *EnvConns) Test(name string) (ok bool, err error) {
 	return
 }
 
+func (ec *EnvConns) GetConnEntry(name string) (conn ConnEntry, ok bool) {
+	conns := map[string]ConnEntry{}
+	for _, conn := range GetLocalConns() {
+		conns[strings.ToLower(conn.Name)] = conn
+	}
+
+	conn, ok = conns[strings.ToLower(name)]
+	return
+}
+
 func (ec *EnvConns) testDiscover(name string, opt DiscoverOptions) (ok bool, streamNames []string, err error) {
 	discover := opt.discover
 	schema := opt.Schema
 	folder := opt.Folder
 	filter := opt.Filter
 
-	conns := map[string]ConnEntry{}
-	for _, conn := range GetLocalConns() {
-		conns[strings.ToLower(conn.Name)] = conn
-	}
-
-	conn, ok1 := conns[strings.ToLower(name)]
+	conn, ok1 := ec.GetConnEntry(name)
 	if !ok1 || name == "" {
 		return ok, streamNames, g.Error("Invalid Connection name: %s", name)
 	}
