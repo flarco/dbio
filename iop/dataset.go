@@ -286,11 +286,15 @@ func (data *Dataset) ColValuesStr(col int) []string {
 }
 
 // Records return rows of maps
-func (data *Dataset) Records() []map[string]interface{} {
+func (data *Dataset) Records(lower ...bool) []map[string]interface{} {
+	Lower := true
+	if len(lower) > 0 {
+		Lower = lower[0]
+	}
 	records := make([]map[string]interface{}, len(data.Rows))
 	for i, row := range data.Rows {
 		rec := map[string]interface{}{}
-		for j, field := range data.GetFields(true) {
+		for j, field := range data.GetFields(Lower) {
 			rec[field] = row[j]
 		}
 		records[i] = rec

@@ -578,6 +578,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 		connPool.Mux.Lock()
 		db, poolOk := connPool.Dbs[connURL]
 		connPool.Mux.Unlock()
+		g.Trace("connURL -> %s", connURL)
 
 		if !usePool || !poolOk {
 			db, err = sqlx.Open(getDriverName(conn.Type), connURL)

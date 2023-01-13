@@ -306,7 +306,6 @@ func (c *Connection) setURL() (err error) {
 			// set props from URL
 			setIfMissing("schema", U.PopParam("schema"))
 			setIfMissing("sslmode", U.PopParam("sslmode"))
-			setIfMissing("location", U.PopParam("location"))
 			setIfMissing("host", U.Hostname())
 			setIfMissing("username", U.Username())
 			setIfMissing("password", U.Password())
@@ -315,10 +314,13 @@ func (c *Connection) setURL() (err error) {
 			if c.Type == dbio.TypeDbSnowflake {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
 			} else if c.Type == dbio.TypeDbBigQuery {
+				setIfMissing("location", U.PopParam("location"))
 				setIfMissing("project", U.Hostname())
 			} else if c.Type == dbio.TypeDbBigTable {
 				setIfMissing("project", U.Hostname())
 				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
+			} else if c.Type == dbio.TypeDbSQLite {
+				setIfMissing("instance", U.Path())
 			}
 		}
 		if c.Type == dbio.TypeFileSftp {
@@ -407,9 +409,9 @@ func (c *Connection) setURL() (err error) {
 		if _, ok := c.Data["role"]; ok {
 			template = template + "&role={role}"
 		}
-		if _, ok := c.Data["schema"]; ok {
-			template = template + "&schema={schema}"
-		}
+		// if _, ok := c.Data["schema"]; ok {
+		// 	template = template + "&schema={schema}"
+		// }
 		if _, ok := c.Data["authenticator"]; ok {
 			template = template + "&authenticator={authenticator}"
 		}
@@ -417,14 +419,14 @@ func (c *Connection) setURL() (err error) {
 			template = template + "&passcode={passcode}"
 		}
 	case dbio.TypeDbSQLite:
-		if val, ok := c.Data["database"]; ok {
+		if val, ok := c.Data["instance"]; ok {
 			dbURL, err := net.NewURL(cast.ToString(val))
 			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
 				setIfMissing("http_url", dbURL.String())
-				c.Data["database"] = dbURL.Path()
+				c.Data["instance"] = dbURL.Path()
 			}
 		}
-		template = "sqlite://{database}"
+		template = "sqlite://{instance}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
