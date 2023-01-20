@@ -782,8 +782,9 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 		return
 	}
 
+	ctx := g.NewContext(fs.Context().Ctx)
 	df = iop.NewDataflow(cfg.Limit)
-	df.Context = g.NewContext(fs.Context().Ctx)
+	df.Context = &ctx
 	dsCh := make(chan *iop.Datastream)
 
 	go func() {

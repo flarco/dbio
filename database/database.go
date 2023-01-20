@@ -2335,8 +2335,9 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 		return
 	}
 
+	ctx := g.NewContext(conn.Context().Ctx)
 	df = iop.NewDataflow()
-	df.Context = g.NewContext(conn.Context().Ctx)
+	df.Context = &ctx
 
 	dsCh := make(chan *iop.Datastream)
 

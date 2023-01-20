@@ -10,6 +10,7 @@ import (
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/jmoiron/sqlx"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -348,7 +349,9 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 				"%s\n%s \n%s",
 				err.Error(), batchErrStr,
 				fmt.Sprintf("Insert: %s", insertTemplate),
-				// fmt.Sprintf("\n\nRows: %#v", rows),
+				fmt.Sprintf("\n\nRows: %#v", lo.Map(rows, func(row []any, i int) string {
+					return g.F("len(row[%d]) = %d", i, len(row))
+				})),
 			))
 			context.CaptureErr(err)
 			context.Cancel()
