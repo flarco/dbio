@@ -395,7 +395,7 @@ func (xls *Excel) WriteSheet(shtName string, ds *iop.Datastream, mode string) (e
 		i++
 	}
 
-	for row := range ds.Rows {
+	for row := range ds.Rows() {
 		cellRange = g.F("%s%d", col, i)
 		xls.File.SetSheetRow(shtName, cellRange, &row)
 		i++

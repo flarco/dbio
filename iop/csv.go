@@ -128,7 +128,7 @@ func (c *CSV) Sample(n int) (Dataset, error) {
 	data.Columns = ds.Columns
 	data.Rows = [][]interface{}{}
 	count := 0
-	for row := range ds.Rows {
+	for row := range ds.Rows() {
 		count++
 		if count > n {
 			break
@@ -367,7 +367,7 @@ func (c *CSV) WriteStream(ds *Datastream) (cnt uint64, err error) {
 		return cnt, g.Error(err, "error write row to csv file")
 	}
 
-	for row0 := range ds.Rows {
+	for row0 := range ds.Rows() {
 		cnt++
 		row := make([]string, len(row0))
 		for i, val := range row0 {
@@ -400,7 +400,7 @@ func (c *CSV) NewReader() (*io.PipeReader, error) {
 			pipeW.Close()
 		}
 
-		for row0 := range ds.Rows {
+		for row0 := range ds.Rows() {
 			// convert to csv string
 			row := make([]string, len(row0))
 			for i, val := range row0 {

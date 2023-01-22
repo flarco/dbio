@@ -28,6 +28,7 @@ type StreamProcessor struct {
 	dateLayouts      []string
 	config           *streamConfig
 	rowBlankValCnt   int
+	typeChangedChan  chan struct{}
 }
 
 type streamConfig struct {
@@ -51,6 +52,7 @@ func NewStreamProcessor() *StreamProcessor {
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
 		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
+		typeChangedChan: make(chan struct{}),
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -376,7 +378,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			// as the ds.Shape() function will change it back to the "string" type,
 			// to match the target table column type. This takes priority.
 			nVal = sp.ParseString(cast.ToString(val))
-			sp.ds.schemaChange(i, sp.GetType(nVal))
+			sp.ds.ChangeColumn(i, sp.GetType(nVal))
 			if !sp.ds.Columns[i].IsString() { // so we don't loop
 				return sp.CastVal(i, nVal, &sp.ds.Columns[i])
 			}
@@ -394,7 +396,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			fVal, err := sp.toFloat64E(val)
 			if err != nil || sp.ds == nil {
 				// is string
-				sp.ds.schemaChange(i, StringType)
+				sp.ds.ChangeColumn(i, StringType)
 				cs.StringCnt++
 				cs.TotalCnt++
 				sVal = cast.ToString(val)
@@ -402,7 +404,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				return sVal
 			}
 			// is decimal
-			sp.ds.schemaChange(i, DecimalType)
+			sp.ds.ChangeColumn(i, DecimalType)
 			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
 		}
 
@@ -425,7 +427,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			fVal, err := sp.toFloat64E(val)
 			if err != nil || sp.ds == nil {
 				// is string
-				sp.ds.schemaChange(i, StringType)
+				sp.ds.ChangeColumn(i, StringType)
 				cs.StringCnt++
 				cs.TotalCnt++
 				sVal = cast.ToString(val)
@@ -433,7 +435,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				return sVal
 			}
 			// is decimal
-			sp.ds.schemaChange(i, DecimalType)
+			sp.ds.ChangeColumn(i, DecimalType)
 			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
 		}
 
@@ -454,7 +456,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		fVal, err := sp.toFloat64E(val)
 		if err != nil {
 			// is string
-			sp.ds.schemaChange(i, StringType)
+			sp.ds.ChangeColumn(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
 			sVal = cast.ToString(val)
@@ -485,7 +487,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		bVal, err := cast.ToBoolE(val)
 		if err != nil {
 			// is string
-			sp.ds.schemaChange(i, StringType)
+			sp.ds.ChangeColumn(i, StringType)
 			cs.StringCnt++
 			cs.TotalCnt++
 			sVal = cast.ToString(val)
@@ -504,7 +506,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			// 	"N: %d, ind: %d, val: %s", sp.N, i, cast.ToString(val),
 			// )
 			// sp.warn = true
-			sp.ds.schemaChange(i, StringType)
+			sp.ds.ChangeColumn(i, StringType)
 			cs.StringCnt++
 			sVal = cast.ToString(val)
 			cs.Checksum = cs.Checksum + uint64(len(sVal))

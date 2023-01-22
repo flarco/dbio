@@ -254,7 +254,7 @@ func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *i
 		err = g.Error(err, "Could not prepate statement")
 		return
 	}
-	for row := range ds.Rows {
+	for row := range ds.Rows() {
 		count++
 		// Do insert
 		_, err = stmt.ExecContext(ds.Context.Ctx, row...)
@@ -271,33 +271,11 @@ func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *i
 
 // InsertBatchStream inserts a stream into a table in batch
 func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	var columns iop.Columns
+
 	context := conn.Context()
 	if tx != nil {
 		context = tx.Context()
-	}
-
-	// make sure fields match
-	columns, err := conn.GetColumns(tableFName)
-	if err != nil {
-		err = g.Error(err, "could not get column list")
-		return
-	}
-
-	batchSize := cast.ToInt(conn.GetTemplateValue("variable.batch_values")) / len(columns)
-	if conn.GetType() == dbio.TypeDbClickhouse {
-		batchSize = 1
-	}
-
-	ds, err = ds.Shape(columns)
-	if err != nil {
-		err = g.Error(err, "could not shape stream")
-		return
-	}
-
-	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(true, true), true)
-	if err != nil {
-		err = g.Error(err, "columns mismatch")
-		return
 	}
 
 	// in case schema change is needed, cannot alter while inserting
@@ -307,12 +285,17 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 	}
 	_ = mux
 
-	insertBatch := func(rows [][]interface{}) error {
+	insertBatch := func(bColumns iop.Columns, rows [][]interface{}) error {
 		var err error
 		defer context.Wg.Write.Done()
 
 		mux.Lock()
 		defer mux.Unlock()
+
+		insFields, err := conn.ValidateColumnNames(columns.Names(), bColumns.Names(true, true), true)
+		if err != nil {
+			return g.Error(err, "columns mismatch")
+		}
 
 		insertTemplate := conn.Self().GenerateInsertStatement(tableFName, insFields, len(rows))
 		// conn.Base().AddLog(insertTemplate)
@@ -346,7 +329,7 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 				rows = rows[:10]
 			}
 			g.Debug(g.F(
-				"%s\n%s \n%s",
+				"%s\n%s \n%s \n%s",
 				err.Error(), batchErrStr,
 				fmt.Sprintf("Insert: %s", insertTemplate),
 				fmt.Sprintf("\n\nRows: %#v", lo.Map(rows, func(row []any, i int) string {
@@ -371,23 +354,52 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		return context.Err()
 	}
 
-	batchRows := [][]interface{}{}
 	g.Trace("batchRows")
-	for row := range ds.Rows {
-		batchRows = append(batchRows, row)
-		count++
-		if len(batchRows) == batchSize {
-			context.Wg.Write.Add()
-			select {
-			case <-context.Ctx.Done():
-				return count, context.Err()
-			case <-ds.Context.Ctx.Done():
-				return count, ds.Context.Err()
-			default:
-				go insertBatch(batchRows)
+
+	var batch *iop.Batch
+	var batchSize int
+
+	batchRows := [][]interface{}{}
+
+	g.Info("ID2: %s", ds.ID)
+	for batch = range ds.BatchChan {
+
+		if batch.ColumnsChanged() || batch.IsFirst() {
+			// make sure fields match
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			if err != nil {
+				err = g.Error(err, "could not get column list")
+				return
 			}
 
-			batchRows = [][]interface{}{}
+			err = batch.Shape(columns)
+			if err != nil {
+				return count, g.Error(err, "could not shape batch stream")
+			}
+		}
+
+		if conn.GetType() == dbio.TypeDbClickhouse {
+			batchSize = 1
+		} else {
+			batchSize = cast.ToInt(conn.GetTemplateValue("variable.batch_values")) / len(columns)
+		}
+
+		for row := range batch.Rows {
+			batchRows = append(batchRows, row)
+			count++
+			if len(batchRows) == batchSize {
+				context.Wg.Write.Add()
+				select {
+				case <-context.Ctx.Done():
+					return count, context.Err()
+				case <-ds.Context.Ctx.Done():
+					return count, ds.Context.Err()
+				default:
+					go insertBatch(batch.Columns, batchRows)
+				}
+
+				batchRows = [][]interface{}{}
+			}
 		}
 	}
 
@@ -395,7 +407,7 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 	if len(batchRows) > 0 {
 		g.Trace("remaining batchSize %d", len(batchRows))
 		context.Wg.Write.Add()
-		err = insertBatch(batchRows)
+		err = insertBatch(batch.Columns, batchRows)
 		if err != nil {
 			return count - cast.ToUint64(len(batchRows)), g.Error(err, "insertBatch")
 		}

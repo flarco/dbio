@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/flarco/dbio"
+	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
@@ -93,6 +94,7 @@ func (conn *PostgresConn) BulkExportStream(sql string) (ds *iop.Datastream, err 
 
 // BulkImportStream inserts a stream into a table
 func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	var columns iop.Columns
 
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
@@ -100,64 +102,19 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		return
 	}
 
-	columns, err := conn.GetColumns(tableFName, ds.GetFields(true, true)...)
-	if err != nil {
-		err = g.Error(err, "could not get list of columns from table")
-		return
-	}
-
-	ds, err = ds.Shape(columns)
-	if err != nil {
-		err = g.Error(err, "could not shape stream")
-		return
-	}
-
-	// COPY needs a transaction
-	if conn.Tx() == nil {
-		err = conn.Begin()
-		if err != nil {
-			err = g.Error(err, "could not begin")
-			return
-		}
-		defer conn.Commit()
-	}
-
-	stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, columns.Names()...))
-	if err != nil {
-		g.Trace("%s: %#v", table, columns.Names())
-		return count, g.Error(err, "could not prepare statement")
-	}
-
 	// set OnSchemaChange
-	if df := ds.Df(); df != nil && conn.GetProp("adjust_column_type") == "true" {
-
-		df.OnSchemaChange = func(i int, newType iop.ColumnType) error {
+	if df := ds.Df(); df != nil && cast.ToBool(conn.GetProp("adjust_column_type")) {
+		df.OnColumnChanged = func(col iop.Column) error {
 
 			ds.Context.Lock()
 			defer ds.Context.Unlock()
-
-			_, err = stmt.Exec()
-			if err != nil {
-				return g.Error(err, "could not pre-execute statement")
-			}
-
-			err = stmt.Close()
-			if err != nil {
-				return g.Error(err, "could not pre-close statement")
-			}
-
-			err = conn.Commit()
-			g.LogError(err)
-			if err != nil {
-				return g.Error(err, "could not pre-commit for schema change")
-			}
 
 			table.Columns, err = conn.GetColumns(tableFName)
 			if err != nil {
 				return g.Error(err, "could not get table columns for schema change")
 			}
 
-			df.Columns[i].Type = newType
+			df.Columns[col.Position-1].Type = col.Type
 			ok, err := conn.OptimizeTable(&table, df.Columns)
 			if err != nil {
 				return g.Error(err, "could not change table schema")
@@ -167,47 +124,77 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				}
 			}
 
-			err = conn.Begin()
-			if err != nil {
-				return g.Error(err, "could not post-begin for schema change")
-			}
-
-			stmt, err = conn.Prepare(
-				pq.CopyInSchema(table.Schema, table.Name, columns.Names()...),
-			)
-			if err != nil {
-				return g.Error(err, "could not post-prepare statement")
-			}
-
 			return nil
 		}
 	}
 
-	for row := range ds.Rows {
-		count++
-		// Do insert
-		ds.Context.Lock()
-		_, err := stmt.Exec(row...)
-		ds.Context.Unlock()
+	for batch := range ds.BatchChan {
+		if batch.ColumnsChanged() || batch.IsFirst() {
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			if err != nil {
+				return count, g.Error(err, "could not get list of columns from table")
+			}
+
+			err = batch.Shape(columns)
+			if err != nil {
+				return count, g.Error(err, "could not shape batch stream")
+			}
+		}
+
+		err = func() error {
+			// COPY needs a transaction
+			if conn.Tx() == nil {
+				err = conn.Begin()
+				if err != nil {
+					return g.Error(err, "could not begin")
+				}
+				defer conn.Rollback()
+			}
+
+			stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, columns.Names()...))
+			if err != nil {
+				g.Trace("%s: %#v", table, columns.Names())
+				return g.Error(err, "could not prepare statement")
+			}
+
+			for row := range batch.Rows {
+				count++
+				// Do insert
+				ds.Context.Lock()
+				_, err := stmt.Exec(row...)
+				ds.Context.Unlock()
+				if err != nil {
+					ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
+					ds.Context.Cancel()
+					g.Trace("error for row: %#v", row)
+					return g.Error(err, "could not execute statement")
+				}
+			}
+
+			_, err = stmt.Exec()
+			if err != nil {
+				return g.Error(err, "could not execute statement")
+			}
+
+			err = stmt.Close()
+			if err != nil {
+				return g.Error(err, "could not close statement")
+			}
+
+			err = conn.Commit()
+			if err != nil {
+				return g.Error(err, "could not commit transaction")
+			}
+
+			return nil
+		}()
+
 		if err != nil {
-			ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
-			ds.Context.Cancel()
-			g.Trace("error for row: %#v", row)
-			return count, g.Error(err, "could not execute statement")
+			return count, g.Error(err, "could not copy data")
 		}
 	}
 
 	ds.SetEmpty()
-
-	_, err = stmt.Exec()
-	if err != nil {
-		return count, g.Error(err, "could not execute statement")
-	}
-
-	err = stmt.Close()
-	if err != nil {
-		return count, g.Error(err, "could not close statement")
-	}
 
 	g.Trace("COPY %d ROWS", count)
 	return count, nil

@@ -130,7 +130,7 @@ func BenchmarkProcessRows(b *testing.B) {
 	columns, row := initProcessRow("")
 	ds := NewDatastream(columns)
 	go func() {
-		for range ds.Rows {
+		for range ds.Rows() {
 		}
 	}()
 	for n := 0; n < b.N; n++ {

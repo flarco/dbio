@@ -89,7 +89,7 @@ func (p *Parquet) WriteStream(ds *Datastream) error {
 	}
 	// defer pw.Flush(true)
 
-	for row := range ds.Rows {
+	for row := range ds.Rows() {
 		err := pw.Write(row)
 		if err != nil {
 			return g.Error(err, "error write row to parquet file")

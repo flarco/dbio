@@ -535,7 +535,7 @@ func writeCsvWithoutQuotes(path string, ds *iop.Datastream) (cnt uint64, err err
 		return cnt, g.Error(err, "could not write header to file")
 	}
 
-	for row0 := range ds.Rows {
+	for row0 := range ds.Rows() {
 		cnt++
 		row := make([]string, len(row0))
 		for i, val := range row0 {

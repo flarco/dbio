@@ -667,7 +667,7 @@ func (conn *BigTableConn) InsertBatchStream(table string, ds *iop.Datastream) (c
 	batchSize := cast.ToInt(conn.GetTemplateValue("variable.batch_values"))
 	batchRows := [][]interface{}{}
 	g.Trace("batchRows")
-	for row := range ds.Rows {
+	for row := range ds.Rows() {
 		batchRows = append(batchRows, row)
 		count++
 		if len(batchRows) == batchSize {
