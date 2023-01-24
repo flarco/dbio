@@ -43,7 +43,6 @@ type Datastream struct {
 	deferFuncs    []func()
 	closed        bool
 	empty         bool
-	clones        []*Datastream
 	it            *Iterator
 	config        *streamConfig
 	df            *Dataflow
@@ -76,13 +75,16 @@ func (m *Metadata) AsMap() map[string]any {
 
 // Iterator is the row provider for a datastream
 type Iterator struct {
-	Row      []any
-	Counter  uint64
-	Context  g.Context
-	Closed   bool
-	ds       *Datastream
-	nextFunc func(it *Iterator) bool
-	limitCnt uint64 // to not check for df limit each cycle
+	Row       []any
+	Reprocess chan []any
+	IsCasted  bool
+	Counter   uint64
+	Context   *g.Context
+	Closed    bool
+	ds        *Datastream
+	dsBufferI int // -1 means ds is not buffered
+	nextFunc  func(it *Iterator) bool
+	limitCnt  uint64 // to not check for df limit each cycle
 }
 
 // NewDatastream return a new datastream
@@ -93,13 +95,19 @@ func NewDatastream(columns Columns) (ds *Datastream) {
 // NewDatastreamIt with it
 func NewDatastreamIt(ctx context.Context, columns Columns, nextFunc func(it *Iterator) bool) (ds *Datastream) {
 	ds = NewDatastreamContext(ctx, columns)
-	ds.it = &Iterator{
-		Row:      make([]any, len(columns)),
-		nextFunc: nextFunc,
-		Context:  g.NewContext(ctx),
-		ds:       ds,
-	}
+	ds.it = ds.NewIterator(columns, nextFunc)
 	return
+}
+
+func (ds *Datastream) NewIterator(columns Columns, nextFunc func(it *Iterator) bool) *Iterator {
+	return &Iterator{
+		Row:       make([]any, len(columns)),
+		Reprocess: make(chan []any, 1), // for reprocessing row
+		nextFunc:  nextFunc,
+		Context:   ds.Context,
+		ds:        ds,
+		dsBufferI: -1,
+	}
 }
 
 // NewDatastreamContext return a new datastream
@@ -115,20 +123,24 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		Sp:            NewStreamProcessor(),
 		config:        &streamConfig{emptyAsNull: true, header: true},
 		deferFuncs:    []func(){},
-		clones:        []*Datastream{},
 		bwCsv:         csv.NewWriter(ioutil.Discard),
 		bwRows:        make(chan []any, 100),
 		readyChn:      make(chan struct{}),
 		schemaChgChan: make(chan struct{}, 1),
-		pauseChan:     make(chan struct{}),
+		pauseChan:     make(chan struct{}, 1),
 	}
 	ds.Sp.ds = ds
+	ds.it = ds.NewIterator(columns, func(it *Iterator) bool { return false })
 
 	return
 }
 
 func (ds *Datastream) Df() *Dataflow {
 	return ds.df
+}
+
+func (ds *Datastream) SetDf(df *Dataflow) {
+	ds.df = df
 }
 
 func (ds *Datastream) processBwRows() {
@@ -196,17 +208,6 @@ func (ds *Datastream) Push(row []any) {
 	batch.Push(row)
 }
 
-// Clone returns a new datastream of the same source
-func (ds *Datastream) Clone() *Datastream {
-	cDs := NewDatastreamContext(ds.Context.Ctx, ds.Columns)
-	cDs.Inferred = ds.Inferred
-	cDs.config = ds.config
-	cDs.Sp.config = ds.Sp.config
-	cDs.SetReady()
-	ds.clones = append(ds.clones, cDs)
-	return cDs
-}
-
 // IsClosed is true is ds is closed
 func (ds *Datastream) IsClosed() bool {
 	return ds.closed
@@ -241,8 +242,22 @@ func (ds *Datastream) Defer(f func()) {
 // Close closes the datastream
 func (ds *Datastream) Close() {
 	if !ds.closed {
+		if !ds.NoTrace {
+			g.DebugLow("closing ds %s", ds.ID)
+		}
 		close(ds.bwRows)
 		close(ds.BatchChan)
+
+		if batch := ds.CurrentBatch(); batch != nil {
+			batch.Close()
+		}
+
+		for _, batch := range ds.Batches {
+			select {
+			case <-batch.closeChan: // clean up
+			default:
+			}
+		}
 
 	loop:
 		for {
@@ -284,6 +299,17 @@ func (ds *Datastream) AddColumns(newCols Columns, overwrite bool) (added Columns
 	ds.Columns, added = ds.Columns.Add(newCols, overwrite)
 	if df := ds.df; df != nil {
 		df.AddColumns(newCols, overwrite)
+	} else {
+		if len(added) > 0 {
+			ds.Pause()
+
+			// wait for current batch to close
+			if batch := ds.CurrentBatch(); batch != nil {
+				batch.Close()
+			}
+
+			ds.Unpause()
+		}
 	}
 	return added
 }
@@ -302,6 +328,15 @@ func (ds *Datastream) ChangeColumn(i int, newType ColumnType) {
 	ds.Columns[i].Type = newType
 	if df := ds.df; df != nil {
 		df.ChangeColumn(i, newType)
+	} else {
+		ds.Pause()
+
+		// wait for current batches to close
+		if batch := ds.CurrentBatch(); batch != nil {
+			batch.Close()
+		}
+
+		ds.Unpause()
 	}
 }
 
@@ -395,7 +430,7 @@ func (ds *Datastream) Start() (err error) {
 	}
 
 loop:
-	for ds.it.next() {
+	for !ds.Inferred && ds.it.next() {
 		select {
 		case <-ds.Context.Ctx.Done():
 			if ds.Context.Err() != nil {
@@ -434,6 +469,9 @@ loop:
 		ds.Columns = sampleData.Columns
 		ds.Inferred = true
 	}
+
+	// set to have it loop process
+	ds.it.dsBufferI = 0
 
 	if ds.it.Context.Err() != nil {
 		err = g.Error(ds.it.Context.Err(), "error in getting rows")
@@ -488,6 +526,9 @@ loop:
 
 	go ds.processBwRows()
 
+	if !ds.NoTrace {
+		g.Debug("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
+	}
 	go func() {
 		var batch *Batch
 		var err error
@@ -495,33 +536,6 @@ loop:
 
 		ds.SetReady()
 		batch = ds.NewBatch(ds.Columns)
-
-		// push := func(row []any) {
-		// retry:
-		// 	newRow := row
-		// 	for _, f := range batch.transforms {
-		// 		newRow = f(newRow) // allows transformations
-		// 	}
-		// 	select {
-		// 	case <-ds.Context.Ctx.Done():
-		// 		ds.Close()
-		// 		return
-		// 	case <-ds.pauseChan:
-		// 		<-ds.pauseChan // wait for unpause
-		// 		goto retry
-		// 	case batch.Rows <- newRow:
-		// 		batch.ds.bwRows <- newRow
-		// 		batch.ds.Count++
-		// 	}
-		// }
-
-		for _, row := range ds.Buffer {
-			row = ds.Sp.CastRow(row, ds.Columns)
-			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
-				continue
-			}
-			batch.Push(setMetaValues(row))
-		}
 
 		row := make([]any, len(ds.Columns))
 		rowPtrs := make([]any, len(ds.Columns))
@@ -546,7 +560,11 @@ loop:
 			default:
 			}
 
-			row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
+			if ds.it.IsCasted {
+				row = ds.it.Row
+			} else {
+				row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
+			}
 			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
 				continue
 			}
@@ -586,7 +604,7 @@ loop:
 		ds.SetEmpty()
 
 		if !ds.NoTrace {
-			g.Trace("Got %d rows", ds.it.Counter)
+			g.DebugLow("Got %d rows for %s", ds.it.Counter, ds.ID)
 		}
 	}()
 
@@ -626,13 +644,7 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 
 	decoder := json.NewDecoder(reader2)
 	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
-
-	ds.it = &Iterator{
-		Row:      make([]any, len(ds.Columns)),
-		nextFunc: js.nextFunc,
-		Context:  g.NewContext(ds.Context.Ctx),
-		ds:       ds,
-	}
+	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
 	if err != nil {
@@ -652,13 +664,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 
 	decoder := xml.NewDecoder(reader2)
 	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
-
-	ds.it = &Iterator{
-		Row:      make([]any, len(ds.Columns)),
-		nextFunc: js.nextFunc,
-		Context:  g.NewContext(ds.Context.Ctx),
-		ds:       ds,
-	}
+	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
 	if err != nil {
@@ -724,12 +730,7 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 		return true
 	}
 
-	ds.it = &Iterator{
-		Row:      make([]any, len(ds.Columns)),
-		nextFunc: nextFunc,
-		Context:  g.NewContext(ds.Context.Ctx),
-		ds:       ds,
-	}
+	ds.it = ds.NewIterator(ds.Columns, nextFunc)
 
 	err = ds.Start()
 	if err != nil {
@@ -841,6 +842,7 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 	go func() {
 		defer ds.Close()
 		i := 0
+	loop:
 		for row := range ds.Rows() {
 			if i == len(dss) {
 				i = 0 // cycle through datastreams
@@ -849,7 +851,7 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 			nDs = dss[i]
 			select {
 			case <-nDs.Context.Ctx.Done():
-				break
+				break loop
 			default:
 				nDs.Push(row)
 			}
@@ -865,17 +867,19 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 }
 
 func (ds *Datastream) Pause() {
-	if ds.Ready && !ds.closed {
+	if ds.Ready && !ds.closed && !ds.paused {
 		ds.pauseChan <- struct{}{}
 		ds.paused = true
+		g.DebugLow("paused %s", ds.ID)
 	}
 }
 
 // Unpause unpauses all streams
 func (ds *Datastream) Unpause() {
-	if ds.Ready && !ds.closed {
+	if ds.Ready && !ds.closed && ds.paused {
 		ds.pauseChan <- struct{}{}
 		ds.paused = false
+		g.DebugLow("unpaused %s", ds.ID)
 	}
 }
 
@@ -883,101 +887,47 @@ func (ds *Datastream) Unpause() {
 // It will cast the already wrongly casted rows, and not recast the
 // correctly casted rows
 func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
-	if len(columns) != len(ds.Columns) {
-		err = g.Error("number of columns do not match")
-		return ds, err
+	batch := ds.CurrentBatch()
+
+	if batch == nil {
+		batch = ds.NewBatch(ds.Columns)
 	}
 
-	// we need to recast up to this marker
-	counterMarker := ds.Count + 10
+	err = batch.Shape(columns)
 
-	// determine diff, and match order of target columns
-	srcColNames := lo.Map(ds.Columns, func(c Column, i int) string { return strings.ToLower(c.Name) })
-	diffCols := false
-	colMap := map[int]int{}
-	for i, col := range columns {
-		j := lo.IndexOf(srcColNames, strings.ToLower(col.Name))
-		if j == -1 {
-			err = g.Error("column %s not found in source columns", col.Name)
-			return ds, err
-		}
-		colMap[j] = i
-		if columns[i].Type != ds.Columns[j].Type {
-			diffCols = true
-			ds.Columns[j].Type = columns[i].Type
-		} else if columns[i].Name != ds.Columns[j].Name {
-			diffCols = true
-		} else if j != i {
-			diffCols = true
-		}
-	}
-
-	if !diffCols {
-		return ds, nil
-	}
-	// return ds, nil
-
-	g.Trace("shaping ds...")
-	nDs = NewDatastreamContext(ds.Context.Ctx, columns)
-	nDs.Inferred = ds.Inferred
-	nDs.config = ds.config
-	nDs.Sp.config = ds.Sp.config
-	ds.df.ReplaceStream(ds, nDs)
-
-	mapRowCol := func(row []interface{}) []interface{} {
-		newRow := make([]interface{}, len(row))
-		for o, t := range colMap {
-			newRow[t] = row[o]
-		}
-		return newRow
-	}
-
-	go func() {
-		defer nDs.Close()
-		nDs.SetReady()
-	loop:
-		for row := range ds.Rows() {
-			row = mapRowCol(row)
-			if nDs.Count <= counterMarker {
-				row = nDs.Sp.CastRow(row, nDs.Columns)
-			}
-
-			select {
-			case <-nDs.Context.Ctx.Done():
-				break loop
-			default:
-				nDs.Push(row)
-			}
-		}
-		ds.SetEmpty()
-	}()
-
-	return
+	return ds, err
 }
 
 // Map applies the provided function to every row
 // and returns the result
 func (ds *Datastream) Map(newColumns Columns, transf func([]any) []any) (nDs *Datastream) {
 
-	nDs = NewDatastreamContext(ds.Context.Ctx, newColumns)
-	ds.df.ReplaceStream(ds, nDs)
+	rows := MakeRowsChan()
+	nextFunc := func(it *Iterator) bool {
+		for it.Row = range rows {
+			return true
+		}
+		return false
+	}
+	nDs = NewDatastreamIt(ds.Context.Ctx, newColumns, nextFunc)
+	ds.it.IsCasted = true
+	ds.Inferred = true
+
+	err := nDs.Start()
+	if err != nil {
+		ds.Context.CaptureErr(err)
+	}
 
 	go func() {
-		defer nDs.Close()
-
-	loop:
-		for row := range ds.Rows() {
-			select {
-			case <-nDs.Context.Ctx.Done():
-				break loop
-			default:
-				nDs.Push(transf(row))
+		defer close(rows)
+		for batch0 := range ds.BatchChan {
+			for row := range batch0.Rows {
+				rows <- transf(row)
 			}
 		}
-		ds.SetEmpty()
 	}()
 
-	return
+	return nDs
 }
 
 // MapParallel applies the provided function to every row in parallel and returns the result. Order is not maintained.
@@ -1425,9 +1375,18 @@ func (it *Iterator) next() bool {
 	select {
 	case <-it.Context.Ctx.Done():
 		return false
+	case it.Row = <-it.Reprocess:
+		return true
 	default:
 		if it.Closed {
 			return false
+		}
+
+		// process ds Buffer, dsBufferI should be > -1
+		if it.dsBufferI > -1 && it.dsBufferI < len(it.ds.Buffer) {
+			it.Row = it.ds.Buffer[it.dsBufferI]
+			it.dsBufferI++
+			return true
 		}
 
 		next := it.nextFunc(it)

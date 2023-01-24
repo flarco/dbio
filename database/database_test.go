@@ -492,7 +492,6 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	csv1 := iop.CSV{Path: "test/test1.csv"}
 
 	stream, err = csv1.ReadStream()
-	g.Info("ID1: %s", stream.ID)
 	g.AssertNoError(t, err)
 
 	csvTable := db.schema + ".test1"

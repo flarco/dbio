@@ -286,7 +286,7 @@ func (sp *StreamProcessor) GetType(val interface{}) (typ ColumnType) {
 	case time.Time:
 		typ = TimestampType
 	case int8, int16, uint8, uint16:
-		typ = SmallIntType
+		typ = IntegerType
 	case int, int32, uint, uint32:
 		typ = IntegerType
 	case int64, uint64:

@@ -189,6 +189,60 @@ func (cols Columns) Names(args ...bool) []string {
 	return fields
 }
 
+// Types return the column names/types
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) Types(args ...bool) []string {
+	lower := false
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
+	}
+	fields := make([]string, len(cols))
+	for j, column := range cols {
+		field := column.Name
+
+		if lower {
+			field = strings.ToLower(column.Name)
+		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = g.F("%s [%s]", field, column.Type)
+	}
+	return fields
+}
+
+// DbTypes return the column names/db types
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) DbTypes(args ...bool) []string {
+	lower := false
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
+	}
+	fields := make([]string, len(cols))
+	for j, column := range cols {
+		field := column.Name
+
+		if lower {
+			field = strings.ToLower(column.Name)
+		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = g.F("%s [%s]", field, column.DbType)
+	}
+	return fields
+}
+
 // FieldMap return the fields map of indexes
 // when `toLower` is true, field keys are lower cased
 func (cols Columns) FieldMap(toLower bool) map[string]int {
@@ -235,6 +289,20 @@ func (cols Columns) Add(newCols Columns, overwrite bool) (col2 Columns, added Co
 		}
 	}
 	return cols, added
+}
+
+func (cols Columns) IsDifferent(newCols Columns) bool {
+	if len(cols) != len(newCols) {
+		return true
+	}
+	for i := range newCols {
+		if newCols[i].Type != cols[i].Type {
+			return true
+		} else if newCols[i].Name != cols[i].Name {
+			return true
+		}
+	}
+	return false
 }
 
 // CompareColumns compared two columns to see if there are similar

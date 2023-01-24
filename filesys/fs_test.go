@@ -61,6 +61,7 @@ func TestFileSysLocal(t *testing.T) {
 	data, err := iop.MergeDataflow(df).Collect(0)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
+	assert.NoError(t, df.Err())
 
 	df, err = fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
@@ -84,6 +85,32 @@ func TestFileSysLocal(t *testing.T) {
 	data1, err := df1.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 18, len(data1.Rows))
+
+}
+func TestFileSysLocalJson(t *testing.T) {
+	t.Parallel()
+	iop.SampleSize = 4
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	df, err := fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data, err := df.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data.Rows))
+	assert.EqualValues(t, 1, len(data.Columns))
+
+	fs.SetProp("flatten", "true")
+	df, err = fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data, err = df.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data.Rows))
+	assert.EqualValues(t, 9, len(data.Columns))
+	g.P(data.Columns.Types())
+	g.P(df.SchemaVersion)
 
 }
 

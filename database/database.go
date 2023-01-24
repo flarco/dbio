@@ -2304,6 +2304,8 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 		count += cnt
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "could not bulk import"))
+		} else if err = ds.Err(); err != nil {
+			df.Context.CaptureErr(g.Error(err, "could not bulk import"))
 		}
 	}
 

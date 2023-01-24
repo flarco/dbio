@@ -87,6 +87,7 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = path
 	ds.SetConfig(fs.BaseFileSysClient.Props())
+	ds.SetDf(fs.df)
 
 	if strings.Contains(strings.ToLower(path), ".xlsx") {
 		eDs, err := getExcelStream(fs.Self(), bufio.NewReader(file))

@@ -289,8 +289,8 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		var err error
 		defer context.Wg.Write.Done()
 
-		mux.Lock()
-		defer mux.Unlock()
+		// mux.Lock()
+		// defer mux.Unlock()
 
 		insFields, err := conn.ValidateColumnNames(columns.Names(), bColumns.Names(true, true), true)
 		if err != nil {
@@ -319,6 +319,8 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		}
 
 		// Do insert
+		g.Warn("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(rows[0]), len(rows)*len(rows[0]), len(vals))
+		g.P(rows[0])
 		_, err = stmt.ExecContext(ds.Context.Ctx, vals...)
 		if err != nil {
 			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(rows[0]), len(rows)*len(rows[0]), len(vals))
@@ -361,16 +363,17 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 
 	batchRows := [][]interface{}{}
 
-	g.Info("ID2: %s", ds.ID)
 	for batch = range ds.BatchChan {
 
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			// make sure fields match
+			// mux.Lock()
 			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
 			if err != nil {
 				err = g.Error(err, "could not get column list")
 				return
 			}
+			// mux.Unlock()
 
 			err = batch.Shape(columns)
 			if err != nil {
@@ -395,7 +398,7 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 				case <-ds.Context.Ctx.Done():
 					return count, ds.Context.Err()
 				default:
-					go insertBatch(batch.Columns, batchRows)
+					insertBatch(batch.Columns, batchRows)
 				}
 
 				batchRows = [][]interface{}{}

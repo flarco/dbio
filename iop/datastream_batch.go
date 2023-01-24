@@ -14,6 +14,7 @@ type Batch struct {
 	Previous   *Batch
 	ds         *Datastream
 	closed     bool
+	closeChan  chan struct{}
 	transforms []func(row []any) []any
 }
 
@@ -26,14 +27,20 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 		Rows:       MakeRowsChan(),
 		Previous:   ds.CurrentBatch(),
 		ds:         ds,
+		closeChan:  make(chan struct{}),
 		transforms: []func(row []any) []any{},
 	}
 
-	if batch.Previous != nil {
+	if batch.Previous != nil && !batch.Previous.closed {
+		batch.Previous.ds.Pause()
 		batch.Previous.Close() // close previous batch
+		batch.Previous.ds.Unpause()
 	}
 	ds.Batches = append(ds.Batches, batch)
 	ds.BatchChan <- batch
+	if !ds.NoTrace {
+		g.DebugLow("new batch %s", batch.ID())
+	}
 	return batch
 }
 
@@ -54,8 +61,12 @@ func (b *Batch) IsFirst() bool {
 
 func (b *Batch) Close() {
 	if !b.closed {
+		go func() { b.closeChan <- struct{}{} }()
 		b.closed = true
 		close(b.Rows)
+		if !b.ds.NoTrace {
+			g.DebugLow("closed %s", b.ID())
+		}
 	}
 }
 
@@ -105,6 +116,13 @@ func (b *Batch) Shape(columns Columns) (err error) {
 	}
 
 	mapRowCol := func(row []any) []any {
+		// g.PP(colMap)
+		// g.P(row)
+		// g.Warn("len(row) = %d", len(row))
+		// g.Warn("len(b.Columns) = %d", len(b.Columns))
+		for len(row) < len(b.Columns) {
+			row = append(row, nil)
+		}
 		newRow := make([]any, len(row))
 		for o, t := range colMap {
 			newRow[t] = row[o]
@@ -112,7 +130,6 @@ func (b *Batch) Shape(columns Columns) (err error) {
 		return newRow
 	}
 
-	g.Warn("Pause ID: %s", b.ds.ID)
 	b.ds.Pause()
 	b.transforms = append(b.transforms, mapRowCol)
 	b.ds.Unpause()
@@ -135,7 +152,16 @@ retry:
 		return
 	case <-b.ds.pauseChan:
 		<-b.ds.pauseChan // wait for unpause
+		if b.closed {
+			b.ds.it.Reprocess <- row
+			return
+		}
 		goto retry
+	case <-b.closeChan:
+		b.ds.it.Reprocess <- row
+	case <-b.ds.schemaChgChan:
+		b.Close()
+		b.ds.it.Reprocess <- row
 	case b.Rows <- newRow:
 		b.ds.bwRows <- newRow
 	}
