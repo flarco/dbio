@@ -16,7 +16,7 @@ type Dataflow struct {
 	Buffer         [][]interface{}
 	StreamCh       chan *Datastream
 	Streams        []*Datastream
-	Context        g.Context
+	Context        *g.Context
 	Limit          uint64
 	InBytes        uint64
 	OutBytes       uint64
@@ -44,7 +44,7 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	df = &Dataflow{
 		StreamCh:       make(chan *Datastream, ctx.Wg.Limit),
 		Streams:        []*Datastream{},
-		Context:        ctx,
+		Context:        &ctx,
 		Limit:          Limit,
 		StreamMap:      map[string]*Datastream{},
 		deferFuncs:     []func(){},

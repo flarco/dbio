@@ -315,6 +315,13 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	var sVal string
 	isString := false
 
+	if val == nil {
+		cs.TotalCnt++
+		cs.NullCnt++
+		sp.rowBlankValCnt++
+		return nil
+	}
+
 	switch v := val.(type) {
 	case godror.Number:
 		val = sp.ParseString(cast.ToString(val), i)
@@ -322,11 +329,6 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		sVal = string(v)
 		val = sVal
 		isString = true
-	case nil:
-		cs.TotalCnt++
-		cs.NullCnt++
-		sp.rowBlankValCnt++
-		return nil
 	case string, *string:
 		switch v2 := v.(type) {
 		case string:
