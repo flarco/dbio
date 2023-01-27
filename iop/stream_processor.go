@@ -558,7 +558,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		} else if sp.config.datetimeFormat != "" && strings.ToLower(sp.config.datetimeFormat) != "auto" {
 			return tVal.Format(sp.config.datetimeFormat)
 		}
-		return tVal.Format("2006-01-02 15:04:05.000")
+		return tVal.Format("2006-01-02 15:04:05.000+07")
 	default:
 		return cast.ToString(val)
 		// return fmt.Sprintf("%v", val)
