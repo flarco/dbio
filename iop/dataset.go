@@ -247,17 +247,17 @@ func (data *Dataset) Stream() *Datastream {
 	ds.it.IsCasted = true
 	ds.Inferred = data.Inferred
 
-	err := ds.Start()
-	if err != nil {
-		ds.Context.CaptureErr(err)
-	}
-
 	go func() {
 		defer close(rows)
 		for _, row := range data.Rows {
 			rows <- row
 		}
 	}()
+
+	err := ds.Start()
+	if err != nil {
+		ds.Context.CaptureErr(err)
+	}
 
 	return ds
 }

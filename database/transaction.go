@@ -319,11 +319,9 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		}
 
 		// Do insert
-		g.Warn("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(rows[0]), len(rows)*len(rows[0]), len(vals))
-		g.P(rows[0])
 		_, err = stmt.ExecContext(ds.Context.Ctx, vals...)
 		if err != nil {
-			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(rows[0]), len(rows)*len(rows[0]), len(vals))
+			batchErrStr := g.F("Batch Size: %d rows x %d cols = %d (%d vals)", len(rows), len(bColumns), len(rows)*len(bColumns), len(vals))
 			if len(insertTemplate) > 3000 {
 				insertTemplate = insertTemplate[:3000]
 			}
@@ -365,21 +363,21 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 
 	for batch = range ds.BatchChan {
 
-		if batch.ColumnsChanged() || batch.IsFirst() {
-			// make sure fields match
-			// mux.Lock()
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
-			if err != nil {
-				err = g.Error(err, "could not get column list")
-				return
-			}
-			// mux.Unlock()
+		// if batch.ColumnsChanged() || batch.IsFirst() {
+		// 	// make sure fields match
+		// 	// mux.Lock()
+		// 	columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+		// 	if err != nil {
+		// 		err = g.Error(err, "could not get column list")
+		// 		return
+		// 	}
+		// 	// mux.Unlock()
 
-			err = batch.Shape(columns)
-			if err != nil {
-				return count, g.Error(err, "could not shape batch stream")
-			}
-		}
+		// 	err = batch.Shape(columns)
+		// 	if err != nil {
+		// 		return count, g.Error(err, "could not shape batch stream")
+		// 	}
+		// }
 
 		if conn.GetType() == dbio.TypeDbClickhouse {
 			batchSize = 1
@@ -401,8 +399,16 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 					insertBatch(batch.Columns, batchRows)
 				}
 
+				// reset
 				batchRows = [][]interface{}{}
 			}
+		}
+
+		// insert
+		if len(batchRows) > 0 {
+			context.Wg.Write.Add()
+			insertBatch(batch.Columns, batchRows)
+			batchRows = [][]interface{}{}
 		}
 	}
 

@@ -2310,14 +2310,14 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 	}
 
 	// concurrent imports does not work very well
-	// for ds := range df.StreamCh {
-	// 	df.Context.Wg.Write.Add()
-	// 	go doImport(tableFName, ds)
-	// }
+	for ds := range df.StreamCh {
+		df.Context.Wg.Write.Add()
+		doImport(tableFName, ds)
+	}
 
 	// safer for now, fails with too many files
-	df.Context.Wg.Write.Add()
-	doImport(tableFName, iop.MergeDataflow(df))
+	// df.Context.Wg.Write.Add()
+	// doImport(tableFName, iop.MergeDataflow(df))
 
 	df.Context.Wg.Write.Wait()
 

@@ -325,6 +325,68 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 	return
 }
 
+func ParseColumnName(text string, dialect dbio.Type) (colName string, err error) {
+
+	quote := GetQualifierQuote(dialect)
+
+	defCaseUpper := g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake)
+
+	inQuote := false
+	words := []string{}
+	word := ""
+
+	addWord := func() {
+		if word == "" {
+			return
+		}
+		words = append(words, word)
+		word = ""
+	}
+
+	for _, r := range text {
+		c := string(r)
+
+		switch c {
+		case quote:
+			if inQuote {
+				addWord()
+			}
+			inQuote = !inQuote
+			continue
+		case ".":
+			if !inQuote {
+				addWord()
+				continue
+			}
+		case " ", "\n", "\t", "\r", "(", ")", "-", "'":
+			if !inQuote {
+				err = g.Error("invalid character: %#v", c)
+				return
+			}
+		}
+
+		if inQuote {
+			word = word + c
+		} else {
+			word = word + lo.Ternary(defCaseUpper, strings.ToUpper(c), c)
+		}
+	}
+
+	if inQuote {
+		return colName, g.Error("unterminated qualifier quote")
+	} else if word != "" {
+		addWord()
+	}
+
+	if len(words) == 0 {
+		err = g.Error("invalid column name")
+	} else {
+		colName = strings.Join(words, ".")
+	}
+
+	return
+}
+
 func GetQualifierQuote(dialect dbio.Type) string {
 	quote := `"`
 	switch dialect {

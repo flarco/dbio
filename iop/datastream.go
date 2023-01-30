@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
@@ -48,12 +49,20 @@ type Datastream struct {
 	df            *Dataflow
 	bwRows        chan []any // for correct byte written
 	readyChn      chan struct{}
-	schemaChgChan chan struct{}
+	schemaChgChan chan schemaChg
 	bwCsv         *csv.Writer // for correct byte written
 	ID            string
 	Metadata      Metadata // map of column name to metadata type
 	paused        bool
 	pauseChan     chan struct{}
+	unpauseChan   chan struct{}
+}
+
+type schemaChg struct {
+	I     int
+	Type  ColumnType
+	Added bool
+	Cols  Columns
 }
 
 type KeyValue struct {
@@ -126,8 +135,9 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		bwCsv:         csv.NewWriter(ioutil.Discard),
 		bwRows:        make(chan []any, 100),
 		readyChn:      make(chan struct{}),
-		schemaChgChan: make(chan struct{}, 1),
-		pauseChan:     make(chan struct{}, 1),
+		schemaChgChan: make(chan schemaChg, 1000),
+		pauseChan:     make(chan struct{}),
+		unpauseChan:   make(chan struct{}),
 	}
 	ds.Sp.ds = ds
 	ds.it = ds.NewIterator(columns, func(it *Iterator) bool { return false })
@@ -263,6 +273,7 @@ func (ds *Datastream) Close() {
 		for {
 			select {
 			case <-ds.pauseChan:
+			case <-ds.unpauseChan:
 			case <-ds.readyChn:
 			default:
 				break loop
@@ -297,20 +308,7 @@ func (ds *Datastream) Close() {
 // SetColumns sets the columns
 func (ds *Datastream) AddColumns(newCols Columns, overwrite bool) (added Columns) {
 	ds.Columns, added = ds.Columns.Add(newCols, overwrite)
-	if df := ds.df; df != nil {
-		df.AddColumns(newCols, overwrite)
-	} else {
-		if len(added) > 0 {
-			ds.Pause()
-
-			// wait for current batch to close
-			if batch := ds.CurrentBatch(); batch != nil {
-				batch.Close()
-			}
-
-			ds.Unpause()
-		}
-	}
+	ds.schemaChgChan <- schemaChg{Added: true, Cols: newCols}
 	return added
 }
 
@@ -326,18 +324,7 @@ func (ds *Datastream) ChangeColumn(i int, newType ColumnType) {
 
 	g.Debug("column type change for %s (%s to %s)", ds.Columns[i].Name, ds.Columns[i].Type, newType)
 	ds.Columns[i].Type = newType
-	if df := ds.df; df != nil {
-		df.ChangeColumn(i, newType)
-	} else {
-		ds.Pause()
-
-		// wait for current batches to close
-		if batch := ds.CurrentBatch(); batch != nil {
-			batch.Close()
-		}
-
-		ds.Unpause()
-	}
+	ds.schemaChgChan <- schemaChg{I: i, Type: newType}
 }
 
 // GetFields return the fields of the Data
@@ -430,7 +417,7 @@ func (ds *Datastream) Start() (err error) {
 	}
 
 loop:
-	for !ds.Inferred && ds.it.next() {
+	for ds.it.next() {
 		select {
 		case <-ds.Context.Ctx.Done():
 			if ds.Context.Err() != nil {
@@ -554,27 +541,41 @@ loop:
 
 	loop:
 		for ds.it.next() {
-			select {
-			case <-ds.pauseChan:
-				<-ds.pauseChan // wait for unpause
-			default:
-			}
+			// if !ds.NoTrace {
+			// 	g.Warn("ds.it.next() ROW %s > %d", ds.ID, ds.it.Counter)
+			// }
 
-			if ds.it.IsCasted {
-				row = ds.it.Row
-			} else {
-				row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
-			}
-			if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
-				continue
-			}
+		schemaChgLoop:
+			for {
+				// reprocess row if needed (to expand it as needed)
+				if ds.it.IsCasted {
+					row = ds.it.Row
+				} else {
+					row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
+				}
+				if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
+					goto loop
+				}
 
-			select {
-			case <-ds.schemaChgChan:
-				batch = ds.NewBatch(ds.Columns)
-			default:
-				if batch.closed {
-					batch = ds.NewBatch(ds.Columns)
+				select {
+				case <-ds.pauseChan:
+					<-ds.unpauseChan // wait for unpause
+				case schemaChgVal := <-ds.schemaChgChan:
+					if df := ds.df; df != nil {
+						if schemaChgVal.Added {
+							// g.DebugLow("ds %s, adding columns %#v", ds.ID, schemaChgVal.Cols.Names())
+							df.AddColumns(schemaChgVal.Cols, false, ds.ID)
+						} else {
+							g.DebugLow("ds %s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
+							df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID)
+						}
+					}
+					batch.Close()
+				default:
+					if batch.closed {
+						batch = ds.NewBatch(ds.Columns)
+					}
+					break schemaChgLoop
 				}
 			}
 
@@ -867,19 +868,35 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 }
 
 func (ds *Datastream) Pause() {
-	if ds.Ready && !ds.closed && !ds.paused {
+	if ds.Ready && !ds.closed {
+		g.DebugLow("pausing %s", ds.ID)
 		ds.pauseChan <- struct{}{}
 		ds.paused = true
-		g.DebugLow("paused %s", ds.ID)
 	}
+}
+
+func (ds *Datastream) TryPause() bool {
+	if ds.Ready && !ds.closed && !ds.paused {
+		g.DebugLow("try pausing %s", ds.ID)
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case ds.pauseChan <- struct{}{}:
+			ds.paused = true
+			return true
+		case <-timer.C:
+			g.DebugLow("could not pause %s", ds.ID)
+			return false
+		}
+	}
+	return false
 }
 
 // Unpause unpauses all streams
 func (ds *Datastream) Unpause() {
-	if ds.Ready && !ds.closed && ds.paused {
-		ds.pauseChan <- struct{}{}
+	if ds.paused {
+		g.DebugLow("unpausing %s", ds.ID)
+		ds.unpauseChan <- struct{}{}
 		ds.paused = false
-		g.DebugLow("unpaused %s", ds.ID)
 	}
 }
 
@@ -913,11 +930,6 @@ func (ds *Datastream) Map(newColumns Columns, transf func([]any) []any) (nDs *Da
 	ds.it.IsCasted = true
 	ds.Inferred = true
 
-	err := nDs.Start()
-	if err != nil {
-		ds.Context.CaptureErr(err)
-	}
-
 	go func() {
 		defer close(rows)
 		for batch0 := range ds.BatchChan {
@@ -926,6 +938,11 @@ func (ds *Datastream) Map(newColumns Columns, transf func([]any) []any) (nDs *Da
 			}
 		}
 	}()
+
+	err := nDs.Start()
+	if err != nil {
+		ds.Context.CaptureErr(err)
+	}
 
 	return nDs
 }
@@ -1376,6 +1393,7 @@ func (it *Iterator) next() bool {
 	case <-it.Context.Ctx.Done():
 		return false
 	case it.Row = <-it.Reprocess:
+		g.DebugLow("Reprocess %s > %d", it.ds.ID, it.Counter)
 		return true
 	default:
 		if it.Closed {

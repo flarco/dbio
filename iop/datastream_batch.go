@@ -61,7 +61,10 @@ func (b *Batch) IsFirst() bool {
 
 func (b *Batch) Close() {
 	if !b.closed {
-		go func() { b.closeChan <- struct{}{} }()
+		select {
+		case b.closeChan <- struct{}{}:
+		default:
+		}
 		b.closed = true
 		close(b.Rows)
 		if !b.ds.NoTrace {
@@ -86,7 +89,12 @@ func (b *Batch) ColumnsChanged() bool {
 	return false
 }
 
-func (b *Batch) Shape(columns Columns) (err error) {
+func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
+	doPause := true
+	if len(pause) > 0 {
+		doPause = pause[0]
+	}
+
 	if len(columns) != len(b.Columns) {
 		return g.Error("number of columns do not match")
 	}
@@ -112,14 +120,15 @@ func (b *Batch) Shape(columns Columns) (err error) {
 	}
 
 	if !diffCols {
+		g.Warn("%s | did not add mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
 		return nil
 	}
 
 	mapRowCol := func(row []any) []any {
-		// g.PP(colMap)
-		// g.P(row)
-		// g.Warn("len(row) = %d", len(row))
-		// g.Warn("len(b.Columns) = %d", len(b.Columns))
+		if !b.ds.NoTrace {
+			// g.P(row)
+			g.DebugLow("%s | %d > batch.Push2", b.ID(), b.ds.Count+1)
+		}
 		for len(row) < len(b.Columns) {
 			row = append(row, nil)
 		}
@@ -127,31 +136,74 @@ func (b *Batch) Shape(columns Columns) (err error) {
 		for o, t := range colMap {
 			newRow[t] = row[o]
 		}
+		m1 := g.M()
+		m2 := g.M()
+		for i, name := range b.Columns.Names() {
+			m1[name] = row[i]
+			m2[name] = newRow[i]
+		}
+		g.DebugLow("%s | %d > batch.Push2 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m1))
+		g.DebugLow("%s | %d > batch.Push2 NewRec > %s", b.ID(), b.ds.Count+1, g.Pretty(m2))
 		return newRow
 	}
 
-	b.ds.Pause()
+	if doPause {
+		b.ds.Pause()
+	}
 	b.transforms = append(b.transforms, mapRowCol)
-	b.ds.Unpause()
+	g.Warn("%s | added mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
+	g.Warn("%s | b.Columns = %#v", b.ID(), b.Columns.Names())
+	g.Warn("%s | columns  =  %#v", b.ID(), columns.Names())
+	g.PP(colMap)
+	if doPause {
+		b.ds.Unpause()
+	}
 
 	return nil
 }
 
 func (b *Batch) Push(row []any) {
-	if b.closed {
-		return
-	}
 retry:
+	if !b.ds.NoTrace {
+		// g.Warn("batch ROW %s > %d", b.ID(), b.ds.Count)
+		g.DebugLow("%s | %d > batch.Push1 ROW", b.ID(), b.ds.Count+1)
+		g.DebugLow("%s | %d > Columns > %#v", b.ID(), b.ds.Count+1, b.Columns.Names())
+		g.DebugLow("%s | %d > Row > %#v", b.ID(), b.ds.Count+1, row)
+	}
+
 	newRow := row
+	// if len(b.transforms) == 0 && b.ds.df != nil {
+	// 	b.Shape(b.ds.df.Columns, false)
+	// }
+
 	for _, f := range b.transforms {
 		newRow = f(newRow) // allows transformations
 	}
+
+	for len(newRow) < len(b.Columns) {
+		newRow = append(newRow, nil)
+	}
+
+	if !b.ds.NoTrace {
+		g.DebugLow("%s | %d > batch.Push3", b.ID(), b.ds.Count+1)
+		m := g.M()
+		for i, name := range b.Columns.Names() {
+			m[name] = newRow[i]
+		}
+		g.DebugLow("%s | %d > batch.Push3 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m))
+	}
+
+	if b.closed {
+		b.ds.it.Reprocess <- row
+		return
+	}
+
 	select {
 	case <-b.ds.Context.Ctx.Done():
 		b.ds.Close()
 		return
 	case <-b.ds.pauseChan:
-		<-b.ds.pauseChan // wait for unpause
+		<-b.ds.unpauseChan // wait for unpause
 		if b.closed {
 			b.ds.it.Reprocess <- row
 			return
@@ -159,11 +211,13 @@ retry:
 		goto retry
 	case <-b.closeChan:
 		b.ds.it.Reprocess <- row
-	case <-b.ds.schemaChgChan:
-		b.Close()
+		return
+	case v := <-b.ds.schemaChgChan:
 		b.ds.it.Reprocess <- row
+		b.ds.schemaChgChan <- v
+		return
 	case b.Rows <- newRow:
+		b.ds.Count++
 		b.ds.bwRows <- newRow
 	}
-	b.ds.Count++
 }
