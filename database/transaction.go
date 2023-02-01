@@ -363,21 +363,21 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 
 	for batch = range ds.BatchChan {
 
-		// if batch.ColumnsChanged() || batch.IsFirst() {
-		// 	// make sure fields match
-		// 	// mux.Lock()
-		// 	columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
-		// 	if err != nil {
-		// 		err = g.Error(err, "could not get column list")
-		// 		return
-		// 	}
-		// 	// mux.Unlock()
+		if batch.ColumnsChanged() || batch.IsFirst() {
+			// make sure fields match
+			// mux.Lock()
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			if err != nil {
+				err = g.Error(err, "could not get column list")
+				return
+			}
+			// mux.Unlock()
 
-		// 	err = batch.Shape(columns)
-		// 	if err != nil {
-		// 		return count, g.Error(err, "could not shape batch stream")
-		// 	}
-		// }
+			// err = batch.Shape(columns)
+			// if err != nil {
+			// 	return count, g.Error(err, "could not shape batch stream")
+			// }
+		}
 
 		if conn.GetType() == dbio.TypeDbClickhouse {
 			batchSize = 1

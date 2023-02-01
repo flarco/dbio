@@ -360,7 +360,6 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = urlStr
 	ds.SetConfig(fs.Props())
-	ds.SetDf(fs.df)
 
 	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
 		reader, err := fs.Self().GetReader(urlStr)

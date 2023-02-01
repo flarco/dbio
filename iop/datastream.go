@@ -149,10 +149,6 @@ func (ds *Datastream) Df() *Dataflow {
 	return ds.df
 }
 
-func (ds *Datastream) SetDf(df *Dataflow) {
-	ds.df = df
-}
-
 func (ds *Datastream) processBwRows() {
 	// bwRows slows process speed by 10x, but this is needed for byte sizing
 	go func() {
@@ -273,7 +269,7 @@ func (ds *Datastream) Close() {
 		for {
 			select {
 			case <-ds.pauseChan:
-			case <-ds.unpauseChan:
+				<-ds.unpauseChan // wait for unpause
 			case <-ds.readyChn:
 			default:
 				break loop
@@ -309,6 +305,7 @@ func (ds *Datastream) Close() {
 func (ds *Datastream) AddColumns(newCols Columns, overwrite bool) (added Columns) {
 	ds.Columns, added = ds.Columns.Add(newCols, overwrite)
 	ds.schemaChgChan <- schemaChg{Added: true, Cols: newCols}
+	// g.DebugLow("ds %s (%d queued) | pushed schemaChgChan %#v", ds.ID, len(ds.schemaChgChan), newCols.Names())
 	return added
 }
 
@@ -557,20 +554,32 @@ loop:
 					goto loop
 				}
 
+				if df := ds.df; df != nil && df.OnColumnAdded != nil {
+					select {
+					case <-ds.pauseChan:
+						<-ds.unpauseChan // wait for unpause
+						goto schemaChgLoop
+
+					// only consume channel if df exists
+					case schemaChgVal := <-ds.schemaChgChan:
+						if schemaChgVal.Added {
+							g.DebugLow("%s, adding columns %#v", ds.ID, schemaChgVal.Cols.Names())
+							df.AddColumns(schemaChgVal.Cols, false, ds.ID)
+						} else {
+							g.DebugLow("%s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
+							df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID)
+						}
+						batch.Close()
+						goto schemaChgLoop
+					default:
+					}
+				}
+
 				select {
 				case <-ds.pauseChan:
 					<-ds.unpauseChan // wait for unpause
-				case schemaChgVal := <-ds.schemaChgChan:
-					if df := ds.df; df != nil {
-						if schemaChgVal.Added {
-							// g.DebugLow("ds %s, adding columns %#v", ds.ID, schemaChgVal.Cols.Names())
-							df.AddColumns(schemaChgVal.Cols, false, ds.ID)
-						} else {
-							g.DebugLow("ds %s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
-							df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID)
-						}
-					}
-					batch.Close()
+					goto schemaChgLoop
+
 				default:
 					if batch.closed {
 						batch = ds.NewBatch(ds.Columns)
@@ -876,7 +885,7 @@ func (ds *Datastream) Pause() {
 }
 
 func (ds *Datastream) TryPause() bool {
-	if ds.Ready && !ds.closed && !ds.paused {
+	if ds.Ready && !ds.paused {
 		g.DebugLow("try pausing %s", ds.ID)
 		timer := time.NewTimer(10 * time.Millisecond)
 		select {
@@ -1393,7 +1402,7 @@ func (it *Iterator) next() bool {
 	case <-it.Context.Ctx.Done():
 		return false
 	case it.Row = <-it.Reprocess:
-		g.DebugLow("Reprocess %s > %d", it.ds.ID, it.Counter)
+		// g.DebugLow("Reprocess %s > %d", it.ds.ID, it.Counter)
 		return true
 	default:
 		if it.Closed {

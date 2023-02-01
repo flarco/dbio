@@ -136,14 +136,14 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 		for o, t := range colMap {
 			newRow[t] = row[o]
 		}
-		m1 := g.M()
-		m2 := g.M()
-		for i, name := range b.Columns.Names() {
-			m1[name] = row[i]
-			m2[name] = newRow[i]
-		}
-		g.DebugLow("%s | %d > batch.Push2 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m1))
-		g.DebugLow("%s | %d > batch.Push2 NewRec > %s", b.ID(), b.ds.Count+1, g.Pretty(m2))
+		// m1 := g.M()
+		// m2 := g.M()
+		// for i, name := range b.Columns.Names() {
+		// 	m1[name] = row[i]
+		// 	m2[name] = newRow[i]
+		// }
+		// g.DebugLow("%s | %d > batch.Push2 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m1))
+		// g.DebugLow("%s | %d > batch.Push2 NewRec > %s", b.ID(), b.ds.Count+1, g.Pretty(m2))
 		return newRow
 	}
 
@@ -163,12 +163,11 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 }
 
 func (b *Batch) Push(row []any) {
-retry:
 	if !b.ds.NoTrace {
 		// g.Warn("batch ROW %s > %d", b.ID(), b.ds.Count)
-		g.DebugLow("%s | %d > batch.Push1 ROW", b.ID(), b.ds.Count+1)
-		g.DebugLow("%s | %d > Columns > %#v", b.ID(), b.ds.Count+1, b.Columns.Names())
-		g.DebugLow("%s | %d > Row > %#v", b.ID(), b.ds.Count+1, row)
+		// g.DebugLow("%s | %d > batch.Push1 ROW", b.ID(), b.ds.Count+1)
+		// g.DebugLow("%s | %d > Columns > %#v", b.ID(), b.ds.Count+1, b.Columns.Names())
+		// g.DebugLow("%s | %d > Row > %#v", b.ID(), b.ds.Count+1, row)
 	}
 
 	newRow := row
@@ -185,12 +184,12 @@ retry:
 	}
 
 	if !b.ds.NoTrace {
-		g.DebugLow("%s | %d > batch.Push3", b.ID(), b.ds.Count+1)
+		// g.DebugLow("%s | %d > batch.Push3", b.ID(), b.ds.Count+1)
 		m := g.M()
 		for i, name := range b.Columns.Names() {
 			m[name] = newRow[i]
 		}
-		g.DebugLow("%s | %d > batch.Push3 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m))
+		// g.DebugLow("%s | %d > batch.Push3 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m))
 	}
 
 	if b.closed {
@@ -201,21 +200,14 @@ retry:
 	select {
 	case <-b.ds.Context.Ctx.Done():
 		b.ds.Close()
-		return
 	case <-b.ds.pauseChan:
 		<-b.ds.unpauseChan // wait for unpause
-		if b.closed {
-			b.ds.it.Reprocess <- row
-			return
-		}
-		goto retry
+		b.ds.it.Reprocess <- row
 	case <-b.closeChan:
 		b.ds.it.Reprocess <- row
-		return
 	case v := <-b.ds.schemaChgChan:
 		b.ds.it.Reprocess <- row
 		b.ds.schemaChgChan <- v
-		return
 	case b.Rows <- newRow:
 		b.ds.Count++
 		b.ds.bwRows <- newRow

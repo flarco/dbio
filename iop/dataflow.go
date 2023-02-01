@@ -3,6 +3,7 @@ package iop
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,18 +120,21 @@ func (df *Dataflow) Pause(exceptDs ...string) {
 	if df.Ready {
 
 		for {
+			df.mux.Lock()
 			// try to pause all datastreams, or none
 			pauseMap := map[string]bool{}
 			for _, ds := range df.Streams {
-				if !lo.Contains(exceptDs, ds.ID) {
+				if !lo.Contains(exceptDs, ds.ID) && !ds.closed {
 					pauseMap[ds.ID] = ds.TryPause()
 				}
 			}
 
 			pauseSlice := lo.Values(pauseMap)
 			if len(lo.Filter(pauseSlice, func(v bool, i int) bool { return v })) == len(pauseSlice) {
+				df.mux.Unlock()
 				break // only exit if all datastreams are paused
 			} else if len(pauseSlice) == 0 {
+				df.mux.Unlock()
 				break
 			}
 
@@ -140,13 +144,17 @@ func (df *Dataflow) Pause(exceptDs ...string) {
 					ds.Unpause()
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			df.mux.Unlock()
+			time.Sleep(time.Duration(g.RandInt(100)) * time.Millisecond)
 		}
 	}
 }
 
 // Unpause unpauses all streams
 func (df *Dataflow) Unpause(exceptDs ...string) {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+
 	if df.Ready {
 		for _, ds := range df.Streams {
 			if !lo.Contains(exceptDs, ds.ID) {
@@ -306,9 +314,28 @@ func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
 	return
 }
 
+// SyncColumns a workaround to synch the ds.Columns to the df.Columns
+func (df *Dataflow) SyncColumns() {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+	for _, ds := range df.Streams {
+		colMap := df.Columns.FieldMap(true)
+		for _, col := range ds.Columns {
+			colName := strings.ToLower(col.Name)
+			if _, ok := colMap[colName]; !ok {
+				col.Position = len(df.Columns)
+				df.Columns = append(df.Columns, col)
+			}
+		}
+	}
+}
+
 // SyncStats sync stream processor stats aggregated to the df.Columns
 func (df *Dataflow) SyncStats() {
 	df.ResetStats()
+
+	df.mux.Lock()
+	defer df.mux.Unlock()
 
 	for _, ds := range df.Streams {
 		for i, colStat := range ds.Sp.colStats {
@@ -407,9 +434,6 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 	defer func() { g.DebugLow("pushed %d datastreams", pushCnt) }()
 
 	for ds := range dsCh {
-		df.mux.Lock()
-		df.Streams = append(df.Streams, ds)
-		df.mux.Unlock()
 
 		if df.closed {
 			break
@@ -436,7 +460,6 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 		case <-ds.readyChn:
 			// wait for first ds to start streaming.
 			// columns/buffer need to be populated
-			ds.df = df
 			if df.Ready {
 				// add new columns two-way if not exist
 				df.AddColumns(ds.Columns, false)
@@ -448,9 +471,14 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 				df.SetReady()
 			}
 
-			// wait for stream
-			df.StreamMap[ds.ID] = ds
+			// push stream
+			df.mux.Lock()
+			ds.df = df
 			df.StreamCh <- ds
+			df.StreamMap[ds.ID] = ds
+			df.Streams = append(df.Streams, ds)
+			df.mux.Unlock()
+
 			pushCnt++
 			g.DebugLow("%d datastreams pushed [%s]", pushCnt, ds.ID)
 			if df.Limit > 0 && df.Count() >= df.Limit {

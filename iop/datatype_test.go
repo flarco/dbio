@@ -303,3 +303,13 @@ func TestDatasetSort(t *testing.T) {
 	g.P(data.Rows)
 	// g.P(data.ColValuesStr(0))
 }
+
+func TestAddColumns(t *testing.T) {
+	df := NewDataflow(0)
+	df.Columns = NewColumnsFromFields("col1", "col2")
+	assert.Equal(t, 2, len(df.Columns))
+	newCols := NewColumnsFromFields("col2", "col3")
+	df.AddColumns(newCols, false)
+	assert.Equal(t, 3, len(df.Columns))
+	g.Debug("%#v", df.Columns.Names())
+}
