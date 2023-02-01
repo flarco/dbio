@@ -106,6 +106,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 			// if err != nil {
 			// 	return count, g.Error(err, "could not shape batch stream")
 			// }
+
 		}
 
 		err = func() error {
