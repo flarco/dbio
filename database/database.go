@@ -2304,18 +2304,20 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 		count += cnt
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "could not bulk import"))
+		} else if err = ds.Err(); err != nil {
+			df.Context.CaptureErr(g.Error(err, "could not bulk import"))
 		}
 	}
 
 	// concurrent imports does not work very well
-	// for ds := range df.StreamCh {
-	// 	df.Context.Wg.Write.Add()
-	// 	go doImport(tableFName, ds)
-	// }
+	for ds := range df.StreamCh {
+		df.Context.Wg.Write.Add()
+		doImport(tableFName, ds)
+	}
 
 	// safer for now, fails with too many files
-	df.Context.Wg.Write.Add()
-	doImport(tableFName, iop.MergeDataflow(df))
+	// df.Context.Wg.Write.Add()
+	// doImport(tableFName, iop.MergeDataflow(df))
 
 	df.Context.Wg.Write.Wait()
 
@@ -2623,6 +2625,8 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 		}
 		msg := g.F("optimizing existing '%s' (%s) vs new '%s' (%s) => ", col.Name, col.Type, newCol.Name, newCol.Type)
 		switch {
+		case col.Type.IsDecimal() && newCol.Type.IsDecimal():
+			continue
 		case col.Type.IsDatetime() && newCol.Type.IsDatetime():
 			newCol.Type = iop.TimestampType
 		case col.Type.IsInteger() && newCol.Type.IsDecimal():

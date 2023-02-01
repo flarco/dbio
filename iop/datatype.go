@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/flarco/g"
-	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -101,7 +100,7 @@ func init() {
 }
 
 // Row is a row
-func Row(vals ...interface{}) []interface{} {
+func Row(vals ...any) []any {
 	return vals
 }
 
@@ -164,10 +163,82 @@ func (cols Columns) Clone() (newCols Columns) {
 }
 
 // Names return the column names
-func (cols Columns) Names() []string {
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) Names(args ...bool) []string {
+	lower := false
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
+	}
 	fields := make([]string, len(cols))
 	for j, column := range cols {
-		fields[j] = column.Name
+		field := column.Name
+
+		if lower {
+			field = strings.ToLower(column.Name)
+		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = field
+	}
+	return fields
+}
+
+// Types return the column names/types
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) Types(args ...bool) []string {
+	lower := false
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
+	}
+	fields := make([]string, len(cols))
+	for j, column := range cols {
+		field := column.Name
+
+		if lower {
+			field = strings.ToLower(column.Name)
+		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = g.F("%s [%s]", field, column.Type)
+	}
+	return fields
+}
+
+// DbTypes return the column names/db types
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) DbTypes(args ...bool) []string {
+	lower := false
+	cleanUp := false
+	if len(args) > 1 {
+		lower = args[0]
+		cleanUp = args[1]
+	} else if len(args) > 0 {
+		lower = args[0]
+	}
+	fields := make([]string, len(cols))
+	for j, column := range cols {
+		field := column.Name
+
+		if lower {
+			field = strings.ToLower(column.Name)
+		}
+		if cleanUp {
+			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+		}
+
+		fields[j] = g.F("%s [%s]", field, column.DbType)
 	}
 	return fields
 }
@@ -202,44 +273,77 @@ func (cols Columns) GetColumn(name string) Column {
 	return colsMap[strings.ToLower(name)]
 }
 
-// Normalize returns the normalized field name
-func (cols Columns) Normalize(name string) string {
-	return cols.GetColumn(name).Name
+func (cols Columns) Add(newCols Columns, overwrite bool) (col2 Columns, added Columns) {
+	existingIndexMap := cols.FieldMap(true)
+	for _, newCol := range newCols {
+		key := strings.ToLower(newCol.Name)
+		if i, ok := existingIndexMap[key]; ok {
+			if overwrite {
+				newCol.Position = i + 1
+				cols[i] = newCol
+			}
+		} else {
+			newCol.Position = len(cols)
+			cols = append(cols, newCol)
+			added = append(added, newCol)
+		}
+	}
+	return cols, added
+}
+
+func (cols Columns) IsDifferent(newCols Columns) bool {
+	if len(cols) != len(newCols) {
+		return true
+	}
+	for i := range newCols {
+		if newCols[i].Type != cols[i].Type {
+			return true
+		} else if newCols[i].Name != cols[i].Name {
+			return true
+		}
+	}
+	return false
 }
 
 // CompareColumns compared two columns to see if there are similar
 func CompareColumns(columns1 Columns, columns2 Columns) (reshape bool, err error) {
-	if len(columns1) != len(columns2) {
-		g.Debug("%#v != %#v", columns1.Names(), columns2.Names())
-		return reshape, g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
-	}
+	// if len(columns1) != len(columns2) {
+	// 	g.Debug("%#v != %#v", columns1.Names(), columns2.Names())
+	// 	return reshape, g.Error("columns mismatch: %d fields != %d fields", len(columns1), len(columns2))
+	// }
 
 	eG := g.ErrorGroup{}
-	col2Map := lo.KeyBy(columns2, func(c Column) string { return strings.ToLower(c.Name) })
-	for i, c1 := range columns1 {
-		c2 := columns2[i]
 
-		_, found := col2Map[strings.ToLower(c1.Name)]
-		if c1.Name != c2.Name {
-			if found {
-				// sometimes the orders of columns is different
-				// (especially, multiple json files), shape ds to match columns1
-				reshape = true
-			} else {
-				eG.Add(g.Error("column name mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
-			}
-		} else if c1.Type != c2.Type {
-			// too unpredictable to mark as error? sometimes one column
-			// has not enough data to represent true type. Warn instead
-			// eG.Add(g.Error("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
+	// all columns2 need to exist in columns1
+	cols1Map := columns1.FieldMap(true)
+	for _, c2 := range columns2 {
+		if i, found := cols1Map[strings.ToLower(c2.Name)]; found {
+			c1 := columns1[i]
 
-			switch {
-			case g.In(c1.Type, TextType, StringType) && g.In(c2.Type, TextType, StringType):
-			default:
-				g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
+			if c1.Name != c2.Name {
+				if found {
+					// sometimes the orders of columns is different
+					// (especially, multiple json files), shape ds to match columns1
+					reshape = true
+				} else {
+					eG.Add(g.Error("column name mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
+				}
+			} else if c1.Type != c2.Type {
+				// too unpredictable to mark as error? sometimes one column
+				// has not enough data to represent true type. Warn instead
+				// eG.Add(g.Error("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type))
+
+				switch {
+				case g.In(c1.Type, TextType, StringType) && g.In(c2.Type, TextType, StringType):
+				default:
+					g.Warn("type mismatch: %s (%s) != %s (%s)", c1.Name, c1.Type, c2.Name, c2.Type)
+				}
 			}
+		} else {
+			eG.Add(g.Error("column not found: %s (%s)", c2.Name, c2.Type))
 		}
 	}
+
 	return reshape, eG.Err()
 }
 
@@ -330,9 +434,14 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 	return columns
 }
 
+type Record struct {
+	Columns *Columns
+	Values  []any
+}
+
 // MakeRowsChan returns a buffered channel with default size
-func MakeRowsChan() chan []interface{} {
-	return make(chan []interface{})
+func MakeRowsChan() chan []any {
+	return make(chan []any)
 }
 
 func (col *Column) Key() string {

@@ -1,6 +1,7 @@
 package iop
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -65,6 +66,12 @@ func NewDatasetFromMap(m map[string]interface{}) (data Dataset) {
 	}
 
 	return
+}
+
+// SetColumns sets the columns
+func (data *Dataset) AddColumns(newCols Columns, overwrite bool) (added Columns) {
+	data.Columns, added = data.Columns.Add(newCols, overwrite)
+	return added
 }
 
 // Sort sorts by cols
@@ -228,24 +235,29 @@ func (data *Dataset) Append(row []interface{}) {
 
 // Stream returns a datastream of the dataset
 func (data *Dataset) Stream() *Datastream {
-	ds := NewDatastream(data.Columns)
+	rows := MakeRowsChan()
+	nextFunc := func(it *Iterator) bool {
+		for it.Row = range rows {
+			return true
+		}
+		return false
+	}
+
+	ds := NewDatastreamIt(context.Background(), data.Columns, nextFunc)
+	ds.it.IsCasted = true
 	ds.Inferred = data.Inferred
 
 	go func() {
-		ds.SetReady()
-		defer ds.Close()
-
-	loop:
+		defer close(rows)
 		for _, row := range data.Rows {
-			select {
-			case <-ds.Context.Ctx.Done():
-				break loop
-			default:
-				ds.Push(row)
-			}
+			rows <- row
 		}
-		ds.SetEmpty()
 	}()
+
+	err := ds.Start()
+	if err != nil {
+		ds.Context.CaptureErr(err)
+	}
 
 	return ds
 }

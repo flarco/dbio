@@ -42,6 +42,7 @@ type FileSysClient interface {
 	ListRecursive(path string) (paths []string, err error)
 	Write(path string, reader io.Reader) (bw int64, err error)
 	delete(path string) (err error)
+	setDf(df *iop.Dataflow)
 
 	ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
@@ -276,6 +277,7 @@ type BaseFileSysClient struct {
 	instance   *FileSysClient
 	context    g.Context
 	fsType     dbio.Type
+	df         *iop.Dataflow
 }
 
 // Context provides a pointer to context
@@ -286,6 +288,11 @@ func (fs *BaseFileSysClient) Context() (context *g.Context) {
 // Client provides a pointer to itself
 func (fs *BaseFileSysClient) Client() *BaseFileSysClient {
 	return fs
+}
+
+// setDf sets the dataflow
+func (fs *BaseFileSysClient) setDf(df *iop.Dataflow) {
+	fs.df = df
 }
 
 // Instance returns the respective connection Instance
@@ -353,6 +360,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = urlStr
 	ds.SetConfig(fs.Props())
+
 	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
 		reader, err := fs.Self().GetReader(urlStr)
 		if err != nil {
@@ -525,14 +533,12 @@ func (fs *BaseFileSysClient) WriteDataflow(df *iop.Dataflow, url string) (bw int
 
 	g.Trace("writing dataflow to %s", url)
 	go func() {
-		bw, err = fs.Self().WriteDataflowReady(df, url, fileReadyChn)
+		for range fileReadyChn {
+			// do nothing, wait for completion
+		}
 	}()
 
-	for range fileReadyChn {
-		// do nothing, wait for completion
-	}
-
-	return
+	return fs.Self().WriteDataflowReady(df, url, fileReadyChn)
 }
 
 // GetReaders returns one or more readers from specified paths in specified FileSysClient
@@ -786,6 +792,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 	df = iop.NewDataflow(cfg.Limit)
 	df.Context = &ctx
 	dsCh := make(chan *iop.Datastream)
+	fs.setDf(df)
 
 	go func() {
 		defer close(dsCh)

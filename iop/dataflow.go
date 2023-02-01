@@ -3,33 +3,36 @@ package iop
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
 // Dataflow is a collection of concurrent Datastreams
 type Dataflow struct {
-	Columns        Columns
-	Buffer         [][]interface{}
-	StreamCh       chan *Datastream
-	Streams        []*Datastream
-	Context        *g.Context
-	Limit          uint64
-	InBytes        uint64
-	OutBytes       uint64
-	deferFuncs     []func()
-	Ready          bool
-	Inferred       bool
-	FsURL          string
-	OnSchemaChange func(int, ColumnType) error
-	readyChn       chan struct{}
-	StreamMap      map[string]*Datastream
-	closed         bool
-	mux            sync.Mutex
-	schemaVersion  int // for column type version
+	Columns         Columns
+	Buffer          [][]interface{}
+	StreamCh        chan *Datastream
+	Streams         []*Datastream
+	Context         *g.Context
+	Limit           uint64
+	InBytes         uint64
+	OutBytes        uint64
+	deferFuncs      []func()
+	Ready           bool
+	Inferred        bool
+	FsURL           string
+	OnColumnChanged func(col Column) error
+	OnColumnAdded   func(col Column) error
+	readyChn        chan struct{}
+	StreamMap       map[string]*Datastream
+	closed          bool
+	mux             sync.Mutex
+	SchemaVersion   int // for column type version
 }
 
 // NewDataflow creates a new dataflow
@@ -42,15 +45,23 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	ctx := g.NewContext(context.Background())
 
 	df = &Dataflow{
-		StreamCh:       make(chan *Datastream, ctx.Wg.Limit),
-		Streams:        []*Datastream{},
-		Context:        &ctx,
-		Limit:          Limit,
-		StreamMap:      map[string]*Datastream{},
-		deferFuncs:     []func(){},
-		readyChn:       make(chan struct{}),
-		OnSchemaChange: func(i int, t ColumnType) error { return nil },
+		StreamCh:      make(chan *Datastream, ctx.Wg.Limit),
+		Streams:       []*Datastream{},
+		Context:       &ctx,
+		Limit:         Limit,
+		StreamMap:     map[string]*Datastream{},
+		deferFuncs:    []func(){},
+		readyChn:      make(chan struct{}),
+		OnColumnAdded: func(col Column) error { return nil },
 	}
+
+	// df.OnColumnAdded = func(col Column) (err error) {
+	// 	eG := g.ErrorGroup{}
+	// 	for _, ds := range df.Streams {
+	// 		eG.Capture(ds.OnColumnAdded(col))
+	// 	}
+	// 	return eG.Err()
+	// }
 
 	return
 }
@@ -105,22 +116,50 @@ func (df *Dataflow) Close() {
 }
 
 // Pause pauses all streams
-func (df *Dataflow) Pause() {
+func (df *Dataflow) Pause(exceptDs ...string) {
 	if df.Ready {
-		for _, ds := range df.StreamMap {
-			go func() { ds.pauseChnl <- struct{}{} }()
-			ds.paused = true
-			time.Sleep(1 * time.Millisecond) // just to ensure channel is consumed
+
+		for {
+			df.mux.Lock()
+			// try to pause all datastreams, or none
+			pauseMap := map[string]bool{}
+			for _, ds := range df.Streams {
+				if !lo.Contains(exceptDs, ds.ID) && !ds.closed {
+					pauseMap[ds.ID] = ds.TryPause()
+				}
+			}
+
+			pauseSlice := lo.Values(pauseMap)
+			if len(lo.Filter(pauseSlice, func(v bool, i int) bool { return v })) == len(pauseSlice) {
+				df.mux.Unlock()
+				break // only exit if all datastreams are paused
+			} else if len(pauseSlice) == 0 {
+				df.mux.Unlock()
+				break
+			}
+
+			// unpause paused since could not do distributed pause, and wait a bit
+			for _, ds := range df.Streams {
+				if paused, ok := pauseMap[ds.ID]; ok && paused {
+					ds.Unpause()
+				}
+			}
+			df.mux.Unlock()
+			time.Sleep(time.Duration(g.RandInt(100)) * time.Millisecond)
 		}
 	}
 }
 
 // Unpause unpauses all streams
-func (df *Dataflow) Unpause() {
+func (df *Dataflow) Unpause(exceptDs ...string) {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+
 	if df.Ready {
-		for _, ds := range df.StreamMap {
-			go func() { ds.pauseChnl <- struct{}{} }()
-			ds.paused = false
+		for _, ds := range df.Streams {
+			if !lo.Contains(exceptDs, ds.ID) {
+				ds.Unpause()
+			}
 		}
 	}
 }
@@ -146,7 +185,7 @@ func (df *Dataflow) IsEmpty() bool {
 	defer df.mux.Unlock()
 	for _, ds := range df.Streams {
 		if ds != nil && ds.Ready {
-			if !ds.IsEmpty() {
+			if !ds.empty {
 				return false
 			}
 		} else {
@@ -165,6 +204,60 @@ func (df *Dataflow) SetColumns(columns []Column) {
 	// }
 }
 
+// SetColumns sets the columns
+func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...string) (added Columns) {
+	df.Columns, added = df.Columns.Add(newCols, overwrite)
+	if len(added) > 0 {
+		df.Pause(exceptDs...)
+
+		// wait for current batches to close
+		df.CloseCurrentBatches()
+
+		for _, addedCol := range added {
+			if err := df.OnColumnAdded(addedCol); err != nil {
+				df.Context.CaptureErr(err)
+			} else {
+				df.incrementVersion()
+			}
+		}
+		df.Unpause(exceptDs...)
+	}
+	return added
+}
+
+// SetColumns sets the columns
+func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) {
+	if df.OnColumnChanged == nil {
+		g.Warn("df.OnColumnChanged is not defined")
+		return
+	}
+
+	df.Pause(exceptDs...)
+
+	// wait for current batches to close
+	df.CloseCurrentBatches()
+
+	df.Columns[i].Type = newType
+	if err := df.OnColumnChanged(df.Columns[i]); err != nil {
+		df.Context.CaptureErr(err)
+	} else {
+		df.incrementVersion()
+	}
+
+	df.Unpause(exceptDs...)
+}
+
+func (df *Dataflow) incrementVersion() {
+	df.SchemaVersion++ // increment version
+	for _, ds0 := range df.Streams {
+		if len(ds0.Columns) == len(df.Columns) {
+			for i := range df.Columns {
+				ds0.Columns[i].Type = df.Columns[i].Type
+			}
+		}
+	}
+}
+
 // ResetStats resets the stats
 func (df *Dataflow) ResetStats() {
 	for i := range df.Columns {
@@ -181,31 +274,14 @@ func (df *Dataflow) ResetStats() {
 	}
 }
 
-// ReplaceStream adds to stream map for downstream ds (mapped or shaped)
-func (df *Dataflow) ReplaceStream(old, new *Datastream) {
-	new.df = old.df
-	new.Metadata = old.Metadata
-	if df != nil {
-		df.Context.Lock()
-		df.StreamMap[old.id] = new
-		df.Context.Unlock()
-		if old.id != new.id {
-			g.Trace("datastream `%s` replaced by `%s`", old.id, new.id)
-		}
-	}
-}
+func (df *Dataflow) CloseCurrentBatches() {
+	df.mux.Lock()
+	defer df.mux.Unlock()
 
-// GetFinal returns the final downstream ds (mapped or shaped)
-func (df *Dataflow) GetFinal(dsID string) (ds *Datastream) {
-	for {
-		df.Context.Lock()
-		mDs, ok := df.StreamMap[dsID]
-		df.Context.Unlock()
-		if !ok || (ds != nil && mDs.id == ds.id) {
-			return
+	for _, ds := range df.Streams {
+		if batch := ds.CurrentBatch(); batch != nil {
+			batch.Close()
 		}
-		dsID = mDs.id
-		ds = mDs
 	}
 }
 
@@ -242,9 +318,28 @@ func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
 	return
 }
 
+// SyncColumns a workaround to synch the ds.Columns to the df.Columns
+func (df *Dataflow) SyncColumns() {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+	for _, ds := range df.Streams {
+		colMap := df.Columns.FieldMap(true)
+		for _, col := range ds.Columns {
+			colName := strings.ToLower(col.Name)
+			if _, ok := colMap[colName]; !ok {
+				col.Position = len(df.Columns)
+				df.Columns = append(df.Columns, col)
+			}
+		}
+	}
+}
+
 // SyncStats sync stream processor stats aggregated to the df.Columns
 func (df *Dataflow) SyncStats() {
 	df.ResetStats()
+
+	df.mux.Lock()
+	defer df.mux.Unlock()
 
 	for _, ds := range df.Streams {
 		for i, colStat := range ds.Sp.colStats {
@@ -340,10 +435,9 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 
 	pushCnt := 0
 
+	defer func() { g.DebugLow("pushed %d datastreams", pushCnt) }()
+
 	for ds := range dsCh {
-		df.mux.Lock()
-		df.Streams = append(df.Streams, ds)
-		df.mux.Unlock()
 
 		if df.closed {
 			break
@@ -370,24 +464,10 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 		case <-ds.readyChn:
 			// wait for first ds to start streaming.
 			// columns/buffer need to be populated
-			ds.df = df
 			if df.Ready {
-				// compare columns, if differences than error
-				reshape, err := CompareColumns(df.Columns, ds.Columns)
-				if err != nil {
-					ds.Context.CaptureErr(g.Error(err, "files columns don't match"))
-					df.Context.CaptureErr(g.Error(err, "files columns don't match"))
-					df.Close()
-					return
-				} else if reshape {
-					ds, err = ds.Shape(df.Columns)
-					if err != nil {
-						ds.Context.CaptureErr(g.Error(err, "could not reshape ds"))
-						df.Context.CaptureErr(g.Error(err, "could not reshape ds"))
-						df.Close()
-						return
-					}
-				}
+				// add new columns two-way if not exist
+				df.AddColumns(ds.Columns, false)
+				ds.AddColumns(df.Columns, false)
 			} else {
 				df.Columns = ds.Columns
 				df.Buffer = ds.Buffer
@@ -395,11 +475,16 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 				df.SetReady()
 			}
 
-			// wait for stream
-			df.ReplaceStream(ds, ds)
+			// push stream
+			df.mux.Lock()
+			ds.df = df
 			df.StreamCh <- ds
-			g.Trace("pushed dss %d", pushCnt)
+			df.StreamMap[ds.ID] = ds
+			df.Streams = append(df.Streams, ds)
+			df.mux.Unlock()
+
 			pushCnt++
+			g.DebugLow("%d datastreams pushed [%s]", pushCnt, ds.ID)
 			if df.Limit > 0 && df.Count() >= df.Limit {
 				g.Debug("reached dataflow limit of %d", df.Limit)
 				return
@@ -409,8 +494,6 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 
 	if len(df.Streams) == 0 {
 		df.SetReady()
-	} else {
-		g.DebugLow("pushed %d datastreams", pushCnt)
 	}
 
 }
@@ -427,6 +510,17 @@ func (df *Dataflow) WaitReady() error {
 	}
 }
 
+// WaitClosed waits until dataflow is closed
+// hack to make sure all streams are pushed
+func (df *Dataflow) WaitClosed() {
+	for {
+		if df.closed {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 // Collect reads from one or more streams and return a dataset
 func (df *Dataflow) Collect() (data Dataset, err error) {
 	var datas []Dataset
@@ -438,14 +532,24 @@ func (df *Dataflow) Collect() (data Dataset, err error) {
 		}
 
 		datas = append(datas, d)
+		data.AddColumns(d.Columns, false)
 	}
 
 	data.Result = nil
-	data.Columns = datas[0].Columns
 	data.Rows = [][]interface{}{}
 
 	for _, d := range datas {
+		// augment row size as needed
+		for i := range d.Rows {
+			for len(d.Rows[i]) < len(data.Columns) {
+				d.Rows[i] = append(d.Rows[i], nil)
+			}
+		}
 		data.Rows = append(data.Rows, d.Rows...)
+	}
+
+	if err = df.Err(); err != nil {
+		err = g.Error(err)
 	}
 
 	return
@@ -484,36 +588,35 @@ func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 // MergeDataflow merges the dataflow streams into one
 func MergeDataflow(df *Dataflow) (ds *Datastream) {
 
-	ds = NewDatastream(df.Columns)
+	rows := MakeRowsChan()
+	nextFunc := func(it *Iterator) bool {
+		for it.Row = range rows {
+			return true
+		}
+		return false
+	}
+	ds = NewDatastreamIt(df.Context.Ctx, df.Columns, nextFunc)
+	ds.it.IsCasted = true
+	ds.Inferred = true
 
 	go func() {
-		ds.SetReady()
-		defer ds.Close()
-
-	loop:
+		defer close(rows)
 		for ds0 := range df.StreamCh {
-			df.ReplaceStream(ds0, ds)
-			for row := range ds0.Rows {
-				select {
-				case <-df.Context.Ctx.Done():
-					ds.Context.CaptureErr(df.Err())
-					break loop
-				case <-ds.Context.Ctx.Done():
-					df.Context.CaptureErr(ds.Err())
-					break loop
-				case <-ds0.Context.Ctx.Done():
-					df.Context.CaptureErr(ds0.Err())
-					ds.Context.CaptureErr(ds0.Err())
-					break loop
-				default:
-					// row = ds.Sp.CastRow(row, ds.Columns) // needs to be recasted?
-					ds.Push(row)
+			for batch0 := range ds0.BatchChan {
+				ds.NewBatch(batch0.Columns)
+				for row := range batch0.Rows {
+					rows <- row
 				}
 			}
 
 			ds0.Buffer = nil // clear buffer
 		}
 	}()
+
+	err := ds.Start()
+	if err != nil {
+		df.Context.CaptureErr(err)
+	}
 
 	return ds
 }

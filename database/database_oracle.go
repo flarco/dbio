@@ -261,7 +261,7 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 			pipeW.Close()
 		}
 
-		for row0 := range ds.Rows {
+		for row0 := range ds.Rows() {
 			c++
 			// convert to csv string
 			row := make([]string, len(row0))

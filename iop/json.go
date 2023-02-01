@@ -143,7 +143,7 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 }
 
 func (js *jsonStream) addColumn(col *Column) {
-	js.ds.Columns = append(js.ds.Columns, *col)
+	js.ds.AddColumns(Columns{*col}, false)
 	js.ColumnMap[col.Name] = col
 }
 
@@ -165,7 +165,7 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 			if !ok {
 				col = &Column{
 					Name:     colName,
-					Type:     StringType,
+					Type:     js.ds.Sp.GetType(newRec[colName]),
 					Position: len(js.ds.Columns) + 1,
 				}
 				js.addColumn(col)

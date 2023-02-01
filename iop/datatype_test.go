@@ -130,7 +130,7 @@ func BenchmarkProcessRows(b *testing.B) {
 	columns, row := initProcessRow("")
 	ds := NewDatastream(columns)
 	go func() {
-		for range ds.Rows {
+		for range ds.Rows() {
 		}
 	}()
 	for n := 0; n < b.N; n++ {
@@ -302,4 +302,14 @@ func TestDatasetSort(t *testing.T) {
 	data.Sort(1, false)
 	g.P(data.Rows)
 	// g.P(data.ColValuesStr(0))
+}
+
+func TestAddColumns(t *testing.T) {
+	df := NewDataflow(0)
+	df.Columns = NewColumnsFromFields("col1", "col2")
+	assert.Equal(t, 2, len(df.Columns))
+	newCols := NewColumnsFromFields("col2", "col3")
+	df.AddColumns(newCols, false)
+	assert.Equal(t, 3, len(df.Columns))
+	g.Debug("%#v", df.Columns.Names())
 }

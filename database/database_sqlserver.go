@@ -108,8 +108,14 @@ func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow)
 	_, err = exec.LookPath("bcp")
 	if err != nil {
 		g.Trace("bcp not found in path. Using cursor...")
-		ds := iop.MergeDataflow(df)
-		return conn.BaseConn.InsertBatchStream(tableFName, ds)
+		for ds := range df.StreamCh {
+			c, err := conn.BaseConn.InsertBatchStream(tableFName, ds)
+			if err != nil {
+				return 0, g.Error(err, "could not insert")
+			}
+			count += c
+		}
+		return count, nil
 	}
 
 	importStream := func(ds *iop.Datastream) {
@@ -535,7 +541,7 @@ func writeCsvWithoutQuotes(path string, ds *iop.Datastream) (cnt uint64, err err
 		return cnt, g.Error(err, "could not write header to file")
 	}
 
-	for row0 := range ds.Rows {
+	for row0 := range ds.Rows() {
 		cnt++
 		row := make([]string, len(row0))
 		for i, val := range row0 {

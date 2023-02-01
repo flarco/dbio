@@ -412,7 +412,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	g.AssertNoError(t, err)
 
 	rows := [][]interface{}{}
-	for row := range stream.Rows {
+	for row := range stream.Rows() {
 		rows = append(rows, row)
 	}
 	assert.Len(t, rows, 2)
@@ -741,7 +741,7 @@ func tSelectStreamLarge(t *testing.T, conn Connection, tableName string, dfMult 
 		return
 	}
 	for ds := range df.StreamCh {
-		for range ds.Rows {
+		for range ds.Rows() {
 			// do nothing
 		}
 		ds.SetEmpty()
