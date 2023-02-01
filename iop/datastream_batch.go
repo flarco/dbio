@@ -32,9 +32,7 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 	}
 
 	if batch.Previous != nil && !batch.Previous.closed {
-		batch.Previous.ds.Pause()
 		batch.Previous.Close() // close previous batch
-		batch.Previous.ds.Unpause()
 	}
 	ds.Batches = append(ds.Batches, batch)
 	ds.BatchChan <- batch
@@ -125,10 +123,6 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 	}
 
 	mapRowCol := func(row []any) []any {
-		if !b.ds.NoTrace {
-			// g.P(row)
-			g.DebugLow("%s | %d > batch.Push2", b.ID(), b.ds.Count+1)
-		}
 		for len(row) < len(b.Columns) {
 			row = append(row, nil)
 		}
@@ -136,14 +130,7 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 		for o, t := range colMap {
 			newRow[t] = row[o]
 		}
-		// m1 := g.M()
-		// m2 := g.M()
-		// for i, name := range b.Columns.Names() {
-		// 	m1[name] = row[i]
-		// 	m2[name] = newRow[i]
-		// }
-		// g.DebugLow("%s | %d > batch.Push2 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m1))
-		// g.DebugLow("%s | %d > batch.Push2 NewRec > %s", b.ID(), b.ds.Count+1, g.Pretty(m2))
+
 		return newRow
 	}
 
@@ -151,10 +138,7 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 		b.ds.Pause()
 	}
 	b.transforms = append(b.transforms, mapRowCol)
-	g.Warn("%s | added mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
-	g.Warn("%s | b.Columns = %#v", b.ID(), b.Columns.Names())
-	g.Warn("%s | columns  =  %#v", b.ID(), columns.Names())
-	g.PP(colMap)
+	g.DebugLow("%s | added mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
 	if doPause {
 		b.ds.Unpause()
 	}
@@ -163,17 +147,8 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 }
 
 func (b *Batch) Push(row []any) {
-	if !b.ds.NoTrace {
-		// g.Warn("batch ROW %s > %d", b.ID(), b.ds.Count)
-		// g.DebugLow("%s | %d > batch.Push1 ROW", b.ID(), b.ds.Count+1)
-		// g.DebugLow("%s | %d > Columns > %#v", b.ID(), b.ds.Count+1, b.Columns.Names())
-		// g.DebugLow("%s | %d > Row > %#v", b.ID(), b.ds.Count+1, row)
-	}
 
 	newRow := row
-	// if len(b.transforms) == 0 && b.ds.df != nil {
-	// 	b.Shape(b.ds.df.Columns, false)
-	// }
 
 	for _, f := range b.transforms {
 		newRow = f(newRow) // allows transformations
@@ -181,15 +156,6 @@ func (b *Batch) Push(row []any) {
 
 	for len(newRow) < len(b.Columns) {
 		newRow = append(newRow, nil)
-	}
-
-	if !b.ds.NoTrace {
-		// g.DebugLow("%s | %d > batch.Push3", b.ID(), b.ds.Count+1)
-		m := g.M()
-		for i, name := range b.Columns.Names() {
-			m[name] = newRow[i]
-		}
-		// g.DebugLow("%s | %d > batch.Push3 Rec > %s", b.ID(), b.ds.Count+1, g.Pretty(m))
 	}
 
 	if b.closed {
@@ -211,5 +177,6 @@ func (b *Batch) Push(row []any) {
 	case b.Rows <- newRow:
 		b.ds.Count++
 		b.ds.bwRows <- newRow
+		b.ds.Sp.commitChecksum()
 	}
 }

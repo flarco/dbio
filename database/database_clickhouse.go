@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
@@ -69,6 +70,9 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 
 		df.OnColumnChanged = func(col iop.Column) error {
 
+			// sleep to allow transaction to close
+			time.Sleep(100 * time.Millisecond)
+
 			ds.Context.Lock()
 			defer ds.Context.Unlock()
 
@@ -98,10 +102,10 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 				return count, g.Error(err, "could not get list of columns from table")
 			}
 
-			err = batch.Shape(columns)
-			if err != nil {
-				return count, g.Error(err, "could not shape batch stream")
-			}
+			// err = batch.Shape(columns)
+			// if err != nil {
+			// 	return count, g.Error(err, "could not shape batch stream")
+			// }
 		}
 
 		err = func() error {
@@ -143,11 +147,6 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 					g.Trace("error for row: %#v", row)
 					return g.Error(err, "could not execute statement")
 				}
-			}
-
-			_, err = stmt.Exec()
-			if err != nil {
-				return g.Error(err, "could not execute statement")
 			}
 
 			err = stmt.Close()

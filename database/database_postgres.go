@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/flarco/dbio"
 	"github.com/spf13/cast"
@@ -105,6 +106,9 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	// set OnSchemaChange
 	if df := ds.Df(); df != nil && cast.ToBool(conn.GetProp("adjust_column_type")) {
 		df.OnColumnChanged = func(col iop.Column) error {
+
+			// sleep to allow transaction to close
+			time.Sleep(300 * time.Millisecond)
 
 			ds.Context.Lock()
 			defer ds.Context.Unlock()

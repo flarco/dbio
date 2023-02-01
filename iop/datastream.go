@@ -501,6 +501,9 @@ loop:
 	setMetaValues := func(row []any) []any { return row }
 	if len(metaValuesMap) > 0 {
 		setMetaValues = func(row []any) []any {
+			for len(row) < len(ds.Columns) {
+				row = append(row, nil)
+			}
 			for i, v := range metaValuesMap {
 				row[i] = v
 			}
@@ -545,6 +548,7 @@ loop:
 		schemaChgLoop:
 			for {
 				// reprocess row if needed (to expand it as needed)
+				ds.it.Row = setMetaValues(ds.it.Row)
 				if ds.it.IsCasted {
 					row = ds.it.Row
 				} else {
@@ -604,7 +608,7 @@ loop:
 				}
 				break loop
 			default:
-				batch.Push(setMetaValues(row))
+				batch.Push(row)
 			}
 		}
 

@@ -20,6 +20,7 @@ type StreamProcessor struct {
 	dateLayoutCache  string
 	stringTypeCache  map[int]string
 	colStats         map[int]*ColumnStats
+	rowChecksum      []uint64
 	unrecognizedDate string
 	warn             bool
 	parseFuncs       map[string]func(s string) (interface{}, error)
@@ -303,6 +304,18 @@ func (sp *StreamProcessor) GetType(val interface{}) (typ ColumnType) {
 	return
 }
 
+// commitChecksum increments the checksum. This is needed due to reprocessing rows
+func (sp *StreamProcessor) commitChecksum() {
+	for i, val := range sp.rowChecksum {
+		cs, ok := sp.colStats[i]
+		if !ok {
+			sp.colStats[i] = &ColumnStats{}
+			cs = sp.colStats[i]
+		}
+		cs.Checksum = cs.Checksum + val
+	}
+}
+
 // CastVal casts values with stats collection
 // which degrades performance by ~10%
 // go test -benchmem -run='^$ github.com/flarco/dbio/iop' -bench '^BenchmarkProcessVal'
@@ -358,13 +371,16 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 
 	switch {
 	case col.Type.IsString():
+		if sVal == "" && val != nil {
+			sVal = cast.ToString(val)
+		}
 		if len(sVal) > cs.MaxLen {
 			cs.MaxLen = len(sVal)
 		}
 
 		if col.Type == JsonType && looksLikeJson(sVal) {
 			cs.JsonCnt++
-			cs.Checksum = cs.Checksum + uint64(len(strings.ReplaceAll(sVal, " ", "")))
+			sp.rowChecksum[i] = uint64(len(strings.ReplaceAll(sVal, " ", "")))
 			cs.TotalCnt++
 			return sVal
 		}
@@ -383,11 +399,11 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				return sp.CastVal(i, nVal, &sp.ds.Columns[i])
 			}
 			cs.StringCnt++
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			sp.rowChecksum[i] = uint64(len(sVal))
 			nVal = sVal
 		} else {
 			cs.StringCnt++
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			sp.rowChecksum[i] = uint64(len(sVal))
 			nVal = sVal
 		}
 	case col.Type == SmallIntType:
@@ -400,12 +416,12 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				cs.StringCnt++
 				cs.TotalCnt++
 				sVal = cast.ToString(val)
-				cs.Checksum = cs.Checksum + uint64(len(sVal))
+				sp.rowChecksum[i] = uint64(len(sVal))
 				return sVal
 			}
 			// is decimal
 			sp.ds.ChangeColumn(i, DecimalType)
-			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
+			return fVal
 		}
 
 		if int64(iVal) > cs.Max {
@@ -413,9 +429,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 		cs.IntCnt++
 		if iVal < 0 {
-			cs.Checksum = cs.Checksum + uint64(-iVal)
+			sp.rowChecksum[i] = uint64(-iVal)
 		} else {
-			cs.Checksum = cs.Checksum + uint64(iVal)
+			sp.rowChecksum[i] = uint64(iVal)
 		}
 		if int64(iVal) < cs.Min {
 			cs.Min = int64(iVal)
@@ -431,12 +447,12 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 				cs.StringCnt++
 				cs.TotalCnt++
 				sVal = cast.ToString(val)
-				cs.Checksum = cs.Checksum + uint64(len(sVal))
+				sp.rowChecksum[i] = uint64(len(sVal))
 				return sVal
 			}
 			// is decimal
 			sp.ds.ChangeColumn(i, DecimalType)
-			return sp.CastVal(i, fVal, &sp.ds.Columns[i])
+			return fVal
 		}
 
 		if iVal > cs.Max {
@@ -447,9 +463,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 		cs.IntCnt++
 		if iVal < 0 {
-			cs.Checksum = cs.Checksum + uint64(-iVal)
+			sp.rowChecksum[i] = uint64(-iVal)
 		} else {
-			cs.Checksum = cs.Checksum + uint64(iVal)
+			sp.rowChecksum[i] = uint64(iVal)
 		}
 		nVal = iVal
 	case col.Type.IsNumber():
@@ -460,7 +476,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.StringCnt++
 			cs.TotalCnt++
 			sVal = cast.ToString(val)
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			sp.rowChecksum[i] = uint64(len(sVal))
 			return sVal
 		}
 
@@ -472,9 +488,9 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 		cs.DecCnt++
 		if fVal < 0 {
-			cs.Checksum = cs.Checksum + uint64(-fVal)
+			sp.rowChecksum[i] = uint64(-fVal)
 		} else {
-			cs.Checksum = cs.Checksum + uint64(fVal)
+			sp.rowChecksum[i] = uint64(fVal)
 		}
 		// max 9 decimals for bigquery compatibility
 		if sp.config.maxDecimals > -1 {
@@ -491,11 +507,11 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			cs.StringCnt++
 			cs.TotalCnt++
 			sVal = cast.ToString(val)
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			sp.rowChecksum[i] = uint64(len(sVal))
 			return sVal
 		} else {
 			nVal = strconv.FormatBool(bVal)
-			cs.Checksum = cs.Checksum + uint64(len(nVal.(string)))
+			sp.rowChecksum[i] = uint64(len(nVal.(string)))
 		}
 
 		cs.BoolCnt++
@@ -509,7 +525,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.ds.ChangeColumn(i, StringType)
 			cs.StringCnt++
 			sVal = cast.ToString(val)
-			cs.Checksum = cs.Checksum + uint64(len(sVal))
+			sp.rowChecksum[i] = uint64(len(sVal))
 			nVal = sVal
 		} else if dVal.IsZero() {
 			nVal = nil
@@ -518,7 +534,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		} else {
 			nVal = dVal
 			cs.DateCnt++
-			cs.Checksum = cs.Checksum + uint64(dVal.UnixMicro())
+			sp.rowChecksum[i] = uint64(dVal.UnixMicro())
 		}
 	}
 	cs.TotalCnt++
@@ -774,10 +790,11 @@ func (sp *StreamProcessor) ParseVal(val interface{}) interface{} {
 
 // CastRow casts each value of a row
 // slows down processing about 40%?
-func (sp *StreamProcessor) CastRow(row []interface{}, columns []Column) []interface{} {
+func (sp *StreamProcessor) CastRow(row []interface{}, columns Columns) []interface{} {
 	sp.N++
 	// Ensure usable types
 	sp.rowBlankValCnt = 0
+	sp.rowChecksum = make([]uint64, len(row))
 	for i, val := range row {
 		// fmt.Printf("| (%s) %#v", columns[i].Type, val)
 		row[i] = sp.CastVal(i, val, &columns[i])

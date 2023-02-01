@@ -228,6 +228,7 @@ func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...stri
 // SetColumns sets the columns
 func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) {
 	if df.OnColumnChanged == nil {
+		g.Warn("df.OnColumnChanged is not defined")
 		return
 	}
 
@@ -274,6 +275,9 @@ func (df *Dataflow) ResetStats() {
 }
 
 func (df *Dataflow) CloseCurrentBatches() {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+
 	for _, ds := range df.Streams {
 		if batch := ds.CurrentBatch(); batch != nil {
 			batch.Close()

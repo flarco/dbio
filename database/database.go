@@ -2625,6 +2625,8 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 		}
 		msg := g.F("optimizing existing '%s' (%s) vs new '%s' (%s) => ", col.Name, col.Type, newCol.Name, newCol.Type)
 		switch {
+		case col.Type.IsDecimal() && newCol.Type.IsDecimal():
+			continue
 		case col.Type.IsDatetime() && newCol.Type.IsDatetime():
 			newCol.Type = iop.TimestampType
 		case col.Type.IsInteger() && newCol.Type.IsDecimal():
