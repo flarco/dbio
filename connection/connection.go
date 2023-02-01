@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/flarco/dbio"
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v2"
 
 	"github.com/flarco/dbio/database"
@@ -155,6 +157,18 @@ func (c *Connection) Info() Info {
 		Database: c.DataS(true)["database"],
 		Data:     c.Data,
 	}
+}
+
+func (c *Connection) Hash() string {
+	parts := []string{c.Name, c.Type.Name()}
+	keys := lo.Keys(c.Data)
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := g.F("%s=%s", key, cast.ToString(c.Data[key]))
+		parts = append(parts, value)
+	}
+
+	return g.MD5(parts...)
 }
 
 // ToMap transforms DataConn to a Map
