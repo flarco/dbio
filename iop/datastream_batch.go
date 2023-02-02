@@ -118,7 +118,6 @@ func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
 	}
 
 	if !diffCols {
-		g.Warn("%s | did not add mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
 		return nil
 	}
 

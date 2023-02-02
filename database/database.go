@@ -506,6 +506,7 @@ func (conn *BaseConn) Kill() error {
 
 // Connect connects to the database
 func (conn *BaseConn) Connect(timeOut ...int) (err error) {
+	var tryNum int
 
 	to := 15
 	if len(timeOut) > 0 && timeOut[0] != 0 {
@@ -591,6 +592,9 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 
 		conn.db = db
 
+	retry:
+		tryNum++
+
 		// 15 sec timeout
 		pingCtx, cancel := context.WithTimeout(conn.Context().Ctx, time.Duration(to)*time.Second)
 		_ = cancel // lint complaint
@@ -603,6 +607,16 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 				case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 					if val := conn.GetProp("sslmode"); !strings.EqualFold(val, "require") {
 						msg = " (try adding `sslmode=require` or `sslmode=disable`)"
+					}
+				case dbio.TypeDbSnowflake:
+					if strings.Contains(err.Error(), "000605") {
+						// retry, snowflake server-side error
+						// https://github.com/snowflakedb/gosnowflake/blob/master/restful.go#L30
+						time.Sleep(5 * time.Second)
+						g.Warn("Snowflake server-side error when trying to connect: %s\nRetrying connection.", err.Error())
+						if tryNum < 5 {
+							goto retry
+						}
 					}
 				}
 				return g.Error(err, "could not connect to database"+msg)
@@ -964,19 +978,19 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 
 	// a cloned connection object
 	// this will enable to use transaction across all sub functions
-	URL := conn.GetProp("orig_url")
-	c, err := NewConnContext(context.Ctx, URL, conn.PropArr()...)
-	if err != nil {
-		return nil, g.Error(err, "could not clone conn object")
-	}
+	// URL := conn.GetProp("orig_url")
+	// c, err := NewConnContext(context.Ctx, URL, conn.PropArr()...)
+	// if err != nil {
+	// 	return nil, g.Error(err, "could not clone conn object")
+	// }
 
-	Tx := &BaseTransaction{Tx: tx, Conn: c.Self(), context: &context}
+	Tx := &BaseTransaction{Tx: tx, Conn: conn.Self(), context: &context}
 	conn.tx = Tx
 
-	err = c.Connect()
-	if err != nil {
-		return nil, g.Error(err, "could not connect cloned conn object")
-	}
+	// err = c.Connect()
+	// if err != nil {
+	// 	return nil, g.Error(err, "could not connect cloned conn object")
+	// }
 
 	return Tx, nil
 }
