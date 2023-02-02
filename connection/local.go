@@ -13,6 +13,7 @@ import (
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
+	"gopkg.in/yaml.v2"
 )
 
 type ConnEntry struct {
@@ -85,16 +86,31 @@ func GetLocalConns(force ...bool) []ConnEntry {
 
 	// Environment variables
 	for key, val := range g.KVArrToMap(os.Environ()...) {
-		if !strings.Contains(val, ":/") || strings.Contains(val, "{") {
-			continue
-		}
+		var conn Connection
 
-		key = strings.ToUpper(key)
-		conn, err := NewConnectionFromURL(key, val)
-		if err != nil {
-			e := g.F("could not parse %s: %s", key, g.ErrMsgSimple(err))
-			g.Warn(e)
-			continue
+		// embedded JSON/YAML payload
+		payload := g.M()
+		err := yaml.Unmarshal([]byte(val), &payload)
+		if cType, ok := payload["type"]; ok && err == nil {
+			conn, err = NewConnectionFromMap(g.M("name", key, "type", cType, "data", payload))
+			if err != nil {
+				e := g.F("could not parse env payload %s: %s", key, g.ErrMsgSimple(err))
+				g.Warn(e)
+				continue
+			}
+		} else {
+			// Parse URL
+			if !strings.Contains(val, ":/") || strings.Contains(val, "{") {
+				continue
+			}
+
+			key = strings.ToUpper(key)
+			conn, err = NewConnectionFromURL(key, val)
+			if err != nil {
+				e := g.F("could not parse %s: %s", key, g.ErrMsgSimple(err))
+				g.Warn(e)
+				continue
+			}
 		}
 
 		if conn.Type.NameLong() == "" || conn.Info().Type == dbio.TypeUnknown || conn.Info().Type == dbio.TypeFileHTTP {
