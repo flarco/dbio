@@ -46,7 +46,7 @@ type FileSysClient interface {
 
 	ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
-	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error)
+	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan FileReady) (bw int64, err error)
 	GetProp(key string) (val string)
 	SetProp(key string, val string)
 	MkdirAll(path string) (err error)
@@ -529,7 +529,7 @@ func (fs *BaseFileSysClient) WriteDataflow(df *iop.Dataflow, url string) (bw int
 		return
 	}
 
-	fileReadyChn := make(chan string, 10000)
+	fileReadyChn := make(chan FileReady, 10000)
 
 	g.Trace("writing dataflow to %s", url)
 	go func() {
@@ -559,8 +559,13 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 	return readers, nil
 }
 
+type FileReady struct {
+	Columns iop.Columns
+	URI     string
+}
+
 // WriteDataflowReady writes to a file sys and notifies the fileReady chan.
-func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan string) (bw int64, err error) {
+func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan FileReady) (bw int64, err error) {
 	fsClient := fs.Self()
 	defer close(fileReadyChn)
 	useBufferedStream := cast.ToBool(fs.GetProp("USE_BUFFERED_STREAM"))
@@ -598,11 +603,11 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		defer df.Context.Wg.Read.Done()
 		localCtx := g.NewContext(ds.Context.Ctx, concurrency)
 
-		writePart := func(reader io.Reader, partURL string) {
+		writePart := func(reader io.Reader, cols iop.Columns, partURL string) {
 			defer localCtx.Wg.Read.Done()
 
 			bw0, err := fsClient.Write(partURL, reader)
-			fileReadyChn <- partURL
+			fileReadyChn <- FileReady{cols, partURL}
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err))
 				ds.Context.Cancel()
@@ -617,7 +622,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		localCtx.Wg.Read.Add()
 		fileCount := 0
 
-		processReader := func(reader io.Reader) error {
+		processReader := func(batchR iop.BatchReader) error {
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileExt)
 			if singleFile {
@@ -639,7 +644,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			compressor := iop.NewCompressor(compression)
 			subPartURL = subPartURL + compressor.Suffix()
 			g.Trace("writing stream to " + subPartURL)
-			go writePart(compressor.Compress(reader), subPartURL)
+			go writePart(compressor.Compress(batchR.Reader), batchR.Columns, subPartURL)
 			localCtx.Wg.Read.Add()
 			// localCtx.MemBasedLimit(98) // wait until memory is lower than 90%
 
@@ -649,14 +654,14 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		switch fileExt {
 		case "json":
 			for reader := range ds.NewJsonReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(reader)
+				err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
 				if err != nil {
 					break
 				}
 			}
 		case "jsonlines":
 			for reader := range ds.NewJsonLinesReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(reader)
+				err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
 				if err != nil {
 					break
 				}
@@ -665,15 +670,15 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			if useBufferedStream {
 				// faster, but dangerous. Holds data in memory
 				for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
-					err := processReader(reader)
+					err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
 					if err != nil {
 						break
 					}
 				}
 			} else {
 				// slower! but safer, waits for compression but does not hold data in memory
-				for reader := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
-					err := processReader(reader)
+				for batchR := range ds.NewCsvReaderChnl(fileRowLimit, fileBytesLimit) {
+					err := processReader(batchR)
 					if err != nil {
 						break
 					}
@@ -707,7 +712,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	partCnt := 1
-	for ds := range df.MakeStreamCh() {
+	// for ds := range df.MakeStreamCh() {
+	for _, ds := range df.Streams {
 
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
 		if singleFile {

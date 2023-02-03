@@ -453,7 +453,7 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 
 	// defer func() { azFs.Delete(azPath + "*") }() // cleanup
 
-	fileReadyChn := make(chan string, 10000)
+	fileReadyChn := make(chan filesys.FileReady, 10000)
 	go func() {
 		var bw int64
 		bw, err = azFs.WriteDataflowReady(df, azPath, fileReadyChn)
@@ -467,9 +467,9 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 
 	g.Info("writing to azure container for import")
 
-	doCopy := func(filePath string) {
+	doCopy := func(file filesys.FileReady) {
 		defer df.Context.Wg.Write.Done()
-		cnt, err := conn.CopyFromAzure(tableFName, filePath)
+		cnt, err := conn.CopyFromAzure(tableFName, file.URI)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "could not copy to azure dwh"))
 		} else {
@@ -477,9 +477,9 @@ func (conn *MsSQLServerConn) CopyViaAzure(tableFName string, df *iop.Dataflow) (
 		}
 	}
 
-	for filePath := range fileReadyChn {
+	for file := range fileReadyChn {
 		df.Context.Wg.Write.Add()
-		go doCopy(filePath)
+		go doCopy(file)
 	}
 
 	df.Context.Wg.Write.Wait()

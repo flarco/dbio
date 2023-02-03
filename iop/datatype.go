@@ -216,6 +216,16 @@ func (cols Columns) Types(args ...bool) []string {
 	return fields
 }
 
+func (cols Columns) MakeRec(row []any) map[string]any {
+	m := g.M()
+	for i, col := range cols {
+		if i < len(row) {
+			m[col.Name] = row[i]
+		}
+	}
+	return m
+}
+
 // DbTypes return the column names/db types
 // args -> (lower bool, cleanUp bool)
 func (cols Columns) DbTypes(args ...bool) []string {
@@ -281,6 +291,20 @@ func (cols Columns) Add(newCols Columns, overwrite bool) (col2 Columns, added Co
 			if overwrite {
 				newCol.Position = i + 1
 				cols[i] = newCol
+			} else if cols[i].Type != newCol.Type && newCol.Stats.TotalCnt > newCol.Stats.NullCnt {
+				warn := true
+				switch {
+				case newCol.Type.IsString() && !cols[i].Type.IsString():
+				case newCol.Type.IsNumber() && !cols[i].Type.IsNumber():
+				case newCol.Type.IsBool() && !cols[i].Type.IsBool():
+				case newCol.Type.IsDatetime() && !cols[i].Type.IsDatetime():
+				default:
+					warn = false
+				}
+
+				if warn && g.IsDebugLow() {
+					g.Warn("Columns.Add Type mismatch for %s > %s != %s", newCol.Name, cols[i].Type, newCol.Type)
+				}
 			}
 		} else {
 			newCol.Position = len(cols)

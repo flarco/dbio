@@ -344,7 +344,7 @@ func (df *Dataflow) SyncStats() {
 	for _, ds := range df.Streams {
 		for i, colStat := range ds.Sp.colStats {
 			if i+1 > len(df.Columns) {
-				g.Debug("index %d is outside len of array (%d) in SyncStats", i, len(df.Columns))
+				g.DebugLow("index %d is outside len of array (%d) in SyncStats", i, len(df.Columns))
 				continue
 			}
 			df.Columns[i].Stats.TotalCnt = df.Columns[i].Stats.TotalCnt + colStat.TotalCnt
@@ -355,7 +355,9 @@ func (df *Dataflow) SyncStats() {
 			df.Columns[i].Stats.DecCnt = df.Columns[i].Stats.DecCnt + colStat.DecCnt
 			df.Columns[i].Stats.BoolCnt = df.Columns[i].Stats.BoolCnt + colStat.BoolCnt
 			df.Columns[i].Stats.DateCnt = df.Columns[i].Stats.DateCnt + colStat.DateCnt
-			df.Columns[i].Stats.Checksum = df.Columns[i].Stats.Checksum + colStat.Checksum
+			if colStat.TotalCnt > colStat.NullCnt {
+				df.Columns[i].Stats.Checksum = df.Columns[i].Stats.Checksum + colStat.Checksum
+			}
 
 			if colStat.Min < df.Columns[i].Stats.Min {
 				df.Columns[i].Stats.Min = colStat.Min
@@ -604,6 +606,7 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 		for ds0 := range df.StreamCh {
 			for batch0 := range ds0.BatchChan {
 				ds.NewBatch(batch0.Columns)
+				// FIXME: mismatch columns especially with various schemas from JSON files
 				for row := range batch0.Rows {
 					rows <- row
 				}

@@ -515,7 +515,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 
 	g.Info("importing into bigquery via local storage")
 
-	fileReadyChn := make(chan string, 10)
+	fileReadyChn := make(chan filesys.FileReady, 10)
 
 	go func() {
 		_, err = fs.WriteDataflowReady(df, localPath, fileReadyChn)
@@ -529,30 +529,30 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 
 	}()
 
-	copyFromLocal := func(localURI string, tableFName string) {
+	copyFromLocal := func(localFile filesys.FileReady, tableFName string) {
 		defer conn.Context().Wg.Write.Done()
-		g.Debug("Loading %s", localURI)
+		g.Debug("Loading %s", localFile.URI)
 
-		err := conn.CopyFromLocal(localURI, tableFName, df.Columns)
+		err := conn.CopyFromLocal(localFile.URI, tableFName, localFile.Columns)
 		if err != nil {
-			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", localURI, tableFName))
+			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", localFile.URI, tableFName))
 			df.Context.Cancel()
 		}
 	}
 
 	inferred := false
-	for localPartPath := range fileReadyChn {
+	for localFile := range fileReadyChn {
 		if conn.GetProp("adjust_column_type") == "true" && !inferred {
 			// the schema matters with using the load tool
 			// so let's make sure we infer once again
-			df.Inferred = false
-			df.SyncStats()
-			inferred = true
+			// df.Inferred = false
+			// df.SyncStats()
+			// inferred = true
 		}
 
 		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
 		conn.Context().Wg.Write.Add()
-		go copyFromLocal(localPartPath, tableFName)
+		go copyFromLocal(localFile, tableFName)
 	}
 
 	conn.Context().Wg.Write.Wait()
@@ -593,7 +593,7 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 
 	g.Info("importing into bigquery via google storage")
 
-	fileReadyChn := make(chan string, 10)
+	fileReadyChn := make(chan filesys.FileReady, 10)
 
 	go func() {
 		_, err = fs.WriteDataflowReady(df, gcsPath, fileReadyChn)
@@ -607,19 +607,19 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 
 	}()
 
-	copyFromGCS := func(gcsURI string, tableFName string) {
+	copyFromGCS := func(gcsFile filesys.FileReady, tableFName string) {
 		defer conn.Context().Wg.Write.Done()
-		g.Debug("Loading %s", gcsURI)
+		g.Debug("Loading %s", gcsFile.URI)
 
-		err := conn.CopyFromGCS(gcsURI, tableFName, df.Columns)
+		err := conn.CopyFromGCS(gcsFile.URI, tableFName, gcsFile.Columns)
 		if err != nil {
-			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", gcsURI, tableFName))
+			df.Context.CaptureErr(g.Error(err, "Error copying from %s into %s", gcsFile.URI, tableFName))
 			df.Context.Cancel()
 		}
 	}
 
 	inferred := false
-	for gcsPartPath := range fileReadyChn {
+	for gcsFile := range fileReadyChn {
 		if !inferred {
 			// the schema matters with using the load tool
 			// so let's make sure we infer once again
@@ -630,7 +630,7 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 
 		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
 		conn.Context().Wg.Write.Add()
-		go copyFromGCS(gcsPartPath, tableFName)
+		go copyFromGCS(gcsFile, tableFName)
 	}
 
 	conn.Context().Wg.Write.Wait()
@@ -671,6 +671,7 @@ func (conn *BigQueryConn) LoadCSVFromReader(tableFName string, reader io.Reader,
 	source.Quote = `"`
 	source.SkipLeadingRows = 1
 	source.Schema = getBqSchema(dsColumns)
+	source.SourceFormat = bigquery.CSV
 
 	loader := client.Dataset(table.Schema).Table(table.Name).LoaderFrom(source)
 	loader.WriteDisposition = bigquery.WriteAppend

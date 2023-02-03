@@ -2407,7 +2407,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	unload := func(sql string, pathPart string) {
 		defer df.Context.Wg.Read.Done()
 		defer close(dsCh)
-		fileReadyChn := make(chan string, 10000)
+		fileReadyChn := make(chan filesys.FileReady, 10000)
 		ds, err := conn.Self().BulkExportStream(sql)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error running query"))
@@ -2438,16 +2438,16 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 			}
 		}()
 
-		for filePath := range fileReadyChn {
+		for file := range fileReadyChn {
 			// when the file is ready, push to dataflow
-			nDs, err := iop.ReadCsvStream(filePath)
+			nDs, err := iop.ReadCsvStream(file.URI)
 			if err != nil {
-				conn.Context().CaptureErr(g.Error(err, "Unable to read stream: "+filePath))
+				conn.Context().CaptureErr(g.Error(err, "Unable to read stream: "+file.URI))
 				ds.Context.Cancel()
 				df.Context.Cancel()
 				return
 			}
-			nDs.Defer(func() { os.RemoveAll(filePath) })
+			nDs.Defer(func() { os.RemoveAll(file.URI) })
 			dsCh <- nDs
 		}
 	}

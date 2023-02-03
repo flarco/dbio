@@ -583,7 +583,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	// delete folder when done
 	df.Defer(func() { os.RemoveAll(folderPath) })
 
-	fileReadyChn := make(chan string, 10000)
+	fileReadyChn := make(chan filesys.FileReady, 10000)
 	go func() {
 		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal, conn.PropArr()...)
 		if err != nil {
@@ -610,21 +610,21 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 	df.Defer(func() { conn.Exec("REMOVE " + stageFolderPath) })
 
-	doPut := func(filePath string) {
+	doPut := func(file filesys.FileReady) {
 		if !cast.ToBool(os.Getenv("KEEP_TEMP_FILES")) {
-			defer os.Remove(filePath)
+			defer os.Remove(file.URI)
 		}
 		defer conn.Context().Wg.Write.Done()
-		os.Chmod(filePath, 0777) // make file readeable everywhere
-		err = conn.PutFile(filePath, stageFolderPath)
+		os.Chmod(file.URI, 0777) // make file readeable everywhere
+		err = conn.PutFile(file.URI, stageFolderPath)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error copying to Snowflake Stage: "+conn.GetProp("internalStage")))
 		}
 	}
 
-	for filePath := range fileReadyChn {
+	for file := range fileReadyChn {
 		conn.Context().Wg.Write.Add()
-		go doPut(filePath)
+		go doPut(file)
 	}
 
 	conn.Context().Wg.Write.Wait()

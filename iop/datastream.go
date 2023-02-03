@@ -1067,10 +1067,15 @@ func (ds *Datastream) NewCsvBufferReaderChnl(rowLimit int, bytesLimit int64) (re
 	return readerChn
 }
 
+type BatchReader struct {
+	Columns Columns
+	Reader  io.Reader
+}
+
 // NewCsvReaderChnl provides a channel of readers as the limit is reached
 // each channel flows as fast as the consumer consumes
-func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
-	readerChn = make(chan *io.PipeReader, 100)
+func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan BatchReader) {
+	readerChn = make(chan BatchReader, 100)
 
 	pipeR, pipeW := io.Pipe()
 
@@ -1089,7 +1094,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		c := 0 // local counter
 
-		nextPipe := func() error {
+		nextPipe := func(cols Columns) error {
 
 			pipeW.Close() // close the prior reader?
 			tbw = 0       // reset
@@ -1114,37 +1119,22 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 					return err
 				}
 			}
-			readerChn <- pipeR
+			readerChn <- BatchReader{cols, pipeR}
 			return nil
 		}
 
 		for batch := range ds.BatchChan {
 
-			err := nextPipe()
+			err := nextPipe(batch.Columns)
 			if err != nil {
 				return
 			}
 
-			// ensure that previous batch has same amount of columns
-			if pBatch := batch.Previous; pBatch != nil {
-				if len(pBatch.Columns) != len(batch.Columns) {
-					err := g.Error("number of columns have changed across files")
-					ds.Context.CaptureErr(err)
-					ds.Context.Cancel()
-					pipeW.Close()
-					return
-				}
-			}
-
 			for row0 := range batch.Rows {
+				// g.PP(batch.Columns.MakeRec(row0))
 				c++
 				// convert to csv string
 				row := make([]string, len(row0))
-				if len(row0) > len(batch.Columns) {
-					g.Warn("len(row) > len(ds.Columns)")
-					g.Debug("%#v", row0)
-					g.Debug("%#v", batch.Columns.Names())
-				}
 				for i, val := range row0 {
 					row[i] = ds.Sp.CastToString(i, val, batch.Columns[i].Type)
 				}
@@ -1162,7 +1152,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				mux.Unlock()
 
 				if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-					err = nextPipe()
+					err = nextPipe(batch.Columns)
 					if err != nil {
 						return
 					}
