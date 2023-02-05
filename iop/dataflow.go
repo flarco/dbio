@@ -167,6 +167,17 @@ func (df *Dataflow) Unpause(exceptDs ...string) {
 // SetReady sets the df.ready
 func (df *Dataflow) SetReady() {
 	if !df.Ready {
+		df.mux.Lock()
+		defer df.mux.Unlock()
+
+		// set inferred
+		df.Inferred = true
+		for _, ds := range df.Streams {
+			if !ds.Inferred {
+				df.Inferred = false
+			}
+		}
+
 		df.Ready = true
 		go func() { df.readyChn <- struct{}{} }()
 	}
