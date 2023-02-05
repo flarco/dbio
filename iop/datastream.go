@@ -567,7 +567,7 @@ loop:
 					// only consume channel if df exists
 					case schemaChgVal := <-ds.schemaChgChan:
 						if schemaChgVal.Added {
-							g.DebugLow("%s, adding columns %#v", ds.ID, schemaChgVal.Cols.Names())
+							g.DebugLow("%s, adding columns %#v", ds.ID, schemaChgVal.Cols.Types())
 							df.AddColumns(schemaChgVal.Cols, false, ds.ID)
 						} else {
 							g.DebugLow("%s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
@@ -752,22 +752,6 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	}
 
 	return
-}
-
-// ResetStats resets the stats
-func (ds *Datastream) ResetStats() {
-	for i := range ds.Columns {
-		// set totals to 0
-		ds.Columns[i].Stats.TotalCnt = 0
-		ds.Columns[i].Stats.NullCnt = 0
-		ds.Columns[i].Stats.StringCnt = 0
-		ds.Columns[i].Stats.JsonCnt = 0
-		ds.Columns[i].Stats.IntCnt = 0
-		ds.Columns[i].Stats.DecCnt = 0
-		ds.Columns[i].Stats.BoolCnt = 0
-		ds.Columns[i].Stats.DateCnt = 0
-		ds.Columns[i].Stats.Checksum = 0
-	}
 }
 
 // AddBytes add bytes as processed
@@ -1070,12 +1054,13 @@ func (ds *Datastream) NewCsvBufferReaderChnl(rowLimit int, bytesLimit int64) (re
 type BatchReader struct {
 	Columns Columns
 	Reader  io.Reader
+	Counter int
 }
 
 // NewCsvReaderChnl provides a channel of readers as the limit is reached
 // each channel flows as fast as the consumer consumes
-func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan BatchReader) {
-	readerChn = make(chan BatchReader, 100)
+func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *BatchReader) {
+	readerChn = make(chan *BatchReader, 100)
 
 	pipeR, pipeW := io.Pipe()
 
@@ -1090,9 +1075,9 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 	go func() {
 		var w *csv.Writer
-		defer close(readerChn)
+		var br *BatchReader
 
-		c := 0 // local counter
+		defer close(readerChn)
 
 		nextPipe := func(cols Columns) error {
 
@@ -1100,7 +1085,6 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			tbw = 0       // reset
 
 			// new reader
-			c = 0
 			pipeR, pipeW = io.Pipe()
 			w = csv.NewWriter(pipeW)
 			w.Comma = ','
@@ -1119,7 +1103,10 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 					return err
 				}
 			}
-			readerChn <- BatchReader{cols, pipeR}
+
+			br = &BatchReader{cols, pipeR, 0}
+			readerChn <- br
+
 			return nil
 		}
 
@@ -1132,7 +1119,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 			for row0 := range batch.Rows {
 				// g.PP(batch.Columns.MakeRec(row0))
-				c++
+				br.Counter++
 				// convert to csv string
 				row := make([]string, len(row0))
 				for i, val := range row0 {
@@ -1151,7 +1138,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				w.Flush()
 				mux.Unlock()
 
-				if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 					err = nextPipe(batch.Columns)
 					if err != nil {
 						return

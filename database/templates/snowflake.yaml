@@ -10,8 +10,11 @@ core:
   enable_trigger: ""
   disable_trigger: ""
   copy_from_stage: |
-    COPY INTO {table} 
-    FROM {stage_path}
+    COPY INTO {table} ({tgt_columns})
+    FROM ( 
+      SELECT {src_columns}
+      FROM {stage_path} as T
+    )
     FILE_FORMAT = (
       TYPE = CSV
       RECORD_DELIMITER = '\n'

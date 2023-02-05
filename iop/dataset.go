@@ -363,7 +363,7 @@ func (data *Dataset) InferColumnTypes() {
 				}
 			}
 
-			switch v := val.(type) {
+			switch val.(type) {
 			case time.Time:
 				columns[j].Stats.DateCnt++
 			case nil:
@@ -407,9 +407,6 @@ func (data *Dataset) InferColumnTypes() {
 				} else {
 					columns[j].Stats.StringCnt++
 				}
-
-			default:
-				_ = v
 			}
 		}
 	}

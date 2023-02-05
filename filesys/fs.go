@@ -562,6 +562,7 @@ func (fs *BaseFileSysClient) GetReaders(paths ...string) (readers []io.Reader, e
 type FileReady struct {
 	Columns iop.Columns
 	URI     string
+	BytesW  int64
 }
 
 // WriteDataflowReady writes to a file sys and notifies the fileReady chan.
@@ -603,17 +604,19 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		defer df.Context.Wg.Read.Done()
 		localCtx := g.NewContext(ds.Context.Ctx, concurrency)
 
-		writePart := func(reader io.Reader, cols iop.Columns, partURL string) {
+		writePart := func(reader io.Reader, batchR *iop.BatchReader, partURL string) {
 			defer localCtx.Wg.Read.Done()
 
 			bw0, err := fsClient.Write(partURL, reader)
-			fileReadyChn <- FileReady{cols, partURL}
+			if batchR.Counter != 0 {
+				fileReadyChn <- FileReady{batchR.Columns, partURL, bw0}
+			}
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err))
 				ds.Context.Cancel()
 				df.Context.Cancel()
 			}
-			g.Trace("wrote %s to %s", humanize.Bytes(cast.ToUint64(bw0)), partURL)
+			g.Trace("wrote %s [%d rows] to %s", humanize.Bytes(cast.ToUint64(bw0)), batchR.Counter, partURL)
 			bw += bw0
 			df.AddOutBytes(uint64(bw0))
 		}
@@ -622,7 +625,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		localCtx.Wg.Read.Add()
 		fileCount := 0
 
-		processReader := func(batchR iop.BatchReader) error {
+		processReader := func(batchR *iop.BatchReader) error {
 			fileCount++
 			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileExt)
 			if singleFile {
@@ -644,7 +647,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			compressor := iop.NewCompressor(compression)
 			subPartURL = subPartURL + compressor.Suffix()
 			g.Trace("writing stream to " + subPartURL)
-			go writePart(compressor.Compress(batchR.Reader), batchR.Columns, subPartURL)
+			go writePart(compressor.Compress(batchR.Reader), batchR, subPartURL)
 			localCtx.Wg.Read.Add()
 			// localCtx.MemBasedLimit(98) // wait until memory is lower than 90%
 
@@ -654,14 +657,14 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		switch fileExt {
 		case "json":
 			for reader := range ds.NewJsonReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
+				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
 				if err != nil {
 					break
 				}
 			}
 		case "jsonlines":
 			for reader := range ds.NewJsonLinesReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
+				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
 				if err != nil {
 					break
 				}
@@ -670,7 +673,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			if useBufferedStream {
 				// faster, but dangerous. Holds data in memory
 				for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
-					err := processReader(iop.BatchReader{Columns: ds.Columns, Reader: reader})
+					err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
 					if err != nil {
 						break
 					}

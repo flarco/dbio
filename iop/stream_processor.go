@@ -282,26 +282,14 @@ func (sp *StreamProcessor) CastType(val interface{}, typ ColumnType) interface{}
 
 // GetType returns the type of an interface
 func (sp *StreamProcessor) GetType(val interface{}) (typ ColumnType) {
-
-	switch val.(type) {
-	case time.Time:
-		typ = TimestampType
-	case int8, int16, uint8, uint16:
-		typ = IntegerType
-	case int, int32, uint, uint32:
-		typ = IntegerType
-	case int64, uint64:
-		typ = BigIntType
-	case float32, float64:
-		typ = DecimalType
-	case bool:
-		typ = BoolType
-	case string, []uint8:
-		typ = StringType
-	default:
-		typ = StringType
+	data := NewDataset(NewColumnsFromFields("col"))
+	data.Append([]any{val})
+	if ds := sp.ds; ds != nil {
+		data.SafeInference = ds.SafeInference
+		data.Sp.dateLayouts = ds.Sp.dateLayouts
 	}
-	return
+	data.InferColumnTypes()
+	return data.Columns[0].Type
 }
 
 // commitChecksum increments the checksum. This is needed due to reprocessing rows
@@ -313,6 +301,7 @@ func (sp *StreamProcessor) commitChecksum() {
 			cs = sp.colStats[i]
 		}
 		cs.Checksum = cs.Checksum + val
+		sp.ds.Columns[i].Stats.Checksum = cs.Checksum
 	}
 }
 

@@ -1118,7 +1118,7 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 		result, err = conn.db.ExecContext(ctx, q, args...)
 	}
 	if err != nil {
-		if strings.Contains(q, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(q, noTraceKey) {
 			err = g.Error(err, "Error executing query")
 		} else {
 			err = g.Error(err, "Error executing "+CleanSQL(conn, q))

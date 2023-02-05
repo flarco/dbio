@@ -258,22 +258,6 @@ func (df *Dataflow) incrementVersion() {
 	}
 }
 
-// ResetStats resets the stats
-func (df *Dataflow) ResetStats() {
-	for i := range df.Columns {
-		// set totals to 0
-		df.Columns[i].Stats.TotalCnt = 0
-		df.Columns[i].Stats.NullCnt = 0
-		df.Columns[i].Stats.StringCnt = 0
-		df.Columns[i].Stats.JsonCnt = 0
-		df.Columns[i].Stats.IntCnt = 0
-		df.Columns[i].Stats.DecCnt = 0
-		df.Columns[i].Stats.BoolCnt = 0
-		df.Columns[i].Stats.DateCnt = 0
-		df.Columns[i].Stats.Checksum = 0
-	}
-}
-
 func (df *Dataflow) CloseCurrentBatches() {
 	df.mux.Lock()
 	defer df.mux.Unlock()
@@ -336,43 +320,67 @@ func (df *Dataflow) SyncColumns() {
 
 // SyncStats sync stream processor stats aggregated to the df.Columns
 func (df *Dataflow) SyncStats() {
-	df.ResetStats()
 
 	df.mux.Lock()
 	defer df.mux.Unlock()
 
+	dfColMap := df.Columns.FieldMap(true)
+
+	// for some reason, df.Columns remains the same as the first ds.Columns
+	// need to recreate them, reassign from dfCols
+	dfCols := Columns{}
+	for _, col := range df.Columns {
+		dfCols = append(dfCols, Column{
+			Name:        col.Name,
+			Type:        col.Type,
+			Position:    col.Position,
+			DbType:      col.DbType,
+			DbPrecision: col.DbPrecision,
+			DbScale:     col.DbScale,
+			Sourced:     col.Sourced,
+			goType:      col.goType,
+			Table:       col.Table,
+			Schema:      col.Schema,
+			Database:    col.Database,
+		})
+	}
+
 	for _, ds := range df.Streams {
-		for i, colStat := range ds.Sp.colStats {
-			if i+1 > len(df.Columns) {
-				g.DebugLow("index %d is outside len of array (%d) in SyncStats", i, len(df.Columns))
+		for _, col := range ds.Columns {
+			i, ok := dfColMap[strings.ToLower(col.Name)]
+			if !ok {
+				g.DebugLow("Warning: column '%s' not found in df.SyncStats", col.Name)
 				continue
 			}
-			df.Columns[i].Stats.TotalCnt = df.Columns[i].Stats.TotalCnt + colStat.TotalCnt
-			df.Columns[i].Stats.NullCnt = df.Columns[i].Stats.NullCnt + colStat.NullCnt
-			df.Columns[i].Stats.StringCnt = df.Columns[i].Stats.StringCnt + colStat.StringCnt
-			df.Columns[i].Stats.JsonCnt = df.Columns[i].Stats.JsonCnt + colStat.JsonCnt
-			df.Columns[i].Stats.IntCnt = df.Columns[i].Stats.IntCnt + colStat.IntCnt
-			df.Columns[i].Stats.DecCnt = df.Columns[i].Stats.DecCnt + colStat.DecCnt
-			df.Columns[i].Stats.BoolCnt = df.Columns[i].Stats.BoolCnt + colStat.BoolCnt
-			df.Columns[i].Stats.DateCnt = df.Columns[i].Stats.DateCnt + colStat.DateCnt
-			if colStat.TotalCnt > colStat.NullCnt {
-				df.Columns[i].Stats.Checksum = df.Columns[i].Stats.Checksum + colStat.Checksum
-			}
 
-			if colStat.Min < df.Columns[i].Stats.Min {
-				df.Columns[i].Stats.Min = colStat.Min
+			colStats := col.Stats
+			dfCols[i].Stats.TotalCnt = dfCols[i].Stats.TotalCnt + colStats.TotalCnt
+			dfCols[i].Stats.NullCnt = dfCols[i].Stats.NullCnt + colStats.NullCnt
+			dfCols[i].Stats.StringCnt = dfCols[i].Stats.StringCnt + colStats.StringCnt
+			dfCols[i].Stats.JsonCnt = dfCols[i].Stats.JsonCnt + colStats.JsonCnt
+			dfCols[i].Stats.IntCnt = dfCols[i].Stats.IntCnt + colStats.IntCnt
+			dfCols[i].Stats.DecCnt = dfCols[i].Stats.DecCnt + colStats.DecCnt
+			dfCols[i].Stats.BoolCnt = dfCols[i].Stats.BoolCnt + colStats.BoolCnt
+			dfCols[i].Stats.DateCnt = dfCols[i].Stats.DateCnt + colStats.DateCnt
+			dfCols[i].Stats.Checksum = dfCols[i].Stats.Checksum + colStats.Checksum
+
+			if colStats.Min < dfCols[i].Stats.Min {
+				dfCols[i].Stats.Min = colStats.Min
 			}
-			if colStat.Max > df.Columns[i].Stats.Max {
-				df.Columns[i].Stats.Max = colStat.Max
+			if colStats.Max > dfCols[i].Stats.Max {
+				dfCols[i].Stats.Max = colStats.Max
 			}
-			if colStat.MaxLen > df.Columns[i].Stats.MaxLen {
-				df.Columns[i].Stats.MaxLen = colStat.MaxLen
+			if colStats.MaxLen > dfCols[i].Stats.MaxLen {
+				dfCols[i].Stats.MaxLen = colStats.MaxLen
 			}
-			if colStat.MaxDecLen > df.Columns[i].Stats.MaxDecLen {
-				df.Columns[i].Stats.MaxDecLen = colStat.MaxDecLen
+			if colStats.MaxDecLen > dfCols[i].Stats.MaxDecLen {
+				dfCols[i].Stats.MaxDecLen = colStats.MaxDecLen
 			}
 		}
 	}
+
+	// reassign from dfCols
+	df.Columns = dfCols
 
 	if !df.Inferred {
 		df.Columns = InferFromStats(df.Columns, false, false)

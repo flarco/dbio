@@ -610,40 +610,63 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 	df.Defer(func() { conn.Exec("REMOVE " + stageFolderPath) })
 
-	doPut := func(file filesys.FileReady) {
+	doPut := func(file filesys.FileReady) (stageFilePath string) {
 		if !cast.ToBool(os.Getenv("KEEP_TEMP_FILES")) {
 			defer os.Remove(file.URI)
 		}
-		defer conn.Context().Wg.Write.Done()
 		os.Chmod(file.URI, 0777) // make file readeable everywhere
 		err = conn.PutFile(file.URI, stageFolderPath)
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error copying to Snowflake Stage: "+conn.GetProp("internalStage")))
 		}
+		pathArr := strings.Split(file.URI, "/")
+		fileName := pathArr[len(pathArr)-1]
+		stageFilePath = g.F("%s/%s", stageFolderPath, fileName)
+		return stageFilePath
+	}
+
+	doCopy := func(file filesys.FileReady) {
+		defer conn.Context().Wg.Write.Done()
+		stageFilePath := doPut(file)
+
+		if df.Err() != nil {
+			return
+		}
+
+		tgtColumns := make([]string, len(file.Columns))
+		for i, name := range file.Columns.Names() {
+			colName, _ := ParseColumnName(name, conn.GetType())
+			tgtColumns[i] = conn.Quote(colName)
+		}
+
+		srcColumns := make([]string, len(file.Columns))
+		for i := range file.Columns {
+			srcColumns[i] = g.F("T.$%d", i+1)
+		}
+
+		sql := g.R(
+			conn.template.Core["copy_from_stage"],
+			"table", tableFName,
+			"tgt_columns", strings.Join(tgtColumns, ", "),
+			"src_columns", strings.Join(srcColumns, ", "),
+			"stage_path", stageFilePath,
+		)
+		_, err = conn.Exec(sql)
+		if err != nil {
+			err = g.Error(err, "Error with COPY INTO")
+			df.Context.CaptureErr(err)
+		}
 	}
 
 	for file := range fileReadyChn {
 		conn.Context().Wg.Write.Add()
-		go doPut(file)
+		go doCopy(file)
 	}
 
 	conn.Context().Wg.Write.Wait()
 
 	if df.Err() != nil {
 		return 0, g.Error(df.Err())
-	}
-
-	// COPY INTO Table
-	sql := g.R(
-		conn.template.Core["copy_from_stage"],
-		"table", tableFName,
-		"stage_path", stageFolderPath,
-	)
-
-	_, err = conn.Exec(sql)
-	if err != nil {
-		err = g.Error(err, "Error with COPY INTO")
-		return
 	}
 
 	return df.Count(), nil
@@ -678,23 +701,6 @@ func (conn *SnowflakeConn) PutFile(fPath string, internalStagePath string) (err 
 		return
 	}
 
-	return
-}
-
-func selectFromDataset(data iop.Dataset, colIDs []int) (newData iop.Dataset) {
-	newData = iop.NewDataset(data.Columns)
-	newData.Rows = make([][]interface{}, len(data.Rows))
-
-	for i, row := range data.Rows {
-		newRow := make([]interface{}, len(colIDs))
-		for j, c := range colIDs {
-			if c+1 > len(row) {
-				continue
-			}
-			newRow[j] = row[c]
-		}
-		newData.Rows[i] = newRow
-	}
 	return
 }
 

@@ -371,48 +371,14 @@ func CompareColumns(columns1 Columns, columns2 Columns) (reshape bool, err error
 	return reshape, eG.Err()
 }
 
-// SyncColumns syncs two columns together
-func SyncColumns(columns1 []Column, columns2 []Column) (columns []Column, err error) {
-	if _, err = CompareColumns(columns1, columns2); err != nil {
-		err = g.Error(err)
-		return
-	}
-
-	columns = columns1
-
-	for i := range columns2 {
-		columns[i].Stats.TotalCnt += columns2[i].Stats.TotalCnt
-		columns[i].Stats.NullCnt += columns2[i].Stats.NullCnt
-		columns[i].Stats.StringCnt += columns2[i].Stats.StringCnt
-		columns[i].Stats.JsonCnt += columns2[i].Stats.JsonCnt
-		columns[i].Stats.IntCnt += columns2[i].Stats.IntCnt
-		columns[i].Stats.DecCnt += columns2[i].Stats.DecCnt
-		columns[i].Stats.BoolCnt += columns2[i].Stats.BoolCnt
-		columns[i].Stats.DateCnt += columns2[i].Stats.DateCnt
-
-		if columns[i].Stats.Min < columns2[i].Stats.Min {
-			columns[i].Stats.Min = columns2[i].Stats.Min
-		}
-		if columns[i].Stats.Max > columns2[i].Stats.Max {
-			columns[i].Stats.Max = columns2[i].Stats.Max
-		}
-		if columns[i].Stats.MaxLen > columns2[i].Stats.MaxLen {
-			columns[i].Stats.MaxLen = columns2[i].Stats.MaxLen
-		}
-		if columns[i].Stats.MaxDecLen > columns2[i].Stats.MaxDecLen {
-			columns[i].Stats.MaxDecLen = columns2[i].Stats.MaxDecLen
-		}
-	}
-	return
-}
-
 // InferFromStats using the stats to infer data types
 func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 	for j := range columns {
-		if columns[j].Stats.TotalCnt == 0 {
+		colStats := columns[j].Stats
+		if colStats.TotalCnt == 0 {
 			// do nothing
-		} else if columns[j].Stats.StringCnt > 0 || columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-			if columns[j].Stats.MaxLen > 255 {
+		} else if colStats.StringCnt > 0 || colStats.NullCnt == colStats.TotalCnt {
+			if colStats.MaxLen > 255 {
 				columns[j].Type = TextType
 			} else {
 				columns[j].Type = StringType
@@ -422,19 +388,19 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 			}
 			columns[j].goType = reflect.TypeOf("string")
 
-			columns[j].Stats.Min = 0
-			if columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-				columns[j].Stats.MinLen = 0
+			colStats.Min = 0
+			if colStats.NullCnt == colStats.TotalCnt {
+				colStats.MinLen = 0
 			}
-		} else if columns[j].Stats.JsonCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+		} else if colStats.JsonCnt+colStats.NullCnt == colStats.TotalCnt {
 			columns[j].Type = JsonType
 			columns[j].goType = reflect.TypeOf("json")
-		} else if columns[j].Stats.BoolCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+		} else if colStats.BoolCnt+colStats.NullCnt == colStats.TotalCnt {
 			columns[j].Type = BoolType
 			columns[j].goType = reflect.TypeOf(true)
-			columns[j].Stats.Min = 0
-		} else if columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
-			if columns[j].Stats.Min*10 < -2147483648 || columns[j].Stats.Max*10 > 2147483647 {
+			colStats.Min = 0
+		} else if colStats.IntCnt+colStats.NullCnt == colStats.TotalCnt {
+			if colStats.Min*10 < -2147483648 || colStats.Max*10 > 2147483647 {
 				columns[j].Type = BigIntType
 			} else {
 				columns[j].Type = IntegerType
@@ -443,17 +409,18 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 				columns[j].Type = BigIntType // max out
 			}
 			columns[j].goType = reflect.TypeOf(int64(0))
-		} else if columns[j].Stats.DateCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+		} else if colStats.DateCnt+colStats.NullCnt == colStats.TotalCnt {
 			columns[j].Type = DatetimeType
 			columns[j].goType = reflect.TypeOf(time.Now())
-			columns[j].Stats.Min = 0
-		} else if columns[j].Stats.DecCnt+columns[j].Stats.IntCnt+columns[j].Stats.NullCnt == columns[j].Stats.TotalCnt {
+			colStats.Min = 0
+		} else if colStats.DecCnt+colStats.IntCnt+colStats.NullCnt == colStats.TotalCnt {
 			columns[j].Type = DecimalType
 			columns[j].goType = reflect.TypeOf(float64(0.0))
 		}
 		if !noTrace {
-			g.Trace("%s - %s %s", columns[j].Name, columns[j].Type, g.Marshal(columns[j].Stats))
+			g.Trace("%s - %s %s", columns[j].Name, columns[j].Type, g.Marshal(colStats))
 		}
+		columns[j].Stats = colStats
 	}
 	return columns
 }

@@ -450,7 +450,7 @@ func (conn *BigQueryConn) InsertStream(tableFName string, ds *iop.Datastream) (c
 	return conn.BulkImportStream(tableFName, ds)
 }
 
-func getBqSchema(columns []iop.Column) (schema bigquery.Schema) {
+func getBqSchema(columns iop.Columns) (schema bigquery.Schema) {
 	schema = make([]*bigquery.FieldSchema, len(columns))
 	mapping := map[iop.ColumnType]bigquery.FieldType{
 		iop.ColumnType(""): bigquery.StringFieldType,
@@ -618,16 +618,7 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 		}
 	}
 
-	inferred := false
 	for gcsFile := range fileReadyChn {
-		if !inferred {
-			// the schema matters with using the load tool
-			// so let's make sure we infer once again
-			df.Inferred = false
-			df.SyncStats()
-			inferred = true
-		}
-
 		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
 		conn.Context().Wg.Write.Add()
 		go copyFromGCS(gcsFile, tableFName)
