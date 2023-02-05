@@ -618,7 +618,7 @@ loop:
 		ds.SetEmpty()
 
 		if !ds.NoTrace {
-			g.DebugLow("Got %d rows for %s", ds.it.Counter, ds.ID)
+			g.DebugLow("Pushed %d rows for %s", ds.it.Counter, ds.ID)
 		}
 	}()
 

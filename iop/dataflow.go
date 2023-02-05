@@ -308,7 +308,10 @@ func (df *Dataflow) SyncColumns() {
 	defer df.mux.Unlock()
 	for _, ds := range df.Streams {
 		colMap := df.Columns.FieldMap(true)
-		for _, col := range ds.Columns {
+		for i, col := range ds.Columns {
+			// sync stats
+			ds.Columns[i].Stats = *ds.Sp.colStats[i]
+
 			colName := strings.ToLower(col.Name)
 			if _, ok := colMap[colName]; !ok {
 				col.Position = len(df.Columns)
@@ -346,14 +349,14 @@ func (df *Dataflow) SyncStats() {
 	}
 
 	for _, ds := range df.Streams {
-		for _, col := range ds.Columns {
+		for j, col := range ds.Columns {
 			i, ok := dfColMap[strings.ToLower(col.Name)]
 			if !ok {
 				g.DebugLow("Warning: column '%s' not found in df.SyncStats", col.Name)
 				continue
 			}
 
-			colStats := col.Stats
+			colStats := ds.Sp.colStats[j]
 			dfCols[i].Stats.TotalCnt = dfCols[i].Stats.TotalCnt + colStats.TotalCnt
 			dfCols[i].Stats.NullCnt = dfCols[i].Stats.NullCnt + colStats.NullCnt
 			dfCols[i].Stats.StringCnt = dfCols[i].Stats.StringCnt + colStats.StringCnt
