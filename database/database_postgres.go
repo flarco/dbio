@@ -139,10 +139,10 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				return count, g.Error(err, "could not get list of columns from table")
 			}
 
-			err = batch.Shape(columns)
-			if err != nil {
-				return count, g.Error(err, "could not shape batch stream")
-			}
+			// err = batch.Shape(columns)
+			// if err != nil {
+			// 	return count, g.Error(err, "could not shape batch stream")
+			// }
 		}
 
 		err = func() error {
@@ -162,6 +162,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 			}
 
 			for row := range batch.Rows {
+				// g.PP(batch.Columns.MakeRec(row))
 				count++
 				// Do insert
 				ds.Context.Lock()

@@ -1440,42 +1440,44 @@ func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns i
 	}
 
 	// if fields provided, check if exists in table
-	colMap := map[string]string{}
-	fieldMap := map[string]string{}
+	colMap := map[string]map[string]any{}
 	for _, rec := range colData.Records() {
 		colName := cast.ToString(rec["column_name"])
-		colMap[strings.ToLower(colName)] = colName
+		colMap[strings.ToLower(colName)] = rec
 	}
 
-	for _, field := range fields {
-		_, ok := colMap[strings.ToLower(field)]
-		if !ok {
-			err = g.Error(
-				"provided field '%s' not found in table %s",
-				strings.ToLower(field), table.FullName(),
-			)
-			return
+	var colTypes []ColumnType
+
+	// if fields provided, filter, keep order
+	if len(fields) > 0 {
+		for _, field := range fields {
+			rec, ok := colMap[strings.ToLower(field)]
+			if !ok {
+				err = g.Error(
+					"provided field '%s' not found in table %s",
+					strings.ToLower(field), table.FullName(),
+				)
+				return
+			}
+
+			colTypes = append(colTypes, ColumnType{
+				Name:             cast.ToString(rec["column_name"]),
+				DatabaseTypeName: cast.ToString(rec["data_type"]),
+				Precision:        cast.ToInt(rec["precision"]),
+				Scale:            cast.ToInt(rec["scale"]),
+			})
 		}
-		fieldMap[strings.ToLower(field)] = colMap[strings.ToLower(field)]
+	} else {
+		colTypes = lo.Map(colData.Records(), func(rec map[string]interface{}, i int) ColumnType {
+			return ColumnType{
+				Name:             cast.ToString(rec["column_name"]),
+				DatabaseTypeName: cast.ToString(rec["data_type"]),
+				Precision:        cast.ToInt(rec["precision"]),
+				Scale:            cast.ToInt(rec["scale"]),
+			}
+		})
+
 	}
-
-	colTypes := lo.Map(colData.Records(), func(rec map[string]interface{}, i int) ColumnType {
-		return ColumnType{
-			Name:             cast.ToString(rec["column_name"]),
-			DatabaseTypeName: cast.ToString(rec["data_type"]),
-			Precision:        cast.ToInt(rec["precision"]),
-			Scale:            cast.ToInt(rec["scale"]),
-		}
-	})
-
-	// if fields provided, filter
-	colTypes = lo.Filter(colTypes, func(c ColumnType, i int) bool {
-		if len(fields) > 0 {
-			_, ok := fieldMap[strings.ToLower(c.Name)]
-			return ok
-		}
-		return true
-	})
 
 	columns = SQLColumns(colTypes, conn)
 	table.Columns = columns

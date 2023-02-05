@@ -119,7 +119,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 				defer conn.Rollback()
 			}
 
-			insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(true, true), true)
+			insFields, err := conn.ValidateColumnNames(columns.Names(), batch.Columns.Names(true, true), true)
 			if err != nil {
 				return g.Error(err, "columns mismatch")
 			}

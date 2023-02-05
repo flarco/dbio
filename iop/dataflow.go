@@ -474,15 +474,13 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 		case <-ds.readyChn:
 			// wait for first ds to start streaming.
 			// columns/buffer need to be populated
-			if df.Ready {
+			if len(df.Streams) > 0 {
 				// add new columns two-way if not exist
 				df.AddColumns(ds.Columns, false)
 				ds.AddColumns(df.Columns, false)
 			} else {
 				df.Columns = ds.Columns
 				df.Buffer = ds.Buffer
-				df.Inferred = ds.Inferred
-				df.SetReady()
 			}
 
 			// push stream
@@ -497,14 +495,15 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			g.DebugLow("%d datastreams pushed [%s]", pushCnt, ds.ID)
 			if df.Limit > 0 && df.Count() >= df.Limit {
 				g.Debug("reached dataflow limit of %d", df.Limit)
+				df.SetReady()
 				return
+			} else if df.Count() >= uint64(SampleSize) {
+				df.SetReady()
 			}
 		}
 	}
 
-	if len(df.Streams) == 0 {
-		df.SetReady()
-	}
+	df.SetReady()
 
 }
 
