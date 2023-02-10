@@ -37,7 +37,7 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 	ds.Batches = append(ds.Batches, batch)
 	ds.BatchChan <- batch
 	if !ds.NoTrace {
-		g.DebugLow("new batch %s", batch.ID())
+		g.Trace("new batch %s", batch.ID())
 	}
 	return batch
 }
@@ -66,7 +66,7 @@ func (b *Batch) Close() {
 		b.closed = true
 		close(b.Rows)
 		if !b.ds.NoTrace {
-			g.DebugLow("closed %s", b.ID())
+			g.Trace("closed %s", b.ID())
 		}
 	}
 }

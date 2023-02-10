@@ -45,7 +45,7 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	ctx := g.NewContext(context.Background())
 
 	df = &Dataflow{
-		StreamCh:      make(chan *Datastream, ctx.Wg.Limit),
+		StreamCh:      make(chan *Datastream, ctx.Wg.Limit*4),
 		Streams:       []*Datastream{},
 		Context:       &ctx,
 		Limit:         Limit,
@@ -497,13 +497,20 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 				df.Buffer = ds.Buffer
 			}
 
-			// push stream
+			// push stream, keep retrying
+		tryPush:
 			df.mux.Lock()
 			ds.df = df
-			df.StreamCh <- ds
-			df.StreamMap[ds.ID] = ds
-			df.Streams = append(df.Streams, ds)
-			df.mux.Unlock()
+			select {
+			case df.StreamCh <- ds:
+				df.StreamMap[ds.ID] = ds
+				df.Streams = append(df.Streams, ds)
+				df.mux.Unlock()
+			default:
+				df.mux.Unlock()
+				time.Sleep(1 * time.Millisecond)
+				goto tryPush
+			}
 
 			pushCnt++
 			g.DebugLow("%d datastreams pushed [%s]", pushCnt, ds.ID)
@@ -512,6 +519,8 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 				df.SetReady()
 				return
 			} else if df.Count() >= uint64(SampleSize) {
+				df.SetReady()
+			} else if len(df.StreamCh) == cap(df.StreamCh) {
 				df.SetReady()
 			}
 		}

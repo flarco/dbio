@@ -248,9 +248,6 @@ func (ds *Datastream) Defer(f func()) {
 // Close closes the datastream
 func (ds *Datastream) Close() {
 	if !ds.closed {
-		if !ds.NoTrace {
-			g.DebugLow("closing ds %s", ds.ID)
-		}
 		close(ds.bwRows)
 		close(ds.BatchChan)
 
@@ -514,7 +511,7 @@ loop:
 	go ds.processBwRows()
 
 	if !ds.NoTrace {
-		g.Debug("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
+		g.Trace("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
 	}
 	go func() {
 		var batch *Batch
