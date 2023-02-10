@@ -226,7 +226,10 @@ func (df *Dataflow) SetColumns(columns []Column) {
 
 // SetColumns sets the columns
 func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...string) (added Columns, processOk bool) {
+	df.mux.Lock()
 	df.Columns, added = df.Columns.Add(newCols, overwrite)
+	df.mux.Unlock()
+
 	if len(added) > 0 {
 		if !df.Pause(exceptDs...) {
 			return added, false
@@ -505,12 +508,16 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			// columns/buffer need to be populated
 			if len(df.Streams) > 0 {
 				// add new columns two-way if not exist
-				_, ok := df.AddColumns(ds.Columns, false)
-				ds.AddColumns(df.Columns, false)
-
+				newCols, ok := df.AddColumns(ds.Columns, false)
 				if !ok {
-					g.DebugLow("Warning: Could not run AddColumns process")
+					// Could not run AddColumns process, queue for later
+					ds.schemaChgChan <- schemaChg{Added: true, Cols: newCols}
 				}
+
+				// add new columns two-way if not exist
+				df.mux.Lock()
+				ds.AddColumns(df.Columns, false)
+				df.mux.Unlock()
 			} else {
 				df.Columns = ds.Columns
 				df.Buffer = ds.Buffer

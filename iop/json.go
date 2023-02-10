@@ -143,8 +143,15 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 }
 
 func (js *jsonStream) addColumn(col *Column) {
+	mux := js.ds.Context.Mux
+	if df := js.ds.Df(); df != nil {
+		mux = df.Context.Mux
+	}
+
+	mux.Lock()
 	js.ds.AddColumns(Columns{*col}, false)
 	js.ColumnMap[col.Name] = col
+	mux.Unlock()
 }
 
 func (js *jsonStream) parseRecords(records []map[string]interface{}) {
@@ -161,6 +168,11 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 
 		row := make([]interface{}, len(js.ds.Columns))
 		for _, colName := range keys {
+			// cast arrays as string
+			if arr, ok := newRec[colName].([]interface{}); ok {
+				newRec[colName] = g.Marshal(arr)
+			}
+
 			col, ok := js.ColumnMap[colName]
 			if !ok {
 				col = &Column{
@@ -173,9 +185,6 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 			}
 			i := col.Position - 1
 			row[i] = newRec[colName]
-			if arr, ok := row[i].([]interface{}); ok {
-				row[i] = g.Marshal(arr)
-			}
 		}
 		js.buffer <- row
 	}

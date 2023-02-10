@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/g/net"
@@ -609,7 +610,7 @@ func (conn *BigQueryConn) importViaGoogleStorage(tableFName string, df *iop.Data
 
 	copyFromGCS := func(gcsFile filesys.FileReady, tableFName string) {
 		defer conn.Context().Wg.Write.Done()
-		g.Debug("Loading %s", gcsFile.URI)
+		g.Debug("Loading %s [%s] %s", gcsFile.URI, humanize.Bytes(cast.ToUint64(gcsFile.BytesW)), gcsFile.BatchID)
 
 		err := conn.CopyFromGCS(gcsFile.URI, tableFName, gcsFile.Columns)
 		if err != nil {

@@ -1053,6 +1053,7 @@ func (ds *Datastream) NewCsvBufferReaderChnl(rowLimit int, bytesLimit int64) (re
 }
 
 type BatchReader struct {
+	Batch   *Batch
 	Columns Columns
 	Reader  io.Reader
 	Counter int
@@ -1080,7 +1081,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		defer close(readerChn)
 
-		nextPipe := func(cols Columns) error {
+		nextPipe := func(batch *Batch) error {
 
 			pipeW.Close() // close the prior reader?
 			tbw = 0       // reset
@@ -1094,7 +1095,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			}
 
 			if ds.config.header {
-				bw, err := w.Write(ds.GetFields(true, true))
+				bw, err := w.Write(batch.Columns.Names(true, true))
 				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
 					err = g.Error(err, "error writing header")
@@ -1105,7 +1106,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				}
 			}
 
-			br = &BatchReader{cols, pipeR, 0}
+			br = &BatchReader{batch, batch.Columns, pipeR, 0}
 			readerChn <- br
 
 			return nil
@@ -1113,7 +1114,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		for batch := range ds.BatchChan {
 
-			err := nextPipe(batch.Columns)
+			err := nextPipe(batch)
 			if err != nil {
 				return
 			}
@@ -1140,7 +1141,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				mux.Unlock()
 
 				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
-					err = nextPipe(batch.Columns)
+					err = nextPipe(batch)
 					if err != nil {
 						return
 					}

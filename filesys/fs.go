@@ -15,6 +15,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/samber/lo"
 
 	"github.com/flarco/dbio/iop"
 
@@ -360,6 +361,7 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = urlStr
 	ds.SetConfig(fs.Props())
+	g.Debug("%s, reading datastream from %s", ds.ID, urlStr)
 
 	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
 		reader, err := fs.Self().GetReader(urlStr)
@@ -563,6 +565,7 @@ type FileReady struct {
 	Columns iop.Columns
 	URI     string
 	BytesW  int64
+	BatchID string
 }
 
 // WriteDataflowReady writes to a file sys and notifies the fileReady chan.
@@ -609,7 +612,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 			bw0, err := fsClient.Write(partURL, reader)
 			if batchR.Counter != 0 {
-				fileReadyChn <- FileReady{batchR.Columns, partURL, bw0}
+				bID := lo.Ternary(batchR.Batch != nil, batchR.Batch.ID(), "")
+				fileReadyChn <- FileReady{batchR.Columns, partURL, bw0, bID}
 			}
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err))
@@ -810,7 +814,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 				g.Debug("skipping %s because is not file", path)
 				continue
 			}
-			g.Debug("reading datastream from %s", path)
+
 			ds, err := fs.GetDatastream(path)
 			if err != nil {
 				fs.Context().CaptureErr(g.Error(err, "Unable to process "+path))
