@@ -565,10 +565,14 @@ loop:
 					case schemaChgVal := <-ds.schemaChgChan:
 						if schemaChgVal.Added {
 							g.DebugLow("%s, adding columns %#v", ds.ID, schemaChgVal.Cols.Types())
-							df.AddColumns(schemaChgVal.Cols, false, ds.ID)
+							if _, ok := df.AddColumns(schemaChgVal.Cols, false, ds.ID); !ok {
+								ds.schemaChgChan <- schemaChgVal // requeue to try adding again
+							}
 						} else {
 							g.DebugLow("%s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
-							df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID)
+							if df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID) {
+								ds.schemaChgChan <- schemaChgVal // requeue to try changing again
+							}
 						}
 						batch.Close()
 						goto schemaChgLoop

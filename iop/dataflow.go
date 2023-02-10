@@ -119,7 +119,7 @@ func (df *Dataflow) Close() {
 func (df *Dataflow) Pause(exceptDs ...string) bool {
 	if df.Ready {
 
-		timer := time.NewTimer(5 * time.Second)
+		timer := time.NewTimer(time.Duration(g.RandInt(3000)+1000) * time.Millisecond)
 		for {
 			df.mux.Lock()
 			// try to pause all datastreams, or none
@@ -225,10 +225,12 @@ func (df *Dataflow) SetColumns(columns []Column) {
 }
 
 // SetColumns sets the columns
-func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...string) (added Columns) {
+func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...string) (added Columns, processOk bool) {
 	df.Columns, added = df.Columns.Add(newCols, overwrite)
 	if len(added) > 0 {
-		df.Pause(exceptDs...)
+		if !df.Pause(exceptDs...) {
+			return added, false
+		}
 
 		// wait for current batches to close
 		df.CloseCurrentBatches()
@@ -242,17 +244,19 @@ func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...stri
 		}
 		df.Unpause(exceptDs...)
 	}
-	return added
+	return added, true
 }
 
 // SetColumns sets the columns
-func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) {
+func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) bool {
 	if df.OnColumnChanged == nil {
-		g.Warn("df.OnColumnChanged is not defined")
-		return
+		g.DebugLow("df.OnColumnChanged is not defined")
+		return false
 	}
 
-	df.Pause(exceptDs...)
+	if !df.Pause(exceptDs...) {
+		return false
+	}
 
 	// wait for current batches to close
 	df.CloseCurrentBatches()
@@ -265,6 +269,8 @@ func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) 
 	}
 
 	df.Unpause(exceptDs...)
+
+	return true
 }
 
 func (df *Dataflow) incrementVersion() {
@@ -499,8 +505,12 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			// columns/buffer need to be populated
 			if len(df.Streams) > 0 {
 				// add new columns two-way if not exist
-				df.AddColumns(ds.Columns, false)
+				_, ok := df.AddColumns(ds.Columns, false)
 				ds.AddColumns(df.Columns, false)
+
+				if !ok {
+					g.DebugLow("Warning: Could not run AddColumns process")
+				}
 			} else {
 				df.Columns = ds.Columns
 				df.Buffer = ds.Buffer
