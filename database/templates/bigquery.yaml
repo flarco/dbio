@@ -6,8 +6,13 @@ core:
   insert: insert into {table} ({fields}) values ({values})
   update: update {table} set {set_fields} where {pk_fields_equal}
   truncate_table: create or replace table {table} as select * from `{schema}`.`{table}` limit 0
-  alter_columns: alter table {table} alter column {col_ddls}
-  modify_column: '{column} set data type {type}'
+  # alter_columns: alter table {table} alter column {col_ddl}
+  # modify_column: '{column} set data type {type}'
+  alter_columns: |
+    create or replace table {table} as
+    select * replace({col_ddl})
+    from {table}
+  modify_column: 'cast({column} as {type}) as {column}'
   # column_names: select * from ({sql}) as t limit 1
   copy_to_gcs: |
       EXPORT DATA OPTIONS(

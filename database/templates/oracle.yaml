@@ -29,7 +29,7 @@ core:
   create_temporary_table: create global temporary table {table} ({col_types})
   create_index: create index {index} on {table} ({cols})
   insert: INSERT {options} INTO {table} ({fields}) VALUES ({values})
-  alter_columns: alter table {table} modify ({col_ddls})
+  alter_columns: alter table {table} modify ({col_ddl})
   insert_all: |
       INSERT ALL
       INTO t (col1, col2, col3) VALUES ('val1_1', 'val1_2', 'val1_3')

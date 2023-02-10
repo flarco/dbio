@@ -4,7 +4,7 @@ core:
   create_table: create table {table} ({col_types}) engine=MergeTree ORDER BY tuple()
   create_temporary_table: create table {table} ({col_types}) engine=Memory
   rename_table: ALTER TABLE {table} RENAME TO {new_table}
-  alter_columns: alter table {table} modify column {col_ddls}
+  alter_columns: alter table {table} modify column {col_ddl}
   modify_column: '{column} {type}'
 
 

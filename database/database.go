@@ -2703,7 +2703,7 @@ func (conn *BaseConn) OptimizeTable(table *Table, newColumns iop.Columns) (ok bo
 		ddlParts = append(ddlParts, g.R(
 			conn.GetTemplateValue("core.alter_columns"),
 			"table", table.FullName(),
-			"col_ddls", colDDL,
+			"col_ddl", colDDL,
 		))
 	}
 
@@ -3200,7 +3200,7 @@ func GenerateAlterDDL(conn Connection, table Table, newColumns iop.Columns) (boo
 	ddl := g.R(
 		conn.GetTemplateValue("core.alter_columns"),
 		"table", table.FullName(),
-		"col_ddls", strings.Join(colDDLs, ", "),
+		"col_ddl", strings.Join(colDDLs, ", "),
 	)
 	_, err := conn.Exec(ddl)
 	if err != nil {

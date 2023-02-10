@@ -29,7 +29,7 @@ core:
     credentials 'aws_access_key_id={aws_access_key_id};aws_secret_access_key={aws_secret_access_key}'
     HEADER gzip allowoverwrite CSV PARALLEL {parallel}
   alter_columns: |
-    alter table {table} {col_ddls}
+    alter table {table} {col_ddl}
  
 metadata:
 

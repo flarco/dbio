@@ -33,7 +33,7 @@ core:
     )
   column_names: '{sql}'
   add_column: alter table {table} add {column} {type}
-  alter_columns: alter table {table} alter column {col_ddls}
+  alter_columns: alter table {table} alter column {col_ddl}
   modify_column: '{column} {type}'
 
 
