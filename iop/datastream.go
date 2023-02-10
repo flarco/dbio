@@ -125,7 +125,7 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 
 	ds = &Datastream{
 		ID:            g.NewTsID("ds"),
-		BatchChan:     make(chan *Batch, 4),
+		BatchChan:     make(chan *Batch, 1000),
 		Batches:       []*Batch{},
 		Columns:       columns,
 		Context:       &context,

@@ -116,9 +116,10 @@ func (df *Dataflow) Close() {
 }
 
 // Pause pauses all streams
-func (df *Dataflow) Pause(exceptDs ...string) {
+func (df *Dataflow) Pause(exceptDs ...string) bool {
 	if df.Ready {
 
+		timer := time.NewTimer(5 * time.Second)
 		for {
 			df.mux.Lock()
 			// try to pause all datastreams, or none
@@ -146,8 +147,16 @@ func (df *Dataflow) Pause(exceptDs ...string) {
 			}
 			df.mux.Unlock()
 			time.Sleep(time.Duration(g.RandInt(100)) * time.Millisecond)
+
+			select {
+			case <-timer.C:
+				return false
+			default:
+			}
 		}
 	}
+
+	return true
 }
 
 // Unpause unpauses all streams
