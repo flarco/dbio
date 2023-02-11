@@ -192,6 +192,13 @@ func (df *Dataflow) SetReady() {
 	}
 }
 
+// SetEmpty sets all underlying datastreams empty
+func (df *Dataflow) SetEmpty() {
+	for _, ds := range df.Streams {
+		ds.SetEmpty()
+	}
+}
+
 // IsEmpty returns true is ds.Rows of all channels as empty
 func (df *Dataflow) IsEmpty() bool {
 	df.mux.Lock()
