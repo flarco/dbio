@@ -93,6 +93,20 @@ var DBs = map[string]*testDB{
 		placeVwSelect: "CREATE VIEW place_vw as select * from place where telcode = 65",
 	},
 
+	"duckdb": {
+		name:   "duckdb",
+		URL:    "duckdb:///tmp/test.d.db",
+		schema: "main",
+
+		transactDDL: `CREATE TABLE transact (date_time date, description varchar, original_description varchar, amount decimal(10,5), transaction_type varchar, category varchar, account_name varchar, labels varchar, notes varchar )`,
+		personDDL:   `CREATE TABLE person (first_name varchar, last_name varchar, email varchar, CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
+		placeDDL:    "CREATE TABLE \"place\" (\"country\" varchar,\"city\" varchar,\"telcode\" bigint )",
+		placeIndex: `CREATE INDEX idx_country_city
+		ON place(country, city)`,
+		placeVwDDL:    "CREATE VIEW place_vw as select * from place where telcode = 65",
+		placeVwSelect: "CREATE VIEW place_vw as select * from place where telcode = 65",
+	},
+
 	"mysql": {
 		name:          "mysql",
 		URL:           os.Getenv("MYSQL_URL"),
@@ -260,6 +274,16 @@ func TestSQLite(t *testing.T) {
 	g.AssertNoError(t, err)
 	DBTest(t, db, conn)
 	os.Remove(dbPath)
+}
+
+func TestDuckDB(t *testing.T) {
+	db := DBs["duckdb"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+	// data, err := conn.Query("describe place")
+	// g.PP(data.Records())
+	g.AssertNoError(t, err)
+	DBTest(t, db, conn)
 }
 
 func TestMySQL(t *testing.T) {
@@ -461,7 +485,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	}
 
 	// GetIndexes
-	if !strings.Contains("redshift,bigquery,azuredwh,snowflake,sqlite3,clickhouse", db.name) {
+	if !strings.Contains("redshift,bigquery,azuredwh,snowflake,sqlite3,clickhouse,duckdb", db.name) {
 		data, err = conn.GetIndexes(db.schema + ".place")
 		g.AssertNoError(t, err)
 		assert.Len(t, data.Rows, 2)
@@ -472,17 +496,18 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	data, err = conn.GetColumnsFull(db.schema + ".place")
 	g.AssertNoError(t, err)
 	assert.Len(t, data.Rows, 3)
-	assert.Contains(t, []string{"bigint", "NUMBER", "decimal", "INT64", "FIXED", "Int64"}, data.Records()[2]["data_type"])
+	dType := strings.ToLower(cast.ToString(data.Records()[2]["data_type"]))
+	assert.Contains(t, []string{"bigint", "number", "decimal", "int64", "fixed", "int64"}, dType)
 
 	// GetDDL of table
-	if !strings.Contains("redshift,bigquery,sqlserver,azuresql,azuredwh", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlserver,azuresql,azuredwh,duckdb", db.name) {
 		ddl, err := conn.GetDDL(db.schema + ".place")
 		g.AssertNoError(t, err)
 		assert.Equal(t, db.placeDDL, ddl)
 	}
 
 	// GetDDL of view
-	if !strings.Contains("redshift,bigquery", db.name) {
+	if !strings.Contains("redshift,bigquery,duckdb", db.name) {
 		ddl, err := conn.GetDDL(db.schema + ".place_vw")
 		g.AssertNoError(t, err)
 		assert.Equal(t, db.placeVwSelect, ddl)
@@ -597,7 +622,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	// assert.EqualValues(t, "decimal", columns[3].Type)
 
 	// Extract / Load Test
-	if !strings.Contains("redshift,bigquery,sqlite3,sqlserver,azuresql,azuredwh,clickhouse", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlite3,sqlserver,azuresql,azuredwh,clickhouse,duckdb", db.name) {
 		ELTest(t, db, csvTable)
 		if t.Failed() {
 			return
@@ -608,7 +633,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	err = conn.DropTable("person", "place", "transact", "test1")
 	g.AssertNoError(t, err)
 
-	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh,clickhouse", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh,clickhouse,duckdb", db.name) {
 		// test sleep function
 		sleepSQL := g.R(
 			conn.GetTemplateValue("function.sleep"),
@@ -845,6 +870,7 @@ func TestLargeDataset(t *testing.T) {
 		DBs["snowflake"],
 		DBs["bigquery"],
 		DBs["sqlite3"],
+		DBs["duckdb"],
 	}
 	// test snowflake Azure and AWS
 	DBs["snowflake_aws"] = &testDB{
@@ -858,7 +884,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["sqlite3"]}
+	// dbs = []*testDB{DBs["duckdb"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {

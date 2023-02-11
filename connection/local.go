@@ -2,6 +2,8 @@ package connection
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"sort"
 	"strings"
@@ -88,9 +90,25 @@ func GetLocalConns(force ...bool) []ConnEntry {
 	for key, val := range g.KVArrToMap(os.Environ()...) {
 		var conn Connection
 
-		// embedded JSON/YAML payload
+		// try to decode base64
 		payload := g.M()
-		err := yaml.Unmarshal([]byte(val), &payload)
+		err := json.Unmarshal([]byte(val), &payload)
+		if eVal, ok := payload["base64"]; ok && err == nil && eVal != nil {
+			dVal, err := base64.StdEncoding.DecodeString(val)
+			if err == nil {
+				val = string(dVal)
+			}
+		} else if strings.HasPrefix(val, "base64:") && strings.HasSuffix(val, ":46esab") {
+			val = strings.TrimPrefix(strings.TrimSuffix(val, ":46esab"), "base64:")
+			dVal, err := base64.StdEncoding.DecodeString(val)
+			if err == nil {
+				val = string(dVal)
+			}
+		}
+
+		// embedded JSON/YAML payload
+		payload = g.M()
+		err = yaml.Unmarshal([]byte(val), &payload)
 		if cType, ok := payload["type"]; ok && err == nil {
 			conn, err = NewConnectionFromMap(g.M("name", key, "type", cType, "data", payload))
 			if err != nil {

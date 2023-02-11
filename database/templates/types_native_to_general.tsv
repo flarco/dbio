@@ -249,29 +249,17 @@ snowflake	timestamp_tz	timestampz	col_timestamp_tz timestamp_tz	TRUE	TRUE	TIMEST
 snowflake	varbinary	binary	col_varbinary varbinary(100)	FALSE	FALSE	Synonymous with BINARY.
 snowflake	varchar	text	col_varchar varchar(100)	TRUE	TRUE	Default (and maximum) is 16,777,216 bytes.
 snowflake	variant	json	col_variant variant	FALSE	FALSE	
-sqlite	clob	text	col_clob clob	TRUE	TRUE	
 sqlite	blob	text	col_blob blob	TRUE	TRUE	
 sqlite	varchar	string	col_varchar varchar	TRUE	TRUE	
 sqlite	bigint	bigint	col_bigint bigint	TRUE	TRUE	
-sqlite	int2	integer	col_int2 int2	TRUE	TRUE	
-sqlite	int8	integer	col_int8 int8	TRUE	TRUE	
-sqlite	unsigned big int	bigint	col_bigint bigint	TRUE	TRUE	
-sqlite	tinyint	integer	col_tinyint tinyint	TRUE	TRUE	
-sqlite	smallint	integer	col_smallint smallint	TRUE	TRUE	
-sqlite	mediumint	integer	col_mediumint mediumint	TRUE	TRUE	
-sqlite	int	integer	col_int int	TRUE	TRUE	
 sqlite	integer	bigint	col_integer integer	TRUE	TRUE	
 sqlite	null	text	col_null null	TRUE	TRUE	
-sqlite	double precision	decimal	col_double double	TRUE	TRUE	
-sqlite	double	decimal	col_double double	TRUE	TRUE	
-sqlite	float	decimal	col_float float	TRUE	TRUE	
 sqlite	real	decimal	col_real real	TRUE	TRUE	
 sqlite	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 sqlite	date	datetime	col_date date	TRUE	TRUE	
 sqlite	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 sqlite	text	text	col_text text	TRUE	TRUE	
 sqlite	json	json	col_json json	TRUE	TRUE	
-sqlite	boolean	bool	col_boolean boolean	TRUE	TRUE	
 sqlserver	bigint	bigint	col_bigint bigint	TRUE	TRUE	
 sqlserver	binary	binary	col_binary binary(100)	TRUE	FALSE	
 sqlserver	bit	smallint	col_bit bit	FALSE	FALSE	
@@ -348,3 +336,33 @@ clickhouse	map	json	col_map json	FALSE	FALSE
 clickhouse	lowcardinality	string	col_lowcardinality json	FALSE	FALSE	
 clickhouse	enum8	string	col_enum8 json	FALSE	FALSE	
 clickhouse	ipv6	string	col_enum8 json	FALSE	FALSE	
+duckdb	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
+duckdb	binary	binary	col_binary binary(100)	TRUE	TRUE	A fixed-length binary string
+duckdb	blob	binary	col_blob blob	TRUE	TRUE	A small BLOB
+duckdb	char	string	col_char char(17)	TRUE	TRUE	A fixed-length nonbinary (character) string
+duckdb	date	date	col_date date	TRUE	TRUE	A date value in CCYY-MM-DD format
+duckdb	datetime	datetime	col_datetime datetime	TRUE	TRUE	A date and time value inCCYY-MM-DD hh:mm:ssformat
+duckdb	decimal	decimal	col_decimal decimal	TRUE	TRUE	A fixed-point number
+duckdb	double	float	col_double double	TRUE	TRUE	A double-precision floating point number
+duckdb	enum	string	col_enum enum ('value1','value2','value3')	FALSE	FALSE	An enumeration; each column value may be assigned one enumeration member
+duckdb	float	float	col_float float	TRUE	TRUE	A single-precision floating point number
+duckdb	integer	integer	col_int int	TRUE	TRUE	A standard integer
+duckdb	json	json	col_json json	TRUE	TRUE	JSON Data Type
+duckdb	smallint	smallint	col_smallint smallint	TRUE	TRUE	A small integer
+duckdb	text	text	col_text text	TRUE	TRUE	A small non-binary string
+duckdb	time	time	col_time time	TRUE	TRUE	A time value in hh:mm:ss format
+duckdb	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	A timestamp value in CCYY-MM-DD hh:mm:ss format
+duckdb	tinyblob	text	col_tinyblob tinyblob	TRUE	TRUE	A very small BLOB (binary large object)
+duckdb	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	A very small integer
+duckdb	varchar	text	col_varchar varchar(100)	TRUE	TRUE	A variable-length non-binary string
+duckdb	boolean	bool	col_boolean boolean	TRUE	TRUE	
+duckdb	list	json	col_list list	TRUE	TRUE	
+duckdb	struct	json	col_struct struct	TRUE	TRUE	
+duckdb	map	json	col_map map	TRUE	TRUE	
+duckdb	ubigint	bigint	col_ubigint ubigint	TRUE	TRUE	
+duckdb	uinteger	bigint	col_uinteger uinteger	TRUE	TRUE	
+duckdb	usmallint	integer	col_usmallint usmallint	TRUE	TRUE	
+duckdb	utinyint	integer	col_utinyint utinyint	TRUE	TRUE	
+duckdb	uuid	string	col_uuid uuid	TRUE	TRUE	
+duckdb	hugeint	decimal	col_hugeint hugeint	TRUE	TRUE	
+duckdb	interval	string	col_interval interval	TRUE	TRUE	

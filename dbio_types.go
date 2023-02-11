@@ -42,6 +42,7 @@ const (
 	TypeDbBigQuery   Type = "bigquery"
 	TypeDbSnowflake  Type = "snowflake"
 	TypeDbSQLite     Type = "sqlite"
+	TypeDbDuckDb     Type = "duckdb"
 	TypeDbSQLServer  Type = "sqlserver"
 	TypeDbAzure      Type = "azuresql"
 	TypeDbAzureDWH   Type = "azuredwh"
@@ -74,7 +75,7 @@ func ValidateType(tStr string) (Type, bool) {
 	switch t {
 	case
 		TypeFileLocal, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp,
-		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH:
+		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH, TypeDbDuckDb:
 		return t, true
 	}
 
@@ -109,7 +110,7 @@ func (t Type) DefPort() int {
 func (t Type) Kind() Kind {
 	switch t {
 	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbBigTable,
-		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse:
+		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse, TypeDbDuckDb:
 		return KindDatabase
 	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
 		return KindFile
@@ -170,6 +171,7 @@ func (t Type) NameLong() string {
 		TypeDbBigTable:   "DB - BigTable",
 		TypeDbSnowflake:  "DB - Snowflake",
 		TypeDbSQLite:     "DB - SQLite",
+		TypeDbDuckDb:     "DB - DuckDB",
 		TypeDbSQLServer:  "DB - SQLServer",
 		TypeDbAzure:      "DB - Azure",
 		TypeDbClickhouse: "DB - Clickhouse",
@@ -204,6 +206,7 @@ func (t Type) Name() string {
 		TypeDbBigTable:   "BigTable",
 		TypeDbSnowflake:  "Snowflake",
 		TypeDbSQLite:     "SQLite",
+		TypeDbDuckDb:     "DuckDB",
 		TypeDbSQLServer:  "SQLServer",
 		TypeDbClickhouse: "Clickhouse",
 		TypeDbAzure:      "Azure",

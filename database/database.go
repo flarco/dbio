@@ -29,6 +29,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	_ "github.com/marcboeker/go-duckdb"
 	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/snowflakedb/gosnowflake"
 
@@ -285,6 +286,8 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &SnowflakeConn{URL: URL}
 	} else if strings.HasPrefix(URL, "sqlite:") {
 		conn = &SQLiteConn{URL: URL}
+	} else if strings.HasPrefix(URL, "duckdb:") {
+		conn = &DuckDbConn{URL: URL}
 	} else {
 		conn = &BaseConn{URL: URL}
 	}
@@ -325,6 +328,8 @@ func getDriverName(dbType dbio.Type) (driverName string) {
 		driverName = "snowflake"
 	case dbio.TypeDbSQLite:
 		driverName = "sqlite3"
+	case dbio.TypeDbDuckDb:
+		driverName = "duckdb"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure:
 		driverName = "sqlserver"
 	default:
@@ -1342,6 +1347,10 @@ func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.Colu
 		if strings.HasPrefix(dbType, "nullable(") {
 			dbType = strings.ReplaceAll(dbType, "nullable(", "")
 			dbType = strings.TrimSuffix(dbType, ")")
+		}
+	} else if conn.GetType() == dbio.TypeDbDuckDb {
+		if strings.HasSuffix(dbType, "[]") {
+			dbType = "list"
 		}
 	}
 
