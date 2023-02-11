@@ -247,4 +247,4 @@ require (
 
 replace github.com/flarco/g => ../g
 
-replace github.com/marcboeker/go-duckdb => ../go-duckdb
+// replace github.com/marcboeker/go-duckdb => ../go-duckdb
