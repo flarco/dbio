@@ -720,7 +720,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 	partCnt := 1
 	// for ds := range df.MakeStreamCh() {
-	for _, ds := range df.Streams {
+	for ds := range df.StreamCh {
 
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
 		if singleFile {

@@ -192,13 +192,6 @@ func (df *Dataflow) SetReady() {
 	}
 }
 
-// SetEmpty sets all underlying datastreams empty
-func (df *Dataflow) SetEmpty() {
-	for _, ds := range df.Streams {
-		ds.SetEmpty()
-	}
-}
-
 // IsEmpty returns true is ds.Rows of all channels as empty
 func (df *Dataflow) IsEmpty() bool {
 	df.mux.Lock()
@@ -277,6 +270,9 @@ func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) 
 }
 
 func (df *Dataflow) incrementVersion() {
+	df.mux.Lock()
+	defer df.mux.Unlock()
+
 	df.SchemaVersion++ // increment version
 	for _, ds0 := range df.Streams {
 		if len(ds0.Columns) == len(df.Columns) {
