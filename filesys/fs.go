@@ -719,7 +719,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	partCnt := 1
-	// for ds := range df.MakeStreamCh() {
+	// for ds := range df.MakeStreamCh(true) {
 	for ds := range df.StreamCh {
 
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
@@ -839,6 +839,8 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			}
 		}
 
+		df.Context.Wg.Read.Wait()
+
 	}()
 
 	go df.PushStreamChan(dsCh)
@@ -939,4 +941,57 @@ func TestFsPermissions(fs FileSysClient, pathURL string) (err error) {
 	}
 
 	return
+}
+
+func isJson(paths ...string) bool {
+	jsonCnt := 0
+	dirCnt := 0
+
+	for _, path := range paths {
+		if strings.HasSuffix(path, "/") {
+			dirCnt++
+			continue
+		}
+
+		if strings.Contains(path, ".json") && !strings.HasSuffix(path, ".csv") {
+			jsonCnt++
+		}
+	}
+	return len(paths) == jsonCnt+dirCnt
+}
+
+func MergeReaders(fs FileSysClient, paths ...string) (reader io.Reader, err error) {
+	if len(paths) == 0 {
+		err = g.Error("Provided 0 files for: %#v", paths)
+		return
+	}
+
+	pipeR, pipeW := io.Pipe()
+
+	go func() {
+		defer pipeW.Close()
+
+		for _, path := range paths {
+			if strings.HasSuffix(path, "/") {
+				g.Debug("skipping %s because is not file", path)
+				continue
+			}
+
+			reader, err := fs.Self().GetReader(path)
+			if err != nil {
+				fs.Context().CaptureErr(g.Error(err, "Error getting reader"))
+				fs.Context().Cancel()
+				return
+			}
+
+			_, err = io.Copy(pipeW, reader)
+			if err != nil {
+				fs.Context().CaptureErr(g.Error(err, "Error copying reader to pipe writer"))
+				fs.Context().Cancel()
+				return
+			}
+		}
+	}()
+
+	return pipeR, nil
 }

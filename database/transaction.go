@@ -15,6 +15,7 @@ import (
 )
 
 type Transaction interface {
+	Connection() Connection
 	Context() *g.Context
 	Commit() (err error)
 	Rollback() (err error)
@@ -42,6 +43,11 @@ func (r Result) LastInsertId() (int64, error) {
 
 func (r Result) RowsAffected() (int64, error) {
 	return r.rowsAffected, nil
+}
+
+// Connection return the connection
+func (t *BaseTransaction) Connection() Connection {
+	return t.Conn
 }
 
 // Commit commits connection wide transaction
@@ -289,8 +295,8 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		var err error
 		defer context.Wg.Write.Done()
 
-		// mux.Lock()
-		// defer mux.Unlock()
+		mux.Lock()
+		defer mux.Unlock()
 
 		insFields, err := conn.ValidateColumnNames(columns.Names(), bColumns.Names(true, true), true)
 		if err != nil {
@@ -365,13 +371,13 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			// make sure fields match
-			// mux.Lock()
+			mux.Lock()
 			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
 			if err != nil {
 				err = g.Error(err, "could not get column list")
 				return
 			}
-			// mux.Unlock()
+			mux.Unlock()
 
 			// err = batch.Shape(columns)
 			// if err != nil {
@@ -533,6 +539,10 @@ type BlankTransaction struct {
 	Conn    Connection
 	context *g.Context
 	log     []string
+}
+
+func (t *BlankTransaction) Connection() Connection {
+	return t.Conn
 }
 
 func (t *BlankTransaction) Context() *g.Context {

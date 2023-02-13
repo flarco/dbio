@@ -814,15 +814,3 @@ func (sp *StreamProcessor) ProcessRow(row []interface{}) []interface{} {
 	}
 	return row
 }
-
-func (sp *StreamProcessor) processRec(rec map[string]interface{}) map[string]interface{} {
-	// Ensure usable types
-	for i, val := range rec {
-		rec[i] = sp.ProcessVal(val)
-	}
-	return rec
-}
-
-func (sp *StreamProcessor) castRowInterf(row []interface{}) []interface{} {
-	return row
-}

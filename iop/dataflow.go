@@ -45,7 +45,7 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	ctx := g.NewContext(context.Background())
 
 	df = &Dataflow{
-		StreamCh:      make(chan *Datastream, ctx.Wg.Limit*4),
+		StreamCh:      make(chan *Datastream, ctx.Wg.Limit),
 		Streams:       []*Datastream{},
 		Context:       &ctx,
 		Limit:         Limit,
@@ -235,16 +235,25 @@ func (df *Dataflow) AddColumns(newCols Columns, overwrite bool, exceptDs ...stri
 			return added, false
 		}
 
+		// lock for operation
+		df.Context.Lock()
+
 		// wait for current batches to close
 		df.CloseCurrentBatches()
 
+		g.Info("AddColumns Start -> %s", g.Marshal(added.Types()))
 		for _, addedCol := range added {
 			if err := df.OnColumnAdded(addedCol); err != nil {
+				g.LogError(err)
 				df.Context.CaptureErr(err)
 			} else {
 				df.incrementVersion()
 			}
 		}
+		g.Info("AddColumns End -> %s", g.Marshal(added.Types()))
+
+		df.Context.Unlock()
+
 		df.Unpause(exceptDs...)
 	}
 	return added, true
@@ -261,6 +270,9 @@ func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) 
 		return false
 	}
 
+	// lock for operation
+	df.Context.Lock()
+
 	// wait for current batches to close
 	df.CloseCurrentBatches()
 
@@ -270,6 +282,8 @@ func (df *Dataflow) ChangeColumn(i int, newType ColumnType, exceptDs ...string) 
 	} else {
 		df.incrementVersion()
 	}
+
+	df.Context.Unlock()
 
 	df.Unpause(exceptDs...)
 
@@ -291,11 +305,9 @@ func (df *Dataflow) incrementVersion() {
 }
 
 func (df *Dataflow) CloseCurrentBatches() {
-	df.mux.Lock()
-	defer df.mux.Unlock()
 
 	for _, ds := range df.Streams {
-		if batch := ds.CurrentBatch(); batch != nil {
+		if batch := ds.LatestBatch(); batch != nil {
 			batch.Close()
 		}
 	}
@@ -304,11 +316,12 @@ func (df *Dataflow) CloseCurrentBatches() {
 // MakeStreamCh determines whether to merge all the streams into one
 // or keep them separate. If data is small per stream, it's best to merge
 // For example, Bigquery has limits on number of operations can be called within a time limit
-func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
+func (df *Dataflow) MakeStreamCh(forceMerge bool) (streamCh chan *Datastream) {
 	streamCh = make(chan *Datastream, df.Context.Wg.Limit)
 	totalBufferRows := 0
 	totalCnt := 0
 	minBufferRows := SampleSize
+	df.mux.Lock()
 	for _, ds := range df.Streams {
 		if ds.Ready && len(ds.Buffer) < minBufferRows {
 			minBufferRows = len(ds.Buffer)
@@ -316,13 +329,15 @@ func (df *Dataflow) MakeStreamCh() (streamCh chan *Datastream) {
 			totalCnt++
 		}
 	}
+	df.mux.Unlock()
+
 	avgBufferRows := cast.ToFloat64(totalBufferRows) / cast.ToFloat64(totalCnt)
 
 	go func() {
 		defer close(streamCh)
 
 		// buffer should be at least 90% full on average, 80% full at minimum
-		if avgBufferRows < 0.9*cast.ToFloat64(SampleSize) || cast.ToFloat64(minBufferRows) < 0.8*cast.ToFloat64(SampleSize) {
+		if forceMerge || avgBufferRows < 0.9*cast.ToFloat64(SampleSize) || cast.ToFloat64(minBufferRows) < 0.8*cast.ToFloat64(SampleSize) {
 			streamCh <- MergeDataflow(df)
 		} else {
 			for ds := range df.StreamCh {
@@ -489,22 +504,18 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 		}
 
 		if df.Err() != nil {
-			df.Close()
 			return
 		}
 
 		if ds.Err() != nil {
 			df.Context.CaptureErr(ds.Err())
-			df.Close()
 			return
 		}
 
 		select {
 		case <-df.Context.Ctx.Done():
-			df.Close()
 			return
 		case <-ds.Context.Ctx.Done():
-			df.Close()
 			return
 		case <-ds.readyChn:
 			// wait for first ds to start streaming.
@@ -538,6 +549,9 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			default:
 				df.mux.Unlock()
 				time.Sleep(1 * time.Millisecond)
+				if df.closed {
+					return
+				}
 				goto tryPush
 			}
 
@@ -647,7 +661,7 @@ func MakeDataFlow(dss ...*Datastream) (df *Dataflow, err error) {
 }
 
 // MergeDataflow merges the dataflow streams into one
-func MergeDataflow(df *Dataflow) (ds *Datastream) {
+func MergeDataflow(df *Dataflow) (dsN *Datastream) {
 
 	rows := MakeRowsChan()
 	nextFunc := func(it *Iterator) bool {
@@ -656,29 +670,79 @@ func MergeDataflow(df *Dataflow) (ds *Datastream) {
 		}
 		return false
 	}
-	ds = NewDatastreamIt(df.Context.Ctx, df.Columns, nextFunc)
-	ds.it.IsCasted = true
-	ds.Inferred = true
+	dsN = NewDatastreamIt(df.Context.Ctx, df.Columns, nextFunc)
+	dsN.it.IsCasted = true
+	dsN.Inferred = true
 
 	go func() {
 		defer close(rows)
-		for ds0 := range df.StreamCh {
-			for batch0 := range ds0.BatchChan {
-				ds.NewBatch(batch0.Columns)
-				// FIXME: mismatch columns especially with various schemas from JSON files
-				for row := range batch0.Rows {
-					rows <- row
+		for ds := range df.StreamCh {
+			for batch := range ds.BatchChan {
+				if !dsN.Columns.IsSimilarTo(df.Columns) {
+					added := dsN.AddColumns(df.Columns, false)
+					// batch.Shape(ds.Columns, true)
+					g.Warn("%s, NewBatch since added %s", dsN.ID, g.Marshal(added.Types()))
+					// time.Sleep(2 * time.Second)
+					dsN.NewBatch(dsN.Columns)
+				}
+
+				shaper, err := batch.Columns.MakeShaper(dsN.Columns)
+				if err != nil {
+					g.LogError(g.Error(err, "could not MakeShaper"))
+				}
+				if shaper == nil {
+					shaper = &Shaper{
+						Func:       func(row []any) []any { return row },
+						SrcColumns: batch.Columns,
+						TgtColumns: dsN.Columns,
+						ColMap:     map[int]int{},
+					}
+				}
+
+				for row := range batch.Rows {
+
+					srcRec := batch.Columns.MakeRec(row)
+					tgtRec := dsN.Columns.MakeRec(shaper.Func(row))
+					diff := false
+					for k := range srcRec {
+						if srcRec[k] != tgtRec[k] {
+							sI := lo.IndexOf(batch.Columns.Names(true), strings.ToLower(k))
+							tI := lo.IndexOf(dsN.Columns.Names(true), strings.ToLower(k))
+							g.Warn("Key `%s` is mapped from %d to %d => %#v != %#v", k, sI, tI, srcRec[k], tgtRec[k])
+							diff = true
+						}
+					}
+					if diff {
+						g.Info("shaper.SrcColumns = %s", g.Marshal(shaper.SrcColumns.Names()))
+						g.Info("shaper.TgtColumns = %s", g.Marshal(shaper.TgtColumns.Names()))
+						g.Info("shaper.ColMap = %s", g.Marshal(shaper.ColMap))
+						if batch.Columns.IsDifferent(shaper.SrcColumns) {
+							g.Warn("batch0.Columns.IsDifferent(shaper.SrcColumns)")
+						}
+						if dsN.Columns.IsDifferent(shaper.TgtColumns) {
+							g.Warn("ds.Columns.IsDifferent(shaper.TgtColumns")
+						}
+					}
+
+					// if ds.CurrentBatch != nil && ds.CurrentBatch.Count < 2 {
+					// 	g.Warn("%s | batch0.Rec = %s", batch0.ID(), g.Marshal(batch0.Columns.MakeRec(row)))
+					// 	g.Warn("%s | batch0.Rec.Shaped = %s", ds.CurrentBatch.ID(), g.Marshal(ds.Columns.MakeRec(shaper(row))))
+					// }
+					rows <- shaper.Func(row)
+				}
+				if dsN.CurrentBatch != nil {
+					dsN.CurrentBatch.Close()
 				}
 			}
 
-			ds0.Buffer = nil // clear buffer
+			ds.Buffer = nil // clear buffer
 		}
 	}()
 
-	err := ds.Start()
+	err := dsN.Start()
 	if err != nil {
 		df.Context.CaptureErr(err)
 	}
 
-	return ds
+	return dsN
 }

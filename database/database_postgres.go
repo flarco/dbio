@@ -97,6 +97,11 @@ func (conn *PostgresConn) BulkExportStream(sql string) (ds *iop.Datastream, err 
 func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	var columns iop.Columns
 
+	mux := ds.Context.Mux
+	if df := ds.Df(); df != nil {
+		mux = df.Context.Mux
+	}
+
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
 		err = g.Error(err, "could not get  table name for imoprt")
@@ -110,8 +115,8 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 			// sleep to allow transaction to close
 			time.Sleep(300 * time.Millisecond)
 
-			ds.Context.Lock()
-			defer ds.Context.Unlock()
+			mux.Lock()
+			defer mux.Unlock()
 
 			table.Columns, err = conn.GetColumns(tableFName)
 			if err != nil {
@@ -134,18 +139,23 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 
 	for batch := range ds.BatchChan {
 		if batch.ColumnsChanged() || batch.IsFirst() {
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			mux.Lock()
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, false)...)
+			mux.Unlock()
 			if err != nil {
-				return count, g.Error(err, "could not get list of columns from table")
+				return count, g.Error(err, "could not get matching list of columns from table")
 			}
 
-			// err = batch.Shape(columns)
-			// if err != nil {
-			// 	return count, g.Error(err, "could not shape batch stream")
-			// }
+			err = batch.Shape(columns)
+			if err != nil {
+				return count, g.Error(err, "could not shape batch stream")
+			}
 		}
 
 		err = func() error {
+			mux.Lock()
+			defer mux.Unlock()
+
 			// COPY needs a transaction
 			if conn.Tx() == nil {
 				err = conn.Begin()
@@ -155,7 +165,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				defer conn.Rollback()
 			}
 
-			stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, columns.Names()...))
+			stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, batch.Columns.Names()...))
 			if err != nil {
 				g.Trace("%s: %#v", table, columns.Names())
 				return g.Error(err, "could not prepare statement")
@@ -165,21 +175,19 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				// g.PP(batch.Columns.MakeRec(row))
 				count++
 				// Do insert
-				ds.Context.Lock()
 				_, err := stmt.Exec(row...)
-				ds.Context.Unlock()
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
 					ds.Context.Cancel()
-					g.Trace("error for row: %#v", row)
+					g.DebugLow("error for rec: %s", g.Pretty(batch.Columns.MakeRec(row)))
 					return g.Error(err, "could not execute statement")
 				}
 			}
 
-			_, err = stmt.Exec()
-			if err != nil {
-				return g.Error(err, "could not execute statement")
-			}
+			// _, err = stmt.Exec()
+			// if err != nil {
+			// 	return g.Error(err, "could not execute statement")
+			// }
 
 			err = stmt.Close()
 			if err != nil {
