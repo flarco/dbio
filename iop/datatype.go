@@ -266,7 +266,7 @@ func (cols Columns) MakeShaper(tgtColumns Columns) (shaper *Shaper, err error) {
 		return nil, nil
 	}
 
-	srcColNames := srcColumns.Names(true)
+	// srcColNames := srcColumns.Names(true)
 	mapRowCol := func(srcRow []any) []any {
 		tgtRow := make([]any, len(tgtColumns))
 		for len(srcRow) < len(tgtRow) {
@@ -276,15 +276,15 @@ func (cols Columns) MakeShaper(tgtColumns Columns) (shaper *Shaper, err error) {
 			tgtRow[t] = srcRow[s]
 		}
 
-		srcRec := srcColumns.MakeRec(srcRow)
-		tgtRec := tgtColumns.MakeRec(tgtRow)
-		for k := range srcRec {
-			if srcRec[k] != tgtRec[k] {
-				sI := lo.IndexOf(srcColNames, strings.ToLower(k))
-				tI := lo.IndexOf(tgtColNames, strings.ToLower(k))
-				g.Warn("Key `%s` is mapped from %d to %d => %#v != %#v", k, sI, tI, srcRec[k], tgtRec[k])
-			}
-		}
+		// srcRec := srcColumns.MakeRec(srcRow)
+		// tgtRec := tgtColumns.MakeRec(tgtRow)
+		// for k := range srcRec {
+		// 	if srcRec[k] != tgtRec[k] {
+		// 		sI := lo.IndexOf(srcColNames, strings.ToLower(k))
+		// 		tI := lo.IndexOf(tgtColNames, strings.ToLower(k))
+		// 		g.Warn("Key `%s` is mapped from %d to %d => %#v != %#v", k, sI, tI, srcRec[k], tgtRec[k])
+		// 	}
+		// }
 
 		return tgtRow
 	}

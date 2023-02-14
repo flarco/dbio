@@ -2894,7 +2894,6 @@ func AddMissingColumns(conn Connection, table Table, newCols iop.Columns) (ok bo
 	}
 
 	// generate alter commands
-	g.Info("AddMissingColumns -> %s [missing %s]", g.Marshal(newCols.Types()), g.Marshal(missing.Names()))
 	for _, col := range missing {
 		nativeType, err := conn.GetNativeType(col)
 		if err != nil {
@@ -3047,7 +3046,7 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 		"aws_secret_access_key", AwsAccessKey,
 	)
 
-	g.Info("copying into %s from s3", conn.GetType())
+	g.Debug("copying into %s from s3", conn.GetType())
 	g.Debug("url: " + s3Path)
 	_, err = conn.Exec(sql)
 	if err != nil {
@@ -3096,7 +3095,7 @@ func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
 		"azure_sas_token", azToken,
 	)
 
-	g.Info("copying into %s from azure", conn.GetType())
+	g.Debug("copying into %s from azure", conn.GetType())
 	g.Debug("url: " + azPath)
 	conn.SetProp("azure_sas_token", azToken)
 	_, err = conn.Exec(sql)
