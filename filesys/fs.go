@@ -832,7 +832,8 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			}
 		}
 
-		if isJson(paths...) {
+		flatten := cast.ToBool(fs.GetProp("flatten"))
+		if flatten && isJson(paths...) {
 			ds, err := MergeReaders(fs, "json", paths...)
 			if err != nil {
 				fs.Context().CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
@@ -847,7 +848,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			return // done
 		}
 
-		if isXml(paths...) {
+		if flatten && isXml(paths...) {
 			ds, err := MergeReaders(fs, "xml", paths...)
 			if err != nil {
 				fs.Context().CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
@@ -1035,9 +1036,9 @@ func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.D
 		fs.Context().Cancel()
 	}
 
-	g.DebugLow("Merging %s readers @ %s", fileType, url)
+	g.DebugLow("Merging %s readers from %s", fileType, url)
 
-	readerChn := make(chan io.Reader, ds.Context.Wg.Read.Size)
+	readerChn := make(chan io.Reader, ds.Context.Wg.Read.Size+2)
 	go func() {
 		defer close(readerChn)
 
@@ -1099,7 +1100,7 @@ func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.D
 
 func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err error) {
 	// temp file
-	filePath := g.F("%s%s", os.TempDir(), g.NewTsID("sling.temp"))
+	filePath := g.F("%s%s.csv", os.TempDir(), g.NewTsID("sling.temp"))
 
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	if err != nil {
