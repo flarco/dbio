@@ -581,7 +581,7 @@ loop:
 							}
 						} else {
 							g.DebugLow("%s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
-							if df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID) {
+							if !df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID) {
 								ds.schemaChgChan <- schemaChgVal // requeue to try changing again
 							}
 						}

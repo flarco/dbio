@@ -836,12 +836,12 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 		if flatten && isJson(paths...) {
 			ds, err := MergeReaders(fs, "json", paths...)
 			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
+				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
 				return
 			}
 			ds, err = ProcessStreamViaTempFile(ds)
 			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to process stream via temp file"))
+				df.Context.CaptureErr(g.Error(err, "Unable to process stream via temp file"))
 				return
 			}
 			pushDatastream(ds)
@@ -851,12 +851,12 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 		if flatten && isXml(paths...) {
 			ds, err := MergeReaders(fs, "xml", paths...)
 			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
+				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
 				return
 			}
 			ds, err = ProcessStreamViaTempFile(ds)
 			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to process stream via temp file"))
+				df.Context.CaptureErr(g.Error(err, "Unable to process stream via temp file"))
 				return
 			}
 			pushDatastream(ds)
@@ -871,7 +871,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 
 			ds, err := fs.GetDatastream(path)
 			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to process "+path))
+				df.Context.CaptureErr(g.Error(err, "Unable to process "+path))
 				return
 			}
 			pushDatastream(ds)
@@ -1100,11 +1100,17 @@ func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.D
 
 func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err error) {
 	// temp file
-	filePath := g.F("%s%s.csv", os.TempDir(), g.NewTsID("sling.temp"))
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	filePath := path.Join(tempDir, g.NewTsID("sling.temp")+".csv")
 
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	if err != nil {
 		return nil, g.Error(err, "could not obtain client for temp file in ProcessStreamViaTempFile")
+	}
+
+	err = ds.WaitReady()
+	if err != nil {
+		return nil, err
 	}
 
 	g.Debug("writing to temp file %s", filePath)
@@ -1114,6 +1120,7 @@ func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err erro
 	}
 
 	nDs = iop.NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+	nDs.Inferred = true
 	config := ds.GetConfig()
 	config["fields_per_rec"] = "-1" // allow different number of records per line
 	nDs.SetConfig(config)
@@ -1127,6 +1134,7 @@ func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err erro
 
 	err = nDs.ConsumeCsvReader(file)
 	if err != nil {
+		os.Remove(filePath)
 		return nDs, g.Error(err, "could not consume temp file for ProcessStreamViaTempFile")
 	}
 

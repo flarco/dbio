@@ -98,9 +98,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	var columns iop.Columns
 
 	mux := ds.Context.Mux
-	if df := ds.Df(); df != nil {
-		mux = df.Context.Mux
-	}
 
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
@@ -163,7 +160,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				defer conn.Rollback()
 			}
 
-			stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, batch.Columns.Names()...))
+			stmt, err := conn.Prepare(pq.CopyInSchema(table.Schema, table.Name, columns.Names()...))
 			if err != nil {
 				g.Trace("%s: %#v", table, columns.Names())
 				return g.Error(err, "could not prepare statement")

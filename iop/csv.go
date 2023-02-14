@@ -230,14 +230,19 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 		reader3 = reader2
 	}
 
-	deli, numCols, err := detectDelimiter(delimiter, testBytes)
-	if err != nil {
-		return r, g.Error(err, "could not detect delimiter")
-	} else if !c.NoTrace && deli != ',' {
-		if delimiter == "" {
-			g.Info("delimiter auto-detected: %#v", string(deli))
-		} else {
-			g.Debug("delimiter used: %#v", string(deli))
+	var numCols int
+	deli := ','
+
+	if c.FieldsPerRecord == 0 {
+		deli, numCols, err = detectDelimiter(delimiter, testBytes)
+		if err != nil {
+			return r, g.Error(err, "could not detect delimiter")
+		} else if !c.NoTrace && deli != ',' {
+			if delimiter == "" {
+				g.Info("delimiter auto-detected: %#v", string(deli))
+			} else {
+				g.Debug("delimiter used: %#v", string(deli))
+			}
 		}
 	}
 
