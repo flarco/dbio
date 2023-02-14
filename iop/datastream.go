@@ -277,14 +277,10 @@ func (ds *Datastream) Close() {
 			case <-ds.pauseChan:
 				<-ds.unpauseChan // wait for unpause
 			case <-ds.readyChn:
+			case <-ds.schemaChgChan:
 			default:
 				break loop
 			}
-		}
-
-		select {
-		case <-ds.Sp.typeChangedChan: // clean up
-		default:
 		}
 
 		for _, f := range ds.deferFuncs {

@@ -29,7 +29,6 @@ type StreamProcessor struct {
 	dateLayouts      []string
 	config           *streamConfig
 	rowBlankValCnt   int
-	typeChangedChan  chan struct{}
 }
 
 type streamConfig struct {
@@ -54,7 +53,6 @@ func NewStreamProcessor() *StreamProcessor {
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
 		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
-		typeChangedChan: make(chan struct{}),
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
