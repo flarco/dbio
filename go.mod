@@ -29,7 +29,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/compress v1.15.11
 	github.com/lib/pq v1.10.2
-	github.com/marcboeker/go-duckdb v1.0.9
+	github.com/marcboeker/go-duckdb v1.1.0
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/nqd/flat v0.1.1
 	github.com/pkg/sftp v1.12.0
@@ -246,5 +246,3 @@ require (
 )
 
 replace github.com/flarco/g => ../g
-
-// replace github.com/marcboeker/go-duckdb => ../go-duckdb
