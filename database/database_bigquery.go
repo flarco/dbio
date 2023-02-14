@@ -532,7 +532,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 
 	copyFromLocal := func(localFile filesys.FileReady, tableFName string) {
 		defer conn.Context().Wg.Write.Done()
-		g.Debug("Loading %s", localFile.URI)
+		g.Debug("Loading %s [%s] %s", localFile.URI, humanize.Bytes(cast.ToUint64(localFile.BytesW)), localFile.BatchID)
 
 		err := conn.CopyFromLocal(localFile.URI, tableFName, localFile.Columns)
 		if err != nil {
@@ -541,16 +541,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 		}
 	}
 
-	inferred := false
 	for localFile := range fileReadyChn {
-		if conn.GetProp("adjust_column_type") == "true" && !inferred {
-			// the schema matters with using the load tool
-			// so let's make sure we infer once again
-			// df.Inferred = false
-			// df.SyncStats()
-			// inferred = true
-		}
-
 		time.Sleep(2 * time.Second) // max 5 load jobs per 10 secs
 		conn.Context().Wg.Write.Add()
 		go copyFromLocal(localFile, tableFName)

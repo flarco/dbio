@@ -33,6 +33,7 @@ type Datastream struct {
 	Buffer        [][]any
 	BatchChan     chan *Batch
 	Batches       []*Batch
+	CurrentBatch  *Batch
 	Count         uint64
 	Context       *g.Context
 	Ready         bool
@@ -188,6 +189,14 @@ func (ds *Datastream) SetConfig(configMap map[string]string) {
 	ds.config = ds.Sp.config
 }
 
+// GetConfig get config
+func (ds *Datastream) GetConfig() (configMap map[string]string) {
+	// lower the keys
+	configMap = map[string]string{}
+	g.JSONConvert(ds.Sp.config, configMap)
+	return configMap
+}
+
 // CastRowToString returns the row as string casted
 func (ds *Datastream) CastRowToString(row []any) []string {
 	rowStr := make([]string, len(row))
@@ -205,7 +214,7 @@ func (ds *Datastream) writeBwCsv(row []string) {
 
 // Push return the fields of the Data
 func (ds *Datastream) Push(row []any) {
-	batch := ds.CurrentBatch()
+	batch := ds.LatestBatch()
 
 	if batch == nil {
 		batch = ds.NewBatch(ds.Columns)
@@ -251,7 +260,7 @@ func (ds *Datastream) Close() {
 		close(ds.bwRows)
 		close(ds.BatchChan)
 
-		if batch := ds.CurrentBatch(); batch != nil {
+		if batch := ds.LatestBatch(); batch != nil {
 			batch.Close()
 		}
 
@@ -302,7 +311,6 @@ func (ds *Datastream) Close() {
 func (ds *Datastream) AddColumns(newCols Columns, overwrite bool) (added Columns) {
 	ds.Columns, added = ds.Columns.Add(newCols, overwrite)
 	ds.schemaChgChan <- schemaChg{Added: true, Cols: newCols}
-	// g.DebugLow("ds %s (%d queued) | pushed schemaChgChan %#v", ds.ID, len(ds.schemaChgChan), newCols.Names())
 	return added
 }
 
@@ -514,12 +522,13 @@ loop:
 		g.Trace("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
 	}
 	go func() {
-		var batch *Batch
 		var err error
 		defer ds.Close()
 
 		ds.SetReady()
-		batch = ds.NewBatch(ds.Columns)
+		if ds.CurrentBatch == nil {
+			ds.CurrentBatch = ds.NewBatch(ds.Columns)
+		}
 
 		row := make([]any, len(ds.Columns))
 		rowPtrs := make([]any, len(ds.Columns))
@@ -563,18 +572,19 @@ loop:
 
 					// only consume channel if df exists
 					case schemaChgVal := <-ds.schemaChgChan:
+						ds.CurrentBatch.Close()
+
 						if schemaChgVal.Added {
-							g.DebugLow("%s, adding columns %#v", ds.ID, schemaChgVal.Cols.Types())
+							g.DebugLow("%s, adding columns %s", ds.ID, g.Marshal(schemaChgVal.Cols.Types()))
 							if _, ok := df.AddColumns(schemaChgVal.Cols, false, ds.ID); !ok {
 								ds.schemaChgChan <- schemaChgVal // requeue to try adding again
 							}
 						} else {
 							g.DebugLow("%s, changing column %s to %s", ds.ID, df.Columns[schemaChgVal.I].Name, schemaChgVal.Type)
-							if df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID) {
+							if !df.ChangeColumn(schemaChgVal.I, schemaChgVal.Type, ds.ID) {
 								ds.schemaChgChan <- schemaChgVal // requeue to try changing again
 							}
 						}
-						batch.Close()
 						goto schemaChgLoop
 					default:
 					}
@@ -586,8 +596,8 @@ loop:
 					goto schemaChgLoop
 
 				default:
-					if batch.closed {
-						batch = ds.NewBatch(ds.Columns)
+					if ds.CurrentBatch.closed {
+						ds.CurrentBatch = ds.NewBatch(ds.Columns)
 					}
 					break schemaChgLoop
 				}
@@ -609,12 +619,12 @@ loop:
 				}
 				break loop
 			default:
-				batch.Push(row)
+				ds.CurrentBatch.Push(row)
 			}
 		}
 
 		// close batch
-		batch.Close()
+		ds.CurrentBatch.Close()
 
 		ds.SetEmpty()
 
@@ -690,7 +700,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 
 // ConsumeCsvReader uses the provided reader to stream rows
 func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
-	c := CSV{Reader: reader, NoHeader: !ds.config.header}
+	c := CSV{Reader: reader, NoHeader: !ds.config.header, FieldsPerRecord: ds.config.fieldsPerRec}
 
 	r, err := c.getReader(ds.config.delimiter)
 	if err != nil {
@@ -713,7 +723,10 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 		ds.Context.CaptureErr(err)
 		return err
 	}
-	ds.SetFields(CleanHeaderRow(row0))
+
+	if c.FieldsPerRecord == 0 || len(ds.Columns) == 0 {
+		ds.SetFields(CleanHeaderRow(row0))
+	}
 
 	nextFunc := func(it *Iterator) bool {
 
@@ -902,7 +915,7 @@ func (ds *Datastream) Unpause() {
 // It will cast the already wrongly casted rows, and not recast the
 // correctly casted rows
 func (ds *Datastream) Shape(columns Columns) (nDs *Datastream, err error) {
-	batch := ds.CurrentBatch()
+	batch := ds.LatestBatch()
 
 	if batch == nil {
 		batch = ds.NewBatch(ds.Columns)
@@ -1114,9 +1127,11 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 
 		for batch := range ds.BatchChan {
 
-			err := nextPipe(batch)
-			if err != nil {
-				return
+			if batch.ColumnsChanged() || batch.IsFirst() {
+				err := nextPipe(batch)
+				if err != nil {
+					return
+				}
 			}
 
 			for row0 := range batch.Rows {
@@ -1316,7 +1331,10 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 		select {
 		case batch = <-ds.BatchChan:
 		default:
-			batch = ds.CurrentBatch()
+			batch = ds.LatestBatch()
+			if batch == nil {
+				return
+			}
 		}
 
 		// ensure that previous batch has same amount of columns

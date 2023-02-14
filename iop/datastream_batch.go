@@ -2,6 +2,7 @@ package iop
 
 import (
 	"strings"
+	"time"
 
 	"github.com/flarco/g"
 	"github.com/samber/lo"
@@ -12,29 +13,34 @@ type Batch struct {
 	Columns    Columns
 	Rows       chan []any
 	Previous   *Batch
+	Count      int64
 	ds         *Datastream
 	closed     bool
 	closeChan  chan struct{}
 	transforms []func(row []any) []any
+	context    *g.Context
 }
 
 // NewBatch create new batch with fixed columns
 // should be used each time column type changes, or columns are added
 func (ds *Datastream) NewBatch(columns Columns) *Batch {
+	ctx := g.NewContext(ds.Context.Ctx)
 	batch := &Batch{
 		id:         len(ds.Batches),
 		Columns:    columns,
 		Rows:       MakeRowsChan(),
-		Previous:   ds.CurrentBatch(),
+		Previous:   ds.LatestBatch(),
 		ds:         ds,
 		closeChan:  make(chan struct{}),
 		transforms: []func(row []any) []any{},
+		context:    &ctx,
 	}
 
 	if batch.Previous != nil && !batch.Previous.closed {
 		batch.Previous.Close() // close previous batch
 	}
 	ds.Batches = append(ds.Batches, batch)
+	ds.CurrentBatch = batch
 	ds.BatchChan <- batch
 	if !ds.NoTrace {
 		g.Trace("new batch %s", batch.ID())
@@ -42,7 +48,7 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 	return batch
 }
 
-func (ds *Datastream) CurrentBatch() *Batch {
+func (ds *Datastream) LatestBatch() *Batch {
 	if len(ds.Batches) > 0 {
 		return ds.Batches[len(ds.Batches)-1]
 	}
@@ -58,10 +64,13 @@ func (b *Batch) IsFirst() bool {
 }
 
 func (b *Batch) Close() {
+	b.context.Lock()
+	defer b.context.Unlock()
 	if !b.closed {
+		timer := time.NewTimer(4 * time.Millisecond)
 		select {
 		case b.closeChan <- struct{}{}:
-		default:
+		case <-timer.C:
 		}
 		b.closed = true
 		close(b.Rows)
@@ -87,55 +96,51 @@ func (b *Batch) ColumnsChanged() bool {
 	return false
 }
 
-func (b *Batch) Shape(columns Columns, pause ...bool) (err error) {
+func (b *Batch) Shape(tgtColumns Columns, pause ...bool) (err error) {
 	doPause := true
 	if len(pause) > 0 {
 		doPause = pause[0]
 	}
+	srcColumns := b.Columns
 
-	if len(columns) != len(b.Columns) {
-		return g.Error("number of columns do not match")
+	if len(tgtColumns) < len(srcColumns) {
+		return g.Error("number of target columns is smaller than number of source columns")
 	}
 
 	// determine diff, and match order of target columns
-	srcColNames := lo.Map(b.Columns, func(c Column, i int) string { return strings.ToLower(c.Name) })
-	diffCols := false
+	tgtColNames := lo.Map(tgtColumns, func(c Column, i int) string { return strings.ToLower(c.Name) })
+	diffCols := len(tgtColumns) != len(srcColumns)
 	colMap := map[int]int{}
-	for i, col := range columns {
-		j := lo.IndexOf(srcColNames, strings.ToLower(col.Name))
-		if j == -1 {
-			return g.Error("column %s not found in source columns", col.Name)
+	for s, col := range srcColumns {
+		t := lo.IndexOf(tgtColNames, strings.ToLower(col.Name))
+		if t == -1 {
+			return g.Error("column %s not found in target columns", col.Name)
 		}
-		colMap[j] = i
-		if columns[i].Type != b.Columns[j].Type {
-			diffCols = true
-			b.Columns[j].Type = columns[i].Type
-		} else if columns[i].Name != b.Columns[j].Name {
-			diffCols = true
-		} else if j != i {
-			diffCols = true
-		}
+		colMap[s] = t
+		diffCols = s != t ||
+			!strings.EqualFold(tgtColumns[t].Name, srcColumns[s].Name)
 	}
 
 	if !diffCols {
 		return nil
 	}
 
-	mapRowCol := func(row []any) []any {
-		for len(row) < len(b.Columns) {
-			row = append(row, nil)
+	mapRowCol := func(srcRow []any) []any {
+		tgtRow := make([]any, len(tgtColumns))
+		for len(srcRow) < len(tgtRow) {
+			srcRow = append(srcRow, nil)
 		}
-		newRow := make([]any, len(row))
-		for o, t := range colMap {
-			newRow[t] = row[o]
+		for s, t := range colMap {
+			tgtRow[t] = srcRow[s]
 		}
 
-		return newRow
+		return tgtRow
 	}
 
 	if doPause {
 		b.ds.Pause()
 	}
+	b.Columns = tgtColumns // should match the target columns
 	b.transforms = append(b.transforms, mapRowCol)
 	g.DebugLow("%s | added mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
 	if doPause {
@@ -157,10 +162,13 @@ func (b *Batch) Push(row []any) {
 		newRow = append(newRow, nil)
 	}
 
+	b.context.Lock()
 	if b.closed {
+		b.context.Unlock()
 		b.ds.it.Reprocess <- row
 		return
 	}
+	b.context.Unlock()
 
 	select {
 	case <-b.ds.Context.Ctx.Done():
@@ -174,6 +182,7 @@ func (b *Batch) Push(row []any) {
 		b.ds.it.Reprocess <- row
 		b.ds.schemaChgChan <- v
 	case b.Rows <- newRow:
+		b.Count++
 		b.ds.Count++
 		b.ds.bwRows <- newRow
 		b.ds.Sp.commitChecksum()

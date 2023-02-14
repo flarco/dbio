@@ -36,7 +36,9 @@ func NewJSONStream(ds *Datastream, decoder decoderLike, flatten bool) *jsonStrea
 		sp:        NewStreamProcessor(),
 	}
 	if !flatten {
-		js.addColumn(&Column{Position: 1, Name: "data", Type: JsonType})
+		col := &Column{Position: 1, Name: "data", Type: JsonType}
+		js.ColumnMap[col.Name] = col
+		js.addColumn(*col)
 		js.ds.Inferred = true
 	}
 
@@ -142,15 +144,14 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 	}
 }
 
-func (js *jsonStream) addColumn(col *Column) {
+func (js *jsonStream) addColumn(cols ...Column) {
 	mux := js.ds.Context.Mux
 	if df := js.ds.Df(); df != nil {
 		mux = df.Context.Mux
 	}
 
 	mux.Lock()
-	js.ds.AddColumns(Columns{*col}, false)
-	js.ColumnMap[col.Name] = col
+	js.ds.AddColumns(cols, false)
 	mux.Unlock()
 }
 
@@ -167,6 +168,7 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 		sort.Strings(keys)
 
 		row := make([]interface{}, len(js.ds.Columns))
+		colsToAdd := Columns{}
 		for _, colName := range keys {
 			// cast arrays as string
 			if arr, ok := newRec[colName].([]interface{}); ok {
@@ -178,14 +180,20 @@ func (js *jsonStream) parseRecords(records []map[string]interface{}) {
 				col = &Column{
 					Name:     colName,
 					Type:     js.ds.Sp.GetType(newRec[colName]),
-					Position: len(js.ds.Columns) + 1,
+					Position: len(js.ds.Columns) + len(colsToAdd) + 1,
 				}
-				js.addColumn(col)
+				colsToAdd = append(colsToAdd, *col)
 				row = append(row, nil)
+				js.ColumnMap[col.Name] = col
 			}
 			i := col.Position - 1
 			row[i] = newRec[colName]
 		}
+
+		if len(colsToAdd) > 0 {
+			js.addColumn(colsToAdd...)
+		}
+
 		js.buffer <- row
 	}
 	// g.Debug("JSON Stream -> Parsed %d records", len(records))

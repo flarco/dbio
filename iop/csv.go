@@ -17,17 +17,18 @@ import (
 
 // CSV is a csv object
 type CSV struct {
-	Path      string
-	NoHeader  bool
-	Delimiter rune
-	Columns   []Column
-	File      *os.File
-	Data      Dataset
-	Reader    io.Reader
-	NoTrace   bool
-	bytes     int64
-	noInfer   bool
-	cleanup   bool
+	Path            string
+	NoHeader        bool
+	Delimiter       rune
+	FieldsPerRecord int
+	Columns         []Column
+	File            *os.File
+	Data            Dataset
+	Reader          io.Reader
+	NoTrace         bool
+	bytes           int64
+	noInfer         bool
+	cleanup         bool
 }
 
 // CleanHeaderRow cleans the header row from incompatible characters
@@ -229,14 +230,19 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 		reader3 = reader2
 	}
 
-	deli, numCols, err := detectDelimiter(delimiter, testBytes)
-	if err != nil {
-		return r, g.Error(err, "could not detect delimiter")
-	} else if !c.NoTrace && deli != ',' {
-		if delimiter == "" {
-			g.Info("delimiter auto-detected: %#v", string(deli))
-		} else {
-			g.Debug("delimiter used: %#v", string(deli))
+	var numCols int
+	deli := ','
+
+	if c.FieldsPerRecord == 0 {
+		deli, numCols, err = detectDelimiter(delimiter, testBytes)
+		if err != nil {
+			return r, g.Error(err, "could not detect delimiter")
+		} else if !c.NoTrace && deli != ',' {
+			if delimiter == "" {
+				g.Info("delimiter auto-detected: %#v", string(deli))
+			} else {
+				g.Debug("delimiter used: %#v", string(deli))
+			}
 		}
 	}
 
@@ -251,6 +257,7 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 	r = csv.NewReader(reader4)
 	r.LazyQuotes = true
 	r.ReuseRecord = true
+	r.FieldsPerRecord = c.FieldsPerRecord
 	// r.TrimLeadingSpace = true
 	// r.TrailingComma = true
 	if c.Delimiter != 0 {

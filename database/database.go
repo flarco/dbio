@@ -989,13 +989,16 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 	// 	return nil, g.Error(err, "could not clone conn object")
 	// }
 
-	Tx := &BaseTransaction{Tx: tx, Conn: conn.Self(), context: &context}
-	conn.tx = Tx
+	// Tx := &BaseTransaction{Tx: tx, Conn: c, context: &context}
+	// conn.tx = Tx
 
 	// err = c.Connect()
 	// if err != nil {
 	// 	return nil, g.Error(err, "could not connect cloned conn object")
 	// }
+
+	Tx := &BaseTransaction{Tx: tx, Conn: conn.Self(), context: &context}
+	conn.tx = Tx
 
 	return Tx, nil
 }
@@ -1028,6 +1031,7 @@ func (conn *BaseConn) Commit() (err error) {
 		return
 	}
 
+	tx := conn.tx
 	conn.AddLog("COMMIT")
 	select {
 	case <-conn.tx.Context().Ctx.Done():
@@ -1035,8 +1039,9 @@ func (conn *BaseConn) Commit() (err error) {
 		conn.Rollback()
 		return
 	default:
-		err = conn.tx.Commit()
 		conn.tx = nil
+		err = tx.Commit()
+		// conn.tx.Connection().Close()
 		if err != nil {
 			return g.Error(err, "Could not commit")
 		}
@@ -1047,10 +1052,11 @@ func (conn *BaseConn) Commit() (err error) {
 
 // Rollback rolls back a connection wide transaction
 func (conn *BaseConn) Rollback() (err error) {
-	if conn.tx != nil {
+	if tx := conn.tx; tx != nil {
 		conn.AddLog("ROLLBACK")
-		err = conn.tx.Rollback()
 		conn.tx = nil
+		err = tx.Rollback()
+		// conn.tx.Connection().Close()
 	}
 	if err != nil {
 		return g.Error(err, "Could not rollback")
@@ -1124,9 +1130,9 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 	}
 	if err != nil {
 		if strings.Contains(q, noTraceKey) {
-			err = g.Error(err, "Error executing query")
+			err = g.Error(err, "Error executing query [tx: %t]", conn.tx != nil)
 		} else {
-			err = g.Error(err, "Error executing "+CleanSQL(conn, q))
+			err = g.Error(err, "Error executing [tx: %t] %s", conn.tx != nil, CleanSQL(conn, q))
 		}
 	}
 	return
@@ -2872,7 +2878,7 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 func AddMissingColumns(conn Connection, table Table, newCols iop.Columns) (ok bool, err error) {
 	cols, err := conn.GetColumns(table.FullName())
 	if err != nil {
-		err = g.Error(err, "could not obtain table columns")
+		err = g.Error(err, "could not obtain table columns for adding %s", g.Marshal(newCols.Names()))
 		return
 	}
 
@@ -3040,7 +3046,7 @@ func CopyFromS3(conn Connection, tableFName, s3Path string) (err error) {
 		"aws_secret_access_key", AwsAccessKey,
 	)
 
-	g.Info("copying into %s from s3", conn.GetType())
+	g.Debug("copying into %s from s3", conn.GetType())
 	g.Debug("url: " + s3Path)
 	_, err = conn.Exec(sql)
 	if err != nil {
@@ -3089,7 +3095,7 @@ func CopyFromAzure(conn Connection, tableFName, azPath string) (err error) {
 		"azure_sas_token", azToken,
 	)
 
-	g.Info("copying into %s from azure", conn.GetType())
+	g.Debug("copying into %s from azure", conn.GetType())
 	g.Debug("url: " + azPath)
 	conn.SetProp("azure_sas_token", azToken)
 	_, err = conn.Exec(sql)

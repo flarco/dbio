@@ -99,7 +99,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
 			if err != nil {
-				return count, g.Error(err, "could not get list of columns from table")
+				return count, g.Error(err, "could not get matching list of columns from table")
 			}
 
 			// err = batch.Shape(columns)

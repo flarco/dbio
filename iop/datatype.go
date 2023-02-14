@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
 
@@ -218,12 +219,84 @@ func (cols Columns) Types(args ...bool) []string {
 
 func (cols Columns) MakeRec(row []any) map[string]any {
 	m := g.M()
+	// if len(row) > len(cols) {
+	// 	g.Warn("MakeRec Column Length Mismatch: %d != %d", len(row), len(cols))
+	// }
+
 	for i, col := range cols {
 		if i < len(row) {
 			m[col.Name] = row[i]
 		}
 	}
 	return m
+}
+
+type Shaper struct {
+	Func       func([]any) []any
+	SrcColumns Columns
+	TgtColumns Columns
+	ColMap     map[int]int
+}
+
+func (cols Columns) MakeShaper(tgtColumns Columns) (shaper *Shaper, err error) {
+	srcColumns := cols
+
+	if len(tgtColumns) < len(srcColumns) {
+		err = g.Error("number of target columns is smaller than number of source columns")
+		return
+	}
+
+	// determine diff, and match order of target columns
+	tgtColNames := tgtColumns.Names(true)
+	diffCols := len(tgtColumns) != len(srcColumns)
+	colMap := map[int]int{}
+	for s, col := range srcColumns {
+		t := lo.IndexOf(tgtColNames, strings.ToLower(col.Name))
+		if t == -1 {
+			err = g.Error("column %s not found in target columns", col.Name)
+			return
+		}
+		colMap[s] = t
+		if s != t || !strings.EqualFold(tgtColumns[t].Name, srcColumns[s].Name) {
+			diffCols = true
+		}
+	}
+
+	if !diffCols {
+		return nil, nil
+	}
+
+	// srcColNames := srcColumns.Names(true)
+	mapRowCol := func(srcRow []any) []any {
+		tgtRow := make([]any, len(tgtColumns))
+		for len(srcRow) < len(tgtRow) {
+			srcRow = append(srcRow, nil)
+		}
+		for s, t := range colMap {
+			tgtRow[t] = srcRow[s]
+		}
+
+		// srcRec := srcColumns.MakeRec(srcRow)
+		// tgtRec := tgtColumns.MakeRec(tgtRow)
+		// for k := range srcRec {
+		// 	if srcRec[k] != tgtRec[k] {
+		// 		sI := lo.IndexOf(srcColNames, strings.ToLower(k))
+		// 		tI := lo.IndexOf(tgtColNames, strings.ToLower(k))
+		// 		g.Warn("Key `%s` is mapped from %d to %d => %#v != %#v", k, sI, tI, srcRec[k], tgtRec[k])
+		// 	}
+		// }
+
+		return tgtRow
+	}
+
+	shaper = &Shaper{
+		Func:       mapRowCol,
+		SrcColumns: srcColumns,
+		TgtColumns: tgtColumns,
+		ColMap:     colMap,
+	}
+
+	return shaper, nil
 }
 
 // DbTypes return the column names/db types
@@ -315,6 +388,23 @@ func (cols Columns) Add(newCols Columns, overwrite bool) (col2 Columns, added Co
 	return cols, added
 }
 
+// IsSimilarTo returns true if has same number of columns
+// and contains the same columns, but may be in different order
+func (cols Columns) IsSimilarTo(otherCols Columns) bool {
+	if len(cols) != len(otherCols) {
+		return false
+	}
+
+	otherColsMap := cols.FieldMap(true)
+	for _, col := range cols {
+		colName := strings.ToLower(col.Name)
+		if _, found := otherColsMap[colName]; !found {
+			return false
+		}
+	}
+	return true
+}
+
 func (cols Columns) IsDifferent(newCols Columns) bool {
 	if len(cols) != len(newCols) {
 		return true
@@ -322,7 +412,7 @@ func (cols Columns) IsDifferent(newCols Columns) bool {
 	for i := range newCols {
 		if newCols[i].Type != cols[i].Type {
 			return true
-		} else if newCols[i].Name != cols[i].Name {
+		} else if !strings.EqualFold(newCols[i].Name, cols[i].Name) {
 			return true
 		}
 	}

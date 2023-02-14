@@ -448,6 +448,8 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 		Cfg = cfg[0]
 	}
 
+	fs.SetProp("url", url)
+
 	if strings.HasSuffix(strings.ToLower(url), ".zip") {
 		localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 		if err != nil {
@@ -719,7 +721,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	partCnt := 1
-	// for ds := range df.MakeStreamCh() {
+	// for ds := range df.MakeStreamCh(true) {
 	for ds := range df.StreamCh {
 
 		partURL := fmt.Sprintf("%s/part.%02d", url, partCnt)
@@ -809,17 +811,8 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 
 	go func() {
 		defer close(dsCh)
-		for _, path := range paths {
-			if strings.HasSuffix(path, "/") {
-				g.Debug("skipping %s because is not file", path)
-				continue
-			}
 
-			ds, err := fs.GetDatastream(path)
-			if err != nil {
-				fs.Context().CaptureErr(g.Error(err, "Unable to process "+path))
-				return
-			}
+		pushDatastream := func(ds *iop.Datastream) {
 			if len(cfg.Columns) > 1 {
 				cols := iop.NewColumnsFromFields(cfg.Columns...)
 				fm := ds.Columns.FieldMap(true)
@@ -828,7 +821,7 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 						if i, ok := fm[strings.ToLower(col.Name)]; ok {
 							out = append(out, in[i])
 						} else {
-							ds.Context.CaptureErr(g.Error("column %s not found", col.Name))
+							df.Context.CaptureErr(g.Error("column %s not found", col.Name))
 						}
 					}
 					return
@@ -837,6 +830,51 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			} else {
 				dsCh <- ds
 			}
+		}
+
+		flatten := cast.ToBool(fs.GetProp("flatten"))
+		if flatten && isJson(paths...) {
+			ds, err := MergeReaders(fs, "json", paths...)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
+				return
+			}
+			ds, err = ProcessStreamViaTempFile(ds)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to process stream via temp file"))
+				return
+			}
+			pushDatastream(ds)
+			return // done
+		}
+
+		if flatten && isXml(paths...) {
+			ds, err := MergeReaders(fs, "xml", paths...)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
+				return
+			}
+			ds, err = ProcessStreamViaTempFile(ds)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to process stream via temp file"))
+				return
+			}
+			pushDatastream(ds)
+			return // done
+		}
+
+		for _, path := range paths {
+			if strings.HasSuffix(path, "/") {
+				g.DebugLow("skipping %s because is not file", path)
+				continue
+			}
+
+			ds, err := fs.GetDatastream(path)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to process "+path))
+				return
+			}
+			pushDatastream(ds)
 		}
 
 	}()
@@ -939,4 +977,166 @@ func TestFsPermissions(fs FileSysClient, pathURL string) (err error) {
 	}
 
 	return
+}
+
+func isJson(paths ...string) bool {
+	jsonCnt := 0
+	dirCnt := 0
+
+	for _, path := range paths {
+		if strings.HasSuffix(path, "/") {
+			dirCnt++
+			continue
+		}
+
+		if strings.Contains(path, ".json") && !strings.HasSuffix(path, ".csv") && !strings.HasSuffix(path, ".xml") {
+			jsonCnt++
+		}
+	}
+	return len(paths) == jsonCnt+dirCnt
+}
+
+func isXml(paths ...string) bool {
+	jsonCnt := 0
+	dirCnt := 0
+
+	for _, path := range paths {
+		if strings.HasSuffix(path, "/") {
+			dirCnt++
+			continue
+		}
+
+		if strings.Contains(path, ".xml") && !strings.HasSuffix(path, ".csv") && !strings.HasSuffix(path, ".json") {
+			jsonCnt++
+		}
+	}
+	return len(paths) == jsonCnt+dirCnt
+}
+
+func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.Datastream, err error) {
+	if len(paths) == 0 {
+		err = g.Error("Provided 0 files for: %#v", paths)
+		return
+	}
+
+	pipeR, pipeW := io.Pipe()
+
+	url := fs.GetProp("url")
+	ds = iop.NewDatastreamContext(fs.Context().Ctx, nil)
+	ds.SafeInference = true
+	ds.SetMetadata(fs.GetProp("METADATA"))
+	ds.Metadata.StreamURL.Value = url
+	ds.SetConfig(fs.Client().Props())
+	g.Debug("%s, reading datastream from %s", ds.ID, url)
+
+	setError := func(err error) {
+		ds.Context.CaptureErr(err)
+		ds.Context.Cancel()
+		fs.Context().CaptureErr(err)
+		fs.Context().Cancel()
+	}
+
+	g.DebugLow("Merging %s readers from %s", fileType, url)
+
+	readerChn := make(chan io.Reader, ds.Context.Wg.Read.Size+2)
+	go func() {
+		defer close(readerChn)
+
+		for _, path := range paths {
+			if strings.HasSuffix(path, "/") {
+				g.DebugLow("skipping %s because is not file", path)
+				continue
+			}
+
+			g.Debug("%s, processing reader from %s", ds.ID, path)
+
+			ds.Context.Wg.Read.Add()
+
+			go func(path string) {
+				defer ds.Context.Wg.Read.Done()
+
+				reader, err := fs.Self().GetReader(path)
+				if err != nil {
+					setError(g.Error(err, "Error getting reader"))
+					return
+				}
+
+				readerChn <- reader
+			}(path)
+		}
+
+		ds.Context.Wg.Read.Wait()
+
+	}()
+
+	go func() {
+		defer pipeW.Close()
+
+		for reader := range readerChn {
+			_, err = io.Copy(pipeW, reader)
+			if err != nil {
+				setError(g.Error(err, "Error copying reader to pipe writer"))
+				return
+			}
+		}
+	}()
+
+	switch fileType {
+	case "json":
+		err = ds.ConsumeJsonReader(pipeR)
+	case "xml":
+		err = ds.ConsumeXmlReader(pipeR)
+	case "csv":
+		err = ds.ConsumeCsvReader(pipeR)
+	default:
+		return ds, g.Error("unrecognized fileType (%s) for MergeReaders", fileType)
+	}
+	if err != nil {
+		return ds, g.Error(err, "Error consuming reader for fileType: '%s'", fileType)
+	}
+
+	return ds, nil
+}
+
+func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err error) {
+	// temp file
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	filePath := path.Join(tempDir, g.NewTsID("sling.temp")+".csv")
+
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	if err != nil {
+		return nil, g.Error(err, "could not obtain client for temp file in ProcessStreamViaTempFile")
+	}
+
+	err = ds.WaitReady()
+	if err != nil {
+		return nil, err
+	}
+
+	g.Debug("writing to temp file %s", filePath)
+	_, err = fs.Write("file://"+filePath, ds.NewCsvReader(0, 0))
+	if err != nil {
+		return nil, g.Error(err, "could not write to temp file for ProcessStreamViaTempFile")
+	}
+
+	nDs = iop.NewDatastreamContext(ds.Context.Ctx, ds.Columns)
+	nDs.Inferred = true
+	config := ds.GetConfig()
+	config["fields_per_rec"] = "-1" // allow different number of records per line
+	nDs.SetConfig(config)
+	nDs.Defer(func() { os.Remove(filePath) })
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		err = g.Error(err, "Unable to open temp file: "+filePath)
+		return nil, err
+	}
+
+	err = nDs.ConsumeCsvReader(file)
+	if err != nil {
+		os.Remove(filePath)
+		return nDs, g.Error(err, "could not consume temp file for ProcessStreamViaTempFile")
+	}
+
+	return nDs, nil
 }
