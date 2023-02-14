@@ -17,17 +17,18 @@ import (
 
 // CSV is a csv object
 type CSV struct {
-	Path      string
-	NoHeader  bool
-	Delimiter rune
-	Columns   []Column
-	File      *os.File
-	Data      Dataset
-	Reader    io.Reader
-	NoTrace   bool
-	bytes     int64
-	noInfer   bool
-	cleanup   bool
+	Path            string
+	NoHeader        bool
+	Delimiter       rune
+	FieldsPerRecord int
+	Columns         []Column
+	File            *os.File
+	Data            Dataset
+	Reader          io.Reader
+	NoTrace         bool
+	bytes           int64
+	noInfer         bool
+	cleanup         bool
 }
 
 // CleanHeaderRow cleans the header row from incompatible characters
@@ -251,6 +252,7 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 	r = csv.NewReader(reader4)
 	r.LazyQuotes = true
 	r.ReuseRecord = true
+	r.FieldsPerRecord = c.FieldsPerRecord
 	// r.TrimLeadingSpace = true
 	// r.TrailingComma = true
 	if c.Delimiter != 0 {

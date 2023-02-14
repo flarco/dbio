@@ -189,6 +189,14 @@ func (ds *Datastream) SetConfig(configMap map[string]string) {
 	ds.config = ds.Sp.config
 }
 
+// GetConfig get config
+func (ds *Datastream) GetConfig() (configMap map[string]string) {
+	// lower the keys
+	configMap = map[string]string{}
+	g.JSONConvert(ds.Sp.config, configMap)
+	return configMap
+}
+
 // CastRowToString returns the row as string casted
 func (ds *Datastream) CastRowToString(row []any) []string {
 	rowStr := make([]string, len(row))
@@ -692,7 +700,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 
 // ConsumeCsvReader uses the provided reader to stream rows
 func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
-	c := CSV{Reader: reader, NoHeader: !ds.config.header}
+	c := CSV{Reader: reader, NoHeader: !ds.config.header, FieldsPerRecord: ds.config.fieldsPerRec}
 
 	r, err := c.getReader(ds.config.delimiter)
 	if err != nil {
@@ -715,7 +723,10 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 		ds.Context.CaptureErr(err)
 		return err
 	}
-	ds.SetFields(CleanHeaderRow(row0))
+
+	if c.FieldsPerRecord == 0 || len(ds.Columns) == 0 {
+		ds.SetFields(CleanHeaderRow(row0))
+	}
 
 	nextFunc := func(it *Iterator) bool {
 

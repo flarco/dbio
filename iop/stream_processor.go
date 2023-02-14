@@ -44,6 +44,7 @@ type streamConfig struct {
 	fileMaxRows    int64
 	maxDecimals    float64
 	flatten        bool
+	fieldsPerRec   int
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -140,6 +141,10 @@ func NewStreamProcessor() *StreamProcessor {
 func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	if sp == nil {
 		sp = NewStreamProcessor()
+	}
+
+	if configMap["fields_per_rec"] != "" {
+		sp.config.fieldsPerRec = cast.ToInt(configMap["fields_per_rec"])
 	}
 
 	if configMap["delimiter"] != "" {

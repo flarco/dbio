@@ -153,8 +153,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 		}
 
 		err = func() error {
-			mux.Lock()
-			defer mux.Unlock()
 
 			// COPY needs a transaction
 			if conn.Tx() == nil {
@@ -175,7 +173,9 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 				// g.PP(batch.Columns.MakeRec(row))
 				count++
 				// Do insert
+				mux.Lock()
 				_, err := stmt.Exec(row...)
+				mux.Unlock()
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "could not COPY into table %s", tableFName))
 					ds.Context.Cancel()
@@ -183,11 +183,6 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 					return g.Error(err, "could not execute statement")
 				}
 			}
-
-			// _, err = stmt.Exec()
-			// if err != nil {
-			// 	return g.Error(err, "could not execute statement")
-			// }
 
 			err = stmt.Close()
 			if err != nil {
