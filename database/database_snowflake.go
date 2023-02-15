@@ -755,12 +755,7 @@ func (conn *SnowflakeConn) GetColumnsFull(tableFName string) (data iop.Dataset, 
 
 	data.SetFields([]string{"schema_name", "table_name", "column_name", "data_type", "position"})
 	for i, rec := range data1.Records() {
-		dataType := "UNKNOWN"
-		typeJSON := g.M()
-		err := g.Unmarshal(cast.ToString(rec["data_type"]), &typeJSON)
-		if err == nil {
-			dataType = cast.ToString(typeJSON["type"])
-		}
+		dataType, _, _ := parseSnowflakeDataType(rec)
 		data.Append([]interface{}{rec["schema_name"], rec["table_name"], rec["column_name"], dataType, i + 1})
 	}
 	return data, nil
@@ -768,14 +763,55 @@ func (conn *SnowflakeConn) GetColumnsFull(tableFName string) (data iop.Dataset, 
 
 // GetDatabases returns the list of databases
 func (conn *SnowflakeConn) GetDatabases() (data iop.Dataset, err error) {
-	data1, err := conn.SumbitTemplate("single", conn.template.Metadata, "databases", g.M())
+	data1, err := conn.BaseConn.GetDatabases()
 	if err != nil {
 		return data1, err
 	}
 
-	data.SetFields([]string{"name"})
-	for _, rec := range data1.Records() {
-		data.Append([]interface{}{rec["name"]})
+	return data1.Pick("name"), nil
+}
+
+// GetSchemas returns schemas
+func (conn *SnowflakeConn) GetSchemas() (data iop.Dataset, err error) {
+	// fields: [schema_name]
+	data1, err := conn.BaseConn.GetSchemas()
+	if err != nil {
+		return data1, err
 	}
-	return data, nil
+
+	return data1.Pick("schema_name"), nil
+}
+
+// GetTables returns tables
+func (conn *SnowflakeConn) GetTables(schema string) (data iop.Dataset, err error) {
+	// fields: [table_name]
+	data1, err := conn.BaseConn.GetTables(schema)
+	if err != nil {
+		return data1, err
+	}
+
+	return data1.Pick("table_name"), nil
+}
+
+// GetTables returns tables
+func (conn *SnowflakeConn) GetViews(schema string) (data iop.Dataset, err error) {
+	// fields: [table_name]
+	data1, err := conn.BaseConn.GetViews(schema)
+	if err != nil {
+		return data1, err
+	}
+
+	return data1.Pick("table_name"), nil
+}
+
+func parseSnowflakeDataType(rec map[string]any) (dataType string, precision, scale int) {
+	dataType = "UNKNOWN"
+	typeJSON := g.M()
+	err := g.Unmarshal(cast.ToString(rec["data_type"]), &typeJSON)
+	if err == nil {
+		dataType = cast.ToString(typeJSON["type"])
+		precision = cast.ToInt(typeJSON["precision"])
+		scale = cast.ToInt(typeJSON["scale"])
+	}
+	return
 }

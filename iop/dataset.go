@@ -287,6 +287,22 @@ func (data *Dataset) ColValues(col int) []interface{} {
 	return vals
 }
 
+// Pick returns a new dataset with specified columns
+func (data *Dataset) Pick(colNames ...string) (nData Dataset) {
+	nData = NewDataset(Columns{})
+	nData.SetFields(colNames)
+
+	for _, rec := range data.Records() {
+		row := []any{}
+		for _, colName := range colNames {
+			row = append(row, rec[strings.ToLower(colName)])
+		}
+		nData.Append(row)
+	}
+
+	return nData
+}
+
 // ColValuesStr returns the values of a one column as array or string
 func (data *Dataset) ColValuesStr(col int) []string {
 	vals := make([]string, len(data.Rows))

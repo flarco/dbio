@@ -117,30 +117,16 @@ metadata:
     show databases
 
   schemas: |
-    select schema_name
-    from information_schema.schemata
-    order by schema_name
+    show schemas
 
   tables: |
-    select table_name
-    from information_schema.tables
-    where table_type = 'BASE TABLE'
-      and table_schema = '{schema}'
-    order by table_name
+    show tables in "{schema}"
 
   views: |
-    select table_name
-    from information_schema.tables
-    where table_type = 'VIEW'
-      and table_schema = '{schema}'
-    order by table_name
+    show views in "{schema}"
 
   columns: |
-    select column_name, data_type
-    from information_schema.columns
-    where table_schema = '{schema}'
-      and table_name = '{table}'
-    order by ordinal_position
+    show columns in table "{schema}"."{table}"
 
   primary_keys: |
     select tco.constraint_name as pk_name,

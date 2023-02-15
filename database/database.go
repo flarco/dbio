@@ -1475,6 +1475,10 @@ func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns i
 				return
 			}
 
+			if conn.Type == dbio.TypeDbSnowflake {
+				rec["data_type"], rec["precision"], rec["scale"] = parseSnowflakeDataType(rec)
+			}
+
 			colTypes = append(colTypes, ColumnType{
 				Name:             cast.ToString(rec["column_name"]),
 				DatabaseTypeName: cast.ToString(rec["data_type"]),
@@ -1484,6 +1488,11 @@ func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns i
 		}
 	} else {
 		colTypes = lo.Map(colData.Records(), func(rec map[string]interface{}, i int) ColumnType {
+
+			if conn.Type == dbio.TypeDbSnowflake {
+				rec["data_type"], rec["precision"], rec["scale"] = parseSnowflakeDataType(rec)
+			}
+
 			return ColumnType{
 				Name:             cast.ToString(rec["column_name"]),
 				DatabaseTypeName: cast.ToString(rec["data_type"]),
