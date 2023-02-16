@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/flarco/dbio"
@@ -89,6 +90,8 @@ func (conn *MySQLConn) BulkExportStream(sql string) (ds *iop.Datastream, err err
 	_, err = exec.LookPath("mysql")
 	if err != nil {
 		g.Trace("mysql not found in path. Using cursor...")
+		return conn.BaseConn.StreamRows(sql)
+	} else if runtime.GOOS == "windows" {
 		return conn.BaseConn.StreamRows(sql)
 	}
 

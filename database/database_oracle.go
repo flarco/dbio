@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -81,7 +82,9 @@ func (conn *OracleConn) ExecMultiContext(ctx context.Context, q string, args ...
 func (conn *OracleConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	_, err = exec.LookPath("sqlldr")
 	if err != nil {
-		err = g.Error(err, "sqlldr not found in path. Using cursor...")
+		g.Trace("sqlldr not found in path. Using cursor...")
+		return conn.BaseConn.InsertBatchStream(tableFName, ds)
+	} else if runtime.GOOS == "windows" {
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	}
 

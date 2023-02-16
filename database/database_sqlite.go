@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -76,6 +77,11 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
+	proc, err := process.NewProc("sqlite3")
+	if err != nil {
+		return 0, g.Error(err, "could not create process for sqlite3")
+	}
+
 	conn.Close()
 	defer conn.Connect()
 
@@ -99,23 +105,28 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
 	sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
 
-	fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
-	if err != nil {
-		err = g.Error(err, "could not obtain client for temp file")
-		return
-	}
-
 	// set header false
 	cfgMap := ds.GetConfig()
 	cfgMap["header"] = "false"
 	ds.SetConfig(cfgMap)
 
-	_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
-	if err != nil {
-		err = g.Error(err, "could not write to temp file")
-		return
+	if runtime.GOOS == "windows" {
+		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
+		if err != nil {
+			err = g.Error(err, "could not obtain client for temp file")
+			return 0, err
+		}
+
+		_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
+		if err != nil {
+			err = g.Error(err, "could not write to temp file")
+			return 0, err
+		}
+		defer func() { os.Remove(csvPath) }()
+	} else {
+		csvPath = "/dev/stdin"
+		proc.StdinOverride = ds.NewCsvReader(0, 0)
 	}
-	defer func() { os.Remove(csvPath) }()
 
 	loadSQL := g.F("PRAGMA journal_mode=WAL;\n.separator \",\"\n.import %s %s", csvPath, table.Name)
 
@@ -124,11 +135,6 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return 0, g.Error(err, "could not create load SQL for sqlite3")
 	}
 	defer func() { os.Remove(sqlPath) }()
-
-	proc, err := process.NewProc("sqlite3")
-	if err != nil {
-		return 0, g.Error(err, "could not create process for sqlite3")
-	}
 
 	err = proc.Run(dbPath, g.F(`.read %s`, sqlPath))
 	if err != nil {
