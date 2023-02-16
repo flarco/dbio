@@ -1,14 +1,20 @@
 package database
 
 import (
+	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
+	"github.com/flarco/dbio/iop"
+	"github.com/flarco/g/net"
+	"github.com/flarco/g/process"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
@@ -60,6 +66,77 @@ func (conn *SQLiteConn) GetURL(newURL ...string) string {
 	}
 
 	return URL
+}
+
+// BulkImportStream inserts a stream into a table
+func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	_, err = exec.LookPath("sqlite3")
+	if err != nil {
+		g.DebugLow("sqlite3 not found in path. Using cursor...")
+		return conn.BaseConn.BulkImportStream(tableFName, ds)
+	}
+
+	conn.Close()
+	defer conn.Connect()
+
+	table, err := ParseTableName(tableFName, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not get table name for imoprt")
+		return
+	}
+
+	// get file path
+	dbPathU, err := net.NewURL(conn.BaseConn.URL)
+	if err != nil {
+		err = g.Error(err, "could not get sqlite file path")
+		return
+	}
+	dbPath := strings.TrimPrefix(conn.GetURL(), "file:")
+	dbPath = strings.ReplaceAll(dbPath, "?"+dbPathU.U.RawQuery, "")
+
+	// write to temp CSV
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
+	sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
+
+	fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
+	if err != nil {
+		err = g.Error(err, "could not obtain client for temp file")
+		return
+	}
+
+	// set header false
+	cfgMap := ds.GetConfig()
+	cfgMap["header"] = "false"
+	ds.SetConfig(cfgMap)
+
+	_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
+	if err != nil {
+		err = g.Error(err, "could not write to temp file")
+		return
+	}
+	defer func() { os.Remove(csvPath) }()
+
+	loadSQL := g.F("PRAGMA journal_mode=WAL;\n.separator \",\"\n.import %s %s", csvPath, table.Name)
+
+	err = ioutil.WriteFile(sqlPath, []byte(loadSQL), 0777)
+	if err != nil {
+		return 0, g.Error(err, "could not create load SQL for sqlite3")
+	}
+	defer func() { os.Remove(sqlPath) }()
+
+	proc, err := process.NewProc("sqlite3")
+	if err != nil {
+		return 0, g.Error(err, "could not create process for sqlite3")
+	}
+
+	err = proc.Run(dbPath, g.F(`.read %s`, sqlPath))
+	if err != nil {
+		return 0, g.Error(err, "could not ingest csv file")
+	}
+
+	g.Trace("COPY %d ROWS", ds.Count)
+	return ds.Count, nil
 }
 
 // GenerateUpsertSQL generates the upsert SQL
