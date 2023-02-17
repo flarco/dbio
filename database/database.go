@@ -2508,7 +2508,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 
 // GenerateUpsertSQL returns a sql for upsert
 func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
-	return
+	return "", g.Error("GenerateUpsertSQL is not implemented for %s", conn.Type)
 }
 
 // GenerateUpsertExpressions returns a map with needed expressions

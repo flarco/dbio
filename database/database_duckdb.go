@@ -50,6 +50,10 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	var columns iop.Columns
 
+	// FIXME: batching works better when transactions are closed
+	// seems, when the appender is closed, the transaction is closed as well
+	conn.Commit()
+
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
 		err = g.Error(err, "could not get  table name for imoprt")
@@ -133,4 +137,67 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 	g.Trace("COPY %d ROWS", count)
 	return count, nil
+}
+
+// GenerateUpsertSQL generates the upsert SQL
+func (conn *DuckDbConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
+
+	upsertMap, err := conn.BaseConn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	if err != nil {
+		err = g.Error(err, "could not generate upsert variables")
+		return
+	}
+
+	// _, indexTable := SplitTableFullName(tgtTable)
+
+	// indexSQL := g.R(
+	// 	conn.GetTemplateValue("core.create_unique_index"),
+	// 	"index", strings.Join(pkFields, "_")+"_idx",
+	// 	"table", indexTable,
+	// 	"cols", strings.Join(pkFields, ", "),
+	// )
+
+	// _, err = conn.Exec(indexSQL)
+	// if err != nil {
+	// 	err = g.Error(err, "could not create unique index")
+	// 	return
+	// }
+
+	// V0.7
+	// sqlTempl := `
+	// INSERT INTO {tgt_table} as tgt
+	// 	({insert_fields})
+	// SELECT {src_fields}
+	// FROM {src_table} as src
+	// WHERE true
+	// ON CONFLICT ({pk_fields})
+	// DO UPDATE
+	// SET {set_fields}
+	// `
+
+	sqlTempl := `
+	DELETE FROM {tgt_table} tgt
+	USING {src_table} src
+	WHERE {src_tgt_pk_equal}
+	;
+
+	INSERT INTO {tgt_table}
+		({insert_fields})
+	SELECT {src_fields}
+	FROM {src_table} src
+	`
+
+	sql = g.R(
+		sqlTempl,
+		"src_table", srcTable,
+		"tgt_table", tgtTable,
+		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
+		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
+		"src_fields", upsertMap["src_fields"],
+		"pk_fields", upsertMap["pk_fields"],
+		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
+		"insert_fields", upsertMap["insert_fields"],
+	)
+
+	return
 }
