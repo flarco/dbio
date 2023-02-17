@@ -4,12 +4,12 @@
 package database
 
 import (
-	"database/sql/driver"
+	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
-	"github.com/flarco/g"
 )
 
 // DuckDbConn is a Duck DB connection
@@ -37,12 +37,14 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
 		connURL = newURL[0]
 	}
-	URL := strings.ReplaceAll(
-		connURL,
-		"duckdb://",
-		"",
-	)
+	URL := strings.ReplaceAll(connURL, "duckdb://", "")
 	return URL
+}
+
+// ensureBin ensures duckdb binary exists
+// if missing, downloads and uses
+func (conn *DuckDbConn) ensureBin() (err error) {
+	return
 }
 
 // ExecContext runs a sql query with context, returns `error`
