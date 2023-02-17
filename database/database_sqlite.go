@@ -77,19 +77,37 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
-	proc, err := process.NewProc("sqlite3")
-	if err != nil {
-		return 0, g.Error(err, "could not create process for sqlite3")
-	}
-
-	conn.Close()
-	defer conn.Connect()
-
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
 		err = g.Error(err, "could not get table name for imoprt")
 		return
 	}
+
+	// set header false
+	cfgMap := ds.GetConfig()
+	cfgMap["header"] = "false"
+	ds.SetConfig(cfgMap)
+
+	for batchR := range ds.NewCsvReaderChnl(0, 0) {
+		err = conn.BulkImportStreamBatch(table, batchR)
+		if err != nil {
+			err = g.Error(err, "could not import batch")
+			return count, err
+		}
+	}
+
+	return ds.Count, nil
+}
+
+func (conn *SQLiteConn) BulkImportStreamBatch(table Table, batchR *iop.BatchReader) (err error) {
+
+	proc, err := process.NewProc("sqlite3")
+	if err != nil {
+		return g.Error(err, "could not create process for sqlite3")
+	}
+
+	conn.Close()
+	defer conn.Connect()
 
 	// get file path
 	dbPathU, err := net.NewURL(conn.BaseConn.URL)
@@ -105,44 +123,41 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
 	sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
 
-	// set header false
-	cfgMap := ds.GetConfig()
-	cfgMap["header"] = "false"
-	ds.SetConfig(cfgMap)
-
 	if runtime.GOOS == "windows" {
 		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
 		if err != nil {
 			err = g.Error(err, "could not obtain client for temp file")
-			return 0, err
+			return err
 		}
-
-		_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
+		_, err = fs.Write("file://"+csvPath, batchR.Reader)
 		if err != nil {
 			err = g.Error(err, "could not write to temp file")
-			return 0, err
+			return err
 		}
 		defer func() { os.Remove(csvPath) }()
 	} else {
 		csvPath = "/dev/stdin"
-		proc.StdinOverride = ds.NewCsvReader(0, 0)
+		proc.StdinOverride = batchR.Reader
 	}
 
-	loadSQL := g.F("PRAGMA journal_mode=WAL;\n.separator \",\"\n.import %s %s", csvPath, table.Name)
+	sqlLines := []string{
+		`PRAGMA journal_mode=WAL;`,
+		`.separator ","`,
+		g.F(".import %s %s", csvPath, table.Name),
+	}
 
-	err = ioutil.WriteFile(sqlPath, []byte(loadSQL), 0777)
+	err = ioutil.WriteFile(sqlPath, []byte(strings.Join(sqlLines, "\n")), 0777)
 	if err != nil {
-		return 0, g.Error(err, "could not create load SQL for sqlite3")
+		return g.Error(err, "could not create load SQL for sqlite3")
 	}
 	defer func() { os.Remove(sqlPath) }()
 
 	err = proc.Run(dbPath, g.F(`.read %s`, sqlPath))
 	if err != nil {
-		return 0, g.Error(err, "could not ingest csv file")
+		return g.Error(err, "could not ingest csv file")
 	}
 
-	g.Trace("COPY %d ROWS", ds.Count)
-	return ds.Count, nil
+	return nil
 }
 
 // GenerateUpsertSQL generates the upsert SQL
