@@ -2,6 +2,7 @@ package iop
 
 import (
 	"math"
+	"math/big"
 	"os"
 	"reflect"
 	"regexp"
@@ -332,6 +333,10 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	switch v := val.(type) {
 	case godror.Number:
 		val = sp.ParseString(cast.ToString(val), i)
+	case big.Int:
+		val = v.Int64()
+	case *big.Int:
+		val = v.Int64()
 	case []uint8:
 		sVal = string(v)
 		val = sVal

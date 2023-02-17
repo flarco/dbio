@@ -1424,14 +1424,14 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 		"single", conn.template.Metadata, "columns",
 		g.M("schema", table.Schema, "table", table.Name),
 	)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "does not exist") {
 		return false, g.Error(err, "could not check table existence: "+tableFName)
 	}
 
 	if len(colData.Rows) > 0 {
 		exists = true
 	}
-	return
+	return exists, nil
 }
 
 // GetColumns returns columns for given table. `tableFName` should
@@ -2796,7 +2796,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 	}
 
 	sql := g.F(
-		"select %s from %s "+noTraceKey,
+		"select %s from %s ",
 		strings.Join(exprs, ", "),
 		tableName,
 	)

@@ -333,8 +333,9 @@ func (c *Connection) setURL() (err error) {
 			} else if c.Type == dbio.TypeDbBigTable {
 				setIfMissing("project", U.Hostname())
 				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
-			} else if c.Type == dbio.TypeDbSQLite {
+			} else if c.Type == dbio.TypeDbSQLite || c.Type == dbio.TypeDbDuckDb {
 				setIfMissing("instance", U.Path())
+				setIfMissing("schema", "main")
 			}
 		}
 		if c.Type == dbio.TypeFileSftp {
