@@ -754,14 +754,13 @@ func tSelectStreamLarge(t *testing.T, conn Connection, tableName string, dfMult 
 	getRate := func(cnt uint64) string {
 		return humanize.Commaf(math.Round(cast.ToFloat64(cnt) / time.Since(start).Seconds()))
 	}
-
-	sql := "select * from " + tableName
-	sqls := []string{}
+	table, _ := ParseTableName(tableName, conn.GetType())
+	tables := []Table{}
 	for i := 0; i < dfMult; i++ {
-		sqls = append(sqls, sql)
+		tables = append(tables, table)
 	}
 	UseBulkExportFlowCSV = false
-	df, err := conn.BulkExportFlow(sqls...)
+	df, err := conn.BulkExportFlow(tables...)
 	if !g.AssertNoError(t, err) {
 		return
 	}
@@ -959,7 +958,8 @@ func TestExport(t *testing.T) {
 	db := DBs["bigquery"]
 	conn, err := NewConn(db.URL)
 	g.AssertNoError(t, err)
-	_, err = conn.BulkExportFlow("select * from `proven-cider-633.pg_home.bank_mint_transactions`")
+	table, _ := ParseTableName(`proven-cider-633.pg_home.bank_mint_transactions`, conn.GetType())
+	_, err = conn.BulkExportFlow(table)
 	g.AssertNoError(t, err)
 }
 
@@ -1218,7 +1218,7 @@ func TestGetSQLColumnsLarge(t *testing.T) {
 	g.AssertNoError(t, err)
 
 	// sql := `select * from public.ccxt_price_second limit 500000`
-	sql := `select * from crypto.ccxt_price_second limit 500000`
+	sql := Table{SQL: `select * from crypto.ccxt_price_second limit 500000`}
 	cols, err := conn.GetSQLColumns(sql)
 	g.AssertNoError(t, err)
 	g.P(cols)

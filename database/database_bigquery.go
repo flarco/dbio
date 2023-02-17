@@ -736,13 +736,13 @@ func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumn
 }
 
 // BulkExportFlow reads in bulk
-func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BigQueryConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 	if conn.GetProp("GC_BUCKET") == "" {
 		g.Warn("No GCS Bucket was provided, pulling from cursor (which may be slower for big datasets). ")
-		return conn.BaseConn.BulkExportFlow(sqls...)
+		return conn.BaseConn.BulkExportFlow(tables...)
 	}
 
-	gsURL, err := conn.Unload(sqls...)
+	gsURL, err := conn.Unload(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not unload.")
 		return
@@ -784,36 +784,20 @@ func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 // }
 
 // Unload to Google Cloud Storage
-func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
+func (conn *BigQueryConn) Unload(tables ...Table) (gsPath string, err error) {
 	gcBucket := conn.GetProp("GC_BUCKET")
 	if gcBucket == "" {
 		err = g.Error("Must provide prop 'GC_BUCKET'")
 		return
 	}
 
-	doExport := func(sql string, gsPartURL string) {
+	doExport := func(table Table, gsPartURL string) {
 		defer conn.Context().Wg.Write.Done()
 
 		bucket := conn.GetProp("GC_BUCKET")
 		if bucket == "" {
 			err = g.Error("need to provide prop 'GC_BUCKET'")
 			return
-		}
-
-		table, err := ParseTableName(sql, conn.Type)
-		if err != nil {
-			conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
-			return
-		}
-
-		if strings.HasPrefix(sql, "select * from ") {
-			table, err = ParseTableName(strings.TrimPrefix(sql, "select * from "), conn.Type)
-			if err != nil {
-				conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
-				return
-			} else if table.IsQuery() {
-				table.SQL = sql
-			}
 		}
 
 		err = conn.CopyToGCS(table, gsPartURL)
@@ -831,10 +815,10 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 
 	filesys.Delete(gsFs, gsPath)
 
-	for i, sql := range sqls {
+	for i, table := range tables {
 		gsPathPart := fmt.Sprintf("%s/part%02d-*", gsPath, i+1)
 		conn.Context().Wg.Write.Add()
-		go doExport(sql, gsPathPart)
+		go doExport(table, gsPathPart)
 	}
 
 	conn.Context().Wg.Write.Wait()

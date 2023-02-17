@@ -366,12 +366,12 @@ func (conn *BigTableConn) GetColumnsFull(tableFName string) (iop.Dataset, error)
 }
 
 // GetTables returns tables for given schema
-func (conn *BigTableConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err error) {
-	if len(sqls) == 0 {
+func (conn *BigTableConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err error) {
+	if len(tables) == 0 {
 		return
 	}
 
-	return conn.GetColumns(sqls[0])
+	return conn.GetColumns(tables[0].FullName())
 }
 
 func (conn *BigTableConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
@@ -401,12 +401,12 @@ func (conn *BigTableConn) GetColumns(tableFName string, fields ...string) (colum
 	return
 }
 
-func (conn *BigTableConn) BulkExportFlow(tableNames ...string) (df *iop.Dataflow, err error) {
-	if len(tableNames) == 0 {
+func (conn *BigTableConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
+	if len(tables) == 0 {
 		return
 	}
 
-	ds, err := conn.StreamRowsContext(conn.context.Ctx, tableNames[0])
+	ds, err := conn.StreamRowsContext(conn.context.Ctx, tables[0].Name)
 	if err != nil {
 		return df, g.Error(err, "could start datastream")
 	}

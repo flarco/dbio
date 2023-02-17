@@ -57,7 +57,7 @@ type Connection interface {
 	BaseURL() string
 	Begin(options ...*sql.TxOptions) error
 	BeginContext(ctx context.Context, options ...*sql.TxOptions) error
-	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
+	BulkExportFlow(tables ...Table) (*iop.Dataflow, error)
 	BulkExportStream(sql string) (*iop.Datastream, error)
 	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
 	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
@@ -97,7 +97,7 @@ type Connection interface {
 	GetProp(string) string
 	GetSchemas() (iop.Dataset, error)
 	GetSchemata(schemaName string, tableNames ...string) (Schemata, error)
-	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
+	GetSQLColumns(tables ...Table) (columns iop.Columns, err error)
 	GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
 	GetTemplateValue(path string) (value string)
@@ -1374,18 +1374,22 @@ func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.Colu
 }
 
 // GetSQLColumns return columns from a sql query result
-func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err error) {
-	sql := ""
-	if len(sqls) > 0 {
-		sql = sqls[0]
+func (conn *BaseConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err error) {
+	var table Table
+	if len(tables) > 0 {
+		table = tables[0]
 	} else {
 		err = g.Error("no query provided")
 		return
 	}
 
+	if !table.IsQuery() {
+		return conn.GetColumns(table.FullName())
+	}
+
 	limitSQL := g.R(
 		conn.GetTemplateValue("core.limit"),
-		"sql", sql,
+		"sql", table.SQL,
 		"limit", "1",
 	)
 
@@ -1439,7 +1443,7 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 // fields should be `column_name|data_type`
 func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error) {
 	if table.IsQuery() {
-		return conn.GetSQLColumns(table.SQL)
+		return conn.GetSQLColumns(*table)
 	}
 
 	columns = iop.Columns{}
@@ -2364,13 +2368,13 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 }
 
 // BulkExportFlow creates a dataflow from a sql query
-func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BaseConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 
 	g.Trace("BulkExportFlow not implemented for %s", conn.GetType())
 	if UseBulkExportFlowCSV {
-		return conn.BulkExportFlowCSV(sqls...)
+		return conn.BulkExportFlowCSV(tables...)
 	}
-	columns, err := conn.Self().GetSQLColumns(sqls...)
+	columns, err := conn.Self().GetSQLColumns(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not get columns.")
 		return
@@ -2386,8 +2390,8 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 		defer close(dsCh)
 		dss := []*iop.Datastream{}
 
-		for _, sql := range sqls {
-			ds, err := conn.Self().BulkExportStream(sql)
+		for _, table := range tables {
+			ds, err := conn.Self().BulkExportStream(table.Select())
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err, "Error running query"))
 				return
@@ -2418,9 +2422,9 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 }
 
 // BulkExportFlowCSV creates a dataflow from a sql query, using CSVs
-func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BaseConn) BulkExportFlowCSV(tables ...Table) (df *iop.Dataflow, err error) {
 
-	columns, err := conn.Self().GetSQLColumns(sqls...)
+	columns, err := conn.Self().GetSQLColumns(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not get columns.")
 		return
@@ -2429,11 +2433,11 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	df = iop.NewDataflow()
 	dsCh := make(chan *iop.Datastream)
 
-	unload := func(sql string, pathPart string) {
+	unload := func(table Table, pathPart string) {
 		defer df.Context.Wg.Read.Done()
 		defer close(dsCh)
 		fileReadyChn := make(chan filesys.FileReady, 10000)
-		ds, err := conn.Self().BulkExportStream(sql)
+		ds, err := conn.Self().BulkExportStream(table.Select())
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error running query"))
 			df.Context.Cancel()
@@ -2481,10 +2485,10 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 
 	go func() {
 		defer df.Close()
-		for i, sql := range sqls {
+		for i, table := range tables {
 			pathPart := fmt.Sprintf("%s/sql%02d", folderPath, i+1)
 			df.Context.Wg.Read.Add()
-			go unload(sql, pathPart)
+			go unload(table, pathPart)
 		}
 
 		// wait until all nDs are pushed to close

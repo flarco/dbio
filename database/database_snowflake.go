@@ -119,11 +119,11 @@ func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
 }
 
 // BulkExportFlow reads in bulk
-func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *SnowflakeConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 
 	df = iop.NewDataflow()
 
-	columns, err := conn.GetSQLColumns(sqls...)
+	columns, err := conn.GetSQLColumns(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not get columns.")
 		return
@@ -133,13 +133,13 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 
 	switch conn.CopyMethod {
 	case "AZURE":
-		filePath, err = conn.CopyToAzure(sqls...)
+		filePath, err = conn.CopyToAzure(tables...)
 		if err != nil {
 			err = g.Error(err, "Could not copy to S3.")
 			return
 		}
 	case "AWS":
-		filePath, err = conn.CopyToS3(sqls...)
+		filePath, err = conn.CopyToS3(tables...)
 		if err != nil {
 			err = g.Error(err, "Could not copy to S3.")
 			return
@@ -147,13 +147,13 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 	// case "STAGE":
 	// 	// TODO: This is not working, buggy driver. Use SQL Rows stream
 	// 	if conn.getOrCreateStage("") != "" {
-	// 		filePath, err = conn.UnloadViaStage(sqls...)
+	// 		filePath, err = conn.UnloadViaStage(tables...)
 	// 	} else {
 	// 		g.Warn("could not get or create stage. Using cursor stream.")
-	// 		return conn.BaseConn.BulkExportFlow(sqls...)
+	// 		return conn.BaseConn.BulkExportFlow(tables...)
 	// 	}
 	default:
-		return conn.BaseConn.BulkExportFlow(sqls...)
+		return conn.BaseConn.BulkExportFlow(tables...)
 	}
 
 	fs, err := filesys.NewFileSysClientFromURL(filePath, conn.PropArr()...)
@@ -175,7 +175,7 @@ func (conn *SnowflakeConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err
 }
 
 // CopyToS3 exports a query to an S3 location
-func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
+func (conn *SnowflakeConn) CopyToS3(tables ...Table) (s3Path string, err error) {
 
 	AwsID := conn.GetProp("AWS_ACCESS_KEY_ID")
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
@@ -184,13 +184,13 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 		return
 	}
 
-	unload := func(sql string, s3PathPart string) {
+	unload := func(table Table, s3PathPart string) {
 
 		defer conn.Context().Wg.Write.Done()
 
 		unloadSQL := g.R(
 			conn.template.Core["copy_to_s3"],
-			"sql", sql,
+			"sql", table.Select(),
 			"s3_path", s3PathPart,
 			"aws_access_key_id", AwsID,
 			"aws_secret_access_key", AwsAccessKey,
@@ -213,10 +213,10 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 	s3Path = fmt.Sprintf("s3://%s/%s/stream/%s.csv", s3Bucket, filePathStorageSlug, cast.ToString(g.Now()))
 
 	filesys.Delete(s3Fs, s3Path)
-	for i, sql := range sqls {
+	for i, table := range tables {
 		s3PathPart := fmt.Sprintf("%s/u%02d-", s3Path, i+1)
 		conn.Context().Wg.Write.Add()
-		go unload(sql, s3PathPart)
+		go unload(table, s3PathPart)
 	}
 
 	conn.Context().Wg.Write.Wait()
@@ -230,7 +230,7 @@ func (conn *SnowflakeConn) CopyToS3(sqls ...string) (s3Path string, err error) {
 }
 
 // CopyToAzure exports a query to an Azure location
-func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error) {
+func (conn *SnowflakeConn) CopyToAzure(tables ...Table) (azPath string, err error) {
 	if !conn.BaseConn.credsProvided("AZURE") {
 		err = g.Error("Need to set 'AZURE_SAS_SVC_URL', 'AZURE_CONTAINER' and 'AZURE_ACCOUNT' to copy from snowflake to azure")
 		return
@@ -241,13 +241,13 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 		return "", g.Error(err)
 	}
 
-	unload := func(sql string, azPathPart string) {
+	unload := func(table Table, azPathPart string) {
 
 		defer conn.Context().Wg.Write.Done()
 
 		unloadSQL := g.R(
 			conn.template.Core["copy_to_azure"],
-			"sql", sql,
+			"sql", table.Select(),
 			"azure_path", azPath,
 			"azure_sas_token", azToken,
 		)
@@ -276,10 +276,10 @@ func (conn *SnowflakeConn) CopyToAzure(sqls ...string) (azPath string, err error
 	)
 
 	filesys.Delete(azFs, azPath)
-	for i, sql := range sqls {
+	for i, table := range tables {
 		azPathPart := fmt.Sprintf("%s/u%02d-", azPath, i+1)
 		conn.Context().Wg.Write.Add()
-		go unload(sql, azPathPart)
+		go unload(table, azPathPart)
 	}
 
 	conn.Context().Wg.Write.Wait()
