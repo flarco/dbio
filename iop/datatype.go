@@ -462,7 +462,7 @@ func CompareColumns(columns1 Columns, columns2 Columns) (reshape bool, err error
 }
 
 // InferFromStats using the stats to infer data types
-func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
+func InferFromStats(columns []Column, safe bool, noDebug bool) []Column {
 	for j := range columns {
 		colStats := columns[j].Stats
 		if colStats.TotalCnt == 0 {
@@ -507,7 +507,7 @@ func InferFromStats(columns []Column, safe bool, noTrace bool) []Column {
 			columns[j].Type = DecimalType
 			columns[j].goType = reflect.TypeOf(float64(0.0))
 		}
-		if !noTrace {
+		if !noDebug {
 			g.Trace("%s - %s %s", columns[j].Name, columns[j].Type, g.Marshal(colStats))
 		}
 		columns[j].Stats = colStats

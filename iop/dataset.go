@@ -28,7 +28,7 @@ type Dataset struct {
 	Sp            *StreamProcessor
 	Inferred      bool
 	SafeInference bool
-	NoTrace       bool
+	NoDebug       bool
 }
 
 // NewDataset return a new dataset
@@ -422,12 +422,15 @@ func (data *Dataset) InferColumnTypes() {
 					}
 				} else {
 					columns[j].Stats.StringCnt++
+					if columns[j].Name == "create_dt" && columns[j].Type == StringType {
+						g.P(val)
+					}
 				}
 			}
 		}
 	}
 
-	data.Columns = InferFromStats(columns, data.SafeInference, data.NoTrace)
+	data.Columns = InferFromStats(columns, data.SafeInference, data.NoDebug)
 	data.Inferred = true
 }
 

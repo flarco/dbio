@@ -204,7 +204,7 @@ var (
 
 	filePathStorageSlug = "temp"
 
-	noTraceKey = " /* nT */"
+	noDebugKey = " /* nD */"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
 	usePool  = os.Getenv("USE_POOL") == "TRUE"
@@ -778,7 +778,7 @@ func (conn *BaseConn) LoadTemplates() error {
 
 	TypesNativeCSV := iop.CSV{Reader: bufio.NewReader(TypesNativeFile)}
 	TypesNativeCSV.Delimiter = '\t'
-	TypesNativeCSV.NoTrace = true
+	TypesNativeCSV.NoDebug = true
 
 	data, err := TypesNativeCSV.Read()
 	if err != nil {
@@ -802,7 +802,7 @@ func (conn *BaseConn) LoadTemplates() error {
 
 	TypesGeneralCSV := iop.CSV{Reader: bufio.NewReader(TypesGeneralFile)}
 	TypesGeneralCSV.Delimiter = '\t'
-	TypesGeneralCSV.NoTrace = true
+	TypesGeneralCSV.NoDebug = true
 
 	data, err = TypesGeneralCSV.Read()
 	if err != nil {
@@ -863,7 +863,9 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	if conn.tx != nil {
 		result, err = conn.tx.QueryContext(queryContext.Ctx, query)
 	} else {
-		if !strings.Contains(query, noTraceKey) {
+		if strings.Contains(query, noDebugKey) {
+			g.Trace(query)
+		} else {
 			g.Debug(query)
 		}
 		result, err = conn.db.QueryxContext(queryContext.Ctx, query)
@@ -874,7 +876,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 		err = nil
 	} else if err != nil {
 		queryContext.Cancel()
-		if strings.Contains(query, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(query, noDebugKey) && !g.IsDebugLow() {
 			return ds, g.Error(err, "SQL Error")
 		}
 		return ds, g.Error(err, "SQL Error for:\n"+query)
@@ -916,7 +918,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
 	conn.Data.Columns = SQLColumns(colTypes, conn)
-	conn.Data.NoTrace = !strings.Contains(query, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(query, noDebugKey)
 
 	g.Trace("query responded in %f secs", conn.Data.Duration)
 
@@ -950,9 +952,9 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = strings.Contains(query, noTraceKey)
+	ds.NoDebug = strings.Contains(query, noDebugKey)
 	ds.Inferred = !InferDBStream
-	if !ds.NoTrace {
+	if !ds.NoDebug {
 		// don't set metadata for internal queries
 		ds.SetMetadata(conn.GetProp("METADATA"))
 	}
@@ -1123,15 +1125,17 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 	// conn.AddLog(q)
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
-		q = q + noTraceKey // just to not show twice the sql in error since tx does
+		q = q + noDebugKey // just to not show twice the sql in error since tx does
 	} else {
-		if !strings.Contains(q, noTraceKey) {
-			g.Debug(CleanSQL(conn, q), args...)
+		if strings.Contains(q, noDebugKey) {
+			g.Trace(q)
+		} else {
+			g.DebugLow(CleanSQL(conn, q), args...)
 		}
 		result, err = conn.db.ExecContext(ctx, q, args...)
 	}
 	if err != nil {
-		if strings.Contains(q, noTraceKey) {
+		if strings.Contains(q, noDebugKey) {
 			err = g.Error(err, "Error executing query [tx: %t]", conn.tx != nil)
 		} else {
 			err = g.Error(err, "Error executing [tx: %t] %s", conn.tx != nil, CleanSQL(conn, q))
@@ -1237,7 +1241,7 @@ func (conn *BaseConn) SumbitTemplate(level string, templateMap map[string]string
 		return
 	}
 
-	template = template + noTraceKey
+	template = strings.TrimSpace(template) + noDebugKey
 	sql, err := conn.ProcessTemplate(level, template, values)
 	if err != nil {
 		err = g.Error("error processing template")
@@ -1398,7 +1402,7 @@ func (conn *BaseConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err e
 
 	// get column types
 	g.Trace("GetSQLColumns: %s", limitSQL)
-	limitSQL = limitSQL + " /* GetSQLColumns */ " + noTraceKey
+	limitSQL = limitSQL + " /* GetSQLColumns */ " + noDebugKey
 	ds, err := conn.Self().StreamRows(limitSQL)
 	if err != nil {
 		if g.IsDebugLow() {
@@ -2304,7 +2308,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 			return "", g.Error(err, "no native mapping")
 		}
 
-		if !data.NoTrace {
+		if !data.NoDebug {
 			g.Trace("%s - %s %s", col.Name, col.Type, g.Marshal(col.Stats))
 		}
 
@@ -3019,7 +3023,8 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 
 // CleanSQL removes creds from the query
 func CleanSQL(conn Connection, sql string) string {
-	if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
+	// if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
+	if os.Getenv("_DEBUG") != "" {
 		return sql
 	}
 

@@ -18,7 +18,6 @@ import (
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/g/net"
-	"github.com/samber/lo"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
@@ -222,8 +221,10 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 	}
 
 	res := bqResult{}
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
+	noDebug := strings.Contains(sql, noDebugKey)
+	if noDebug {
+		g.Trace(sql)
+	} else {
 		g.Debug(sql)
 	}
 
@@ -236,7 +237,7 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 
 	it, err := q.Read(ctx)
 	if err != nil {
-		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(sql, noDebugKey) && !g.IsDebugLow() {
 			err = g.Error(err, "Error executing query")
 			return
 		} else {
@@ -344,8 +345,10 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 		return ds, nil
 	}
 
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
+	noDebug := strings.Contains(sql, noDebugKey)
+	if noDebug {
+		g.Trace(sql)
+	} else {
 		g.Debug(sql)
 	}
 	queryContext := g.NewContext(ctx)
@@ -357,7 +360,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 
 	it, err := q.Read(queryContext.Ctx)
 	if err != nil {
-		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(sql, noDebugKey) && !g.IsDebugLow() {
 			err = g.Error(err, "SQL Error")
 		} else {
 			err = g.Error(err, "SQL Error for:\n"+sql)
@@ -368,7 +371,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	conn.Data.SQL = sql
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
-	conn.Data.NoTrace = !strings.Contains(sql, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(sql, noDebugKey)
 
 	// need to fetch first row to get schema
 	var values []bigquery.Value
@@ -408,9 +411,9 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = strings.Contains(sql, noTraceKey)
+	ds.NoDebug = strings.Contains(sql, noDebugKey)
 	ds.Inferred = !InferDBStream
-	if !ds.NoTrace {
+	if !ds.NoDebug {
 		ds.SetMetadata(conn.GetProp("METADATA"))
 	}
 
@@ -1062,9 +1065,18 @@ func (conn *BigQueryConn) GetSchemata(schemaName string, tableNames ...string) (
 	for _, dataset := range datasets {
 		g.Debug("getting schemata for %s", dataset)
 		values := g.M("schema", dataset)
-		if len(tableNames) > 0 {
-			tablesQ := lo.Map(tableNames, func(t string, i int) string { return `'` + t + `'` })
-			values["tables"] = strings.Join(tablesQ, ", ")
+
+		if len(tableNames) > 0 && !(tableNames[0] == "" && len(tableNames) == 1) {
+			tablesQ := []string{}
+			for _, tableName := range tableNames {
+				if strings.TrimSpace(tableName) == "" {
+					continue
+				}
+				tablesQ = append(tablesQ, `'`+tableName+`'`)
+			}
+			if len(tablesQ) > 0 {
+				values["tables"] = strings.Join(tablesQ, ", ")
+			}
 		}
 
 		ctx.Wg.Read.Add()

@@ -457,7 +457,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 	conn.Data.SQL = table
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
-	conn.Data.NoTrace = !strings.Contains(table, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(table, noDebugKey)
 
 	recChan := make(chan bigtable.Row)
 	doneChan := make(chan struct{})
@@ -486,7 +486,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 			bigtable.RowFilter(filter),
 		)
 		if err != nil {
-			if strings.Contains(table, noTraceKey) && !g.IsDebugLow() {
+			if strings.Contains(table, noDebugKey) && !g.IsDebugLow() {
 				err = g.Error(err, "Query Error")
 			} else {
 				err = g.Error(err, "Query Error for:\n"+table)
@@ -593,7 +593,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = strings.Contains(table, noTraceKey)
+	ds.NoDebug = strings.Contains(table, noDebugKey)
 	// ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
 

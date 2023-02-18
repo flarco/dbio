@@ -40,7 +40,7 @@ type Datastream struct {
 	Bytes         uint64
 	Sp            *StreamProcessor
 	SafeInference bool
-	NoTrace       bool
+	NoDebug       bool
 	Inferred      bool
 	deferFuncs    []func()
 	closed        bool
@@ -431,7 +431,7 @@ loop:
 			}
 			break loop
 		default:
-			if ds.it.Counter == 1 && !ds.NoTrace {
+			if ds.it.Counter == 1 && !ds.NoDebug {
 				g.Trace("%#v", ds.it.Row) // trace first row for debugging
 			}
 
@@ -447,7 +447,7 @@ loop:
 	if !ds.Inferred {
 		sampleData := NewDataset(ds.Columns)
 		sampleData.Rows = ds.Buffer
-		sampleData.NoTrace = ds.NoTrace
+		sampleData.NoDebug = ds.NoDebug
 		sampleData.SafeInference = ds.SafeInference
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
 		sampleData.InferColumnTypes()
@@ -514,7 +514,7 @@ loop:
 
 	go ds.processBwRows()
 
-	if !ds.NoTrace {
+	if !ds.NoDebug {
 		g.Trace("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
 	}
 	go func() {
@@ -543,7 +543,7 @@ loop:
 
 	loop:
 		for ds.it.next() {
-			// if !ds.NoTrace {
+			// if !ds.NoDebug {
 			// 	g.Warn("ds.it.next() ROW %s > %d", ds.ID, ds.it.Counter)
 			// }
 
@@ -560,7 +560,7 @@ loop:
 					goto loop
 				}
 
-				if df := ds.df; df != nil && df.OnColumnAdded != nil {
+				if df := ds.df; df != nil && df.OnColumnAdded != nil && df.OnColumnChanged != nil {
 					select {
 					case <-ds.pauseChan:
 						<-ds.unpauseChan // wait for unpause
@@ -624,7 +624,7 @@ loop:
 
 		ds.SetEmpty()
 
-		if !ds.NoTrace {
+		if !ds.NoDebug {
 			g.DebugLow("Pushed %d rows for %s", ds.it.Counter, ds.ID)
 		}
 	}()

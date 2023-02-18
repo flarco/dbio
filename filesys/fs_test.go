@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFileSysLocal(t *testing.T) {
+func TestFileSysLocalCsv(t *testing.T) {
 	t.Parallel()
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
@@ -55,30 +55,20 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NotContains(t, paths, "./"+testPath)
 
 	// Test datastream
+	fs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df, err := fs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
-	data, err := iop.MergeDataflow(df).Collect(0)
+	if t.Failed() {
+		return
+	}
+
+	data, err := df.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 	assert.NoError(t, df.Err())
 
-	df, err = fs.ReadDataflow("test/test1/json")
-	assert.NoError(t, err)
-
-	data, err = df.Collect()
-	assert.NoError(t, err)
-	assert.EqualValues(t, 1019, len(data.Rows))
-
-	fs.SetProp("flatten", "true")
-	df, err = fs.ReadDataflow("test/test1/json")
-	assert.NoError(t, err)
-
-	data, err = df.Collect()
-	assert.NoError(t, err)
-	assert.EqualValues(t, 1036, len(data.Rows))
-
-	fs.SetProp("header", "FALSE")
+	fs.SetProp("header", "false")
 	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 	assert.NoError(t, err)
 
@@ -93,24 +83,38 @@ func TestFileSysLocalJson(t *testing.T) {
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df, err := fs.ReadDataflow("test/test2/json")
+	df1, err := fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err := df.Collect()
+	data1, err := df1.Collect()
 	assert.NoError(t, err)
-	assert.EqualValues(t, 20, len(data.Rows))
-	assert.EqualValues(t, 1, len(data.Columns))
+	assert.EqualValues(t, 1019, len(data1.Rows))
 
 	fs.SetProp("flatten", "true")
-	df, err = fs.ReadDataflow("test/test2/json")
+	df1, err = fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err = df.Collect()
+	data1, err = df1.Collect()
 	assert.NoError(t, err)
-	assert.EqualValues(t, 20, len(data.Rows))
-	assert.EqualValues(t, 9, len(data.Columns))
-	g.P(data.Columns.Types())
-	g.P(df.SchemaVersion)
+	assert.EqualValues(t, 1036, len(data1.Rows))
+
+	fs.SetProp("flatten", "false")
+	df2, err := fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data2, err := df2.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data2.Rows))
+	assert.EqualValues(t, 1, len(data2.Columns))
+
+	fs.SetProp("flatten", "true")
+	df2, err = fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data2, err = df2.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data2.Rows))
+	assert.EqualValues(t, 9, len(data2.Columns))
 
 }
 
@@ -144,7 +148,9 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -261,7 +267,9 @@ func TestFileSysS3(t *testing.T) {
 	assert.Contains(t, paths, testPath)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -324,7 +332,9 @@ func TestFileSysAzure(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -385,7 +395,9 @@ func TestFileSysGoogle(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -428,6 +440,9 @@ func TestFileSysSftp(t *testing.T) {
 		"URL="+os.Getenv("SSH_TEST_PASSWD_URL"),
 	)
 	assert.NoError(t, err)
+	if t.Failed() {
+		return
+	}
 
 	root := os.Getenv("SSH_TEST_PASSWD_URL")
 	rootU, err := net.NewURL(root)
@@ -442,7 +457,9 @@ func TestFileSysSftp(t *testing.T) {
 	assert.EqualValues(t, 5, bw)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)

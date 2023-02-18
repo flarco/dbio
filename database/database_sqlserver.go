@@ -47,6 +47,10 @@ func (conn *MsSQLServerConn) Init() error {
 
 	conn.SetProp("use_bcp_map_parallel", "false")
 
+	if conn.BaseConn.GetProp("allow_bulk_import") == "" {
+		conn.BaseConn.SetProp("allow_bulk_import", "true")
+	}
+
 	var instance Connection
 	instance = conn
 	conn.BaseConn.instance = &instance
@@ -105,44 +109,19 @@ func (conn *MsSQLServerConn) BulkImportFlow(tableFName string, df *iop.Dataflow)
 		return conn.CopyViaAzure(tableFName, df)
 	}
 
-	_, err = exec.LookPath("bcp")
-	if err != nil {
-		g.Trace("bcp not found in path. Using cursor...")
-		for ds := range df.StreamCh {
-			c, err := conn.BaseConn.InsertBatchStream(tableFName, ds)
-			if err != nil {
-				return 0, g.Error(err, "could not insert")
-			}
-			count += c
-		}
-		return count, nil
-	}
-
-	importStream := func(ds *iop.Datastream) {
-		defer df.Context.Wg.Write.Done()
-		_, err = conn.BulkImportStream(tableFName, ds)
-		if err != nil {
-			df.Context.CaptureErr(g.Error(err))
-			df.Context.Cancel()
-		}
-	}
-
-	for ds := range df.MakeStreamCh(false) {
-		df.Context.Wg.Write.Add()
-		go importStream(ds)
-	}
-
-	df.Context.Wg.Write.Wait()
-
-	return df.Count(), df.Err()
+	return conn.BaseConn.BulkImportFlow(tableFName, df)
 }
 
 // BulkImportStream bulk import stream
 func (conn *MsSQLServerConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	conn.Commit() // cannot have transaction lock table
+
 	// return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	_, err = exec.LookPath("bcp")
 	if err != nil {
 		g.Trace("bcp not found in path. Using cursor...")
+		return conn.BaseConn.InsertBatchStream(tableFName, ds)
+	} else if conn.GetProp("allow_bulk_import") != "true" {
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	}
 
@@ -159,55 +138,16 @@ func (conn *MsSQLServerConn) BulkImportStream(tableFName string, ds *iop.Datastr
 		return
 	}
 
-	return conn.BcpImportStreamParrallel(tableFName, ds)
+	return conn.BcpImportFileParrallel(tableFName, ds)
 }
 
-// BcpImportStreamParrallel uses goroutine to import partitioned files
-func (conn *MsSQLServerConn) BcpImportStreamParrallel(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-
+// BcpImportFileParrallel uses goroutine to import partitioned files
+func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.Datastream) (count uint64, err error) {
 	fileRowLimit := cast.ToInt(conn.GetProp("FILE_MAX_ROWS"))
 	if fileRowLimit == 0 {
 		fileRowLimit = 200000
 	}
 
-	doImport := func(tableFName string, nDs *iop.Datastream) {
-		defer ds.Context.Wg.Write.Done()
-
-		_, err := conn.BcpImportStream(tableFName, nDs)
-		ds.Context.CaptureErr(err)
-	}
-
-	for nDs := range ds.Chunk(cast.ToUint64(fileRowLimit)) {
-		ds.Context.Wg.Write.Add()
-		go doImport(tableFName, nDs)
-	}
-
-	ds.Context.Wg.Write.Wait()
-
-	return ds.Count, ds.Err()
-}
-
-// BcpImportStream Import using bcp tool
-// https://docs.microsoft.com/en-us/sql/tools/bcp-utility?view=sql-server-ver15
-// bcp dbo.test1 in '/tmp/LargeDataset.csv' -S tcp:sqlserver.host,51433 -d master -U sa -P 'password' -c -t ',' -b 5000
-// Limitation: if comma or delimite is in field, it will error.
-// need to use delimiter not in field, or do some other transformation
-func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	var stderr, stdout bytes.Buffer
-	url, err := dburl.Parse(conn.URL)
-	if err != nil {
-		return
-	}
-
-	// Write the ds to a temp file
-	file, err := ioutil.TempFile(os.TempDir(), "sqlserver."+tableFName+".*.csv")
-	if err != nil {
-		err = g.Error(err, "Error opening temp file")
-		return
-	}
-	filePath := file.Name()
-
-	csv := iop.CSV{Path: filePath, Delimiter: ','}
 	delimiterRep := `$~d$~`
 	quoteRep := `$~q$~`
 	newlRep := `$~n$~`
@@ -225,7 +165,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 			switch v := val.(type) {
 			case string:
 				nRow[i] = strings.ReplaceAll(
-					val.(string), string(csv.Delimiter), delimiterRep,
+					val.(string), ",", delimiterRep,
 				)
 				nRow[i] = strings.ReplaceAll(
 					nRow[i].(string), `"`, quoteRep,
@@ -250,25 +190,123 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 		return
 	}
 
-	var csvRowCnt uint64
-	if conn.GetProp("use_bcp_map_parallel") == "true" {
-		// csvRowCnt, err = csv.WriteStream(ds.MapParallel(transf, 20)) // faster but we loose order
-		csvRowCnt, err = writeCsvWithoutQuotes(filePath, ds.MapParallel(transf, 20))
-	} else {
-		// csvRowCnt, err = csv.WriteStream(ds.Map(ds.Columns, transf))
-		csvRowCnt, err = writeCsvWithoutQuotes(filePath, ds.Map(ds.Columns, transf))
+	doImport := func(tableFName string, filePath string) {
+		defer ds.Context.Wg.Write.Done()
+
+		// delete csv
+		defer os.Remove(filePath)
+
+		_, err := conn.BcpImportFile(tableFName, filePath)
+		ds.Context.CaptureErr(err)
 	}
 
-	// delete csv
-	defer os.Remove(filePath)
+	for batch := range ds.BatchChan {
 
+		if batch.ColumnsChanged() || batch.IsFirst() {
+			ds.Context.Lock()
+			columns, err := conn.GetColumns(tableFName, batch.Columns.Names(true, false)...)
+			if err != nil {
+				return count, g.Error(err, "could not get matching list of columns from table")
+			}
+			ds.Context.Unlock()
+
+			err = batch.Shape(columns)
+			if err != nil {
+				return count, g.Error(err, "could not shape batch stream")
+			}
+		}
+
+		ds.Pause()
+		batch.AddTransform(transf)
+		ds.Unpause()
+
+		// Write the ds to a temp file
+		file, err := ioutil.TempFile(os.TempDir(), g.F("sqlserver.%s.%d.csv", tableFName, len(ds.Batches)))
+		if err != nil {
+			return 0, g.Error(err, "Error opening temp file")
+		}
+		filePath := file.Name()
+
+		csvRowCnt, err := writeCsvWithoutQuotes(filePath, batch, fileRowLimit)
+		if err != nil {
+			os.Remove(filePath)
+			err = g.Error(err, "Error csv.WriteStream(ds) to "+filePath)
+			ds.Context.CaptureErr(err)
+			ds.Context.Cancel()
+			return 0, g.Error(err)
+		} else if csvRowCnt == 0 {
+			// no data from source
+			return 0, nil
+		}
+
+		ds.Context.Wg.Write.Add()
+		go doImport(tableFName, filePath)
+	}
+
+	ds.Context.Wg.Write.Wait()
+
+	// post process if strings have been modified
+	if len(postUpdateCol) > 0 && ds.Err() == nil {
+		setCols := []string{}
+		for i, col := range ds.Columns {
+			if _, ok := postUpdateCol[i]; !ok {
+				continue
+			}
+
+			replExpr1 := g.R(
+				`REPLACE(CONVERT(VARCHAR(MAX), {field}), '{delimiterRep}', '{delimiter}')`,
+				"field", col.Name,
+				"delimiterRep", delimiterRep,
+				"delimiter", ",",
+			)
+			replExpr2 := g.R(
+				`REPLACE({replExpr1}, '{quoteRep}', '{quote}')`,
+				"replExpr1", replExpr1,
+				"quoteRep", quoteRep,
+				"quote", `"`,
+			)
+			replExpr3 := g.R(
+				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
+				"replExpr2", replExpr2,
+				"newlRep", carrRep,
+				"newl", `CHAR(13)`,
+			)
+			replExpr4 := g.R(
+				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
+				"replExpr2", replExpr3,
+				"newlRep", newlRep,
+				"newl", `CHAR(10)`,
+			)
+			setCols = append(
+				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr4),
+			)
+		}
+
+		// do update statement if needed
+		if len(setCols) > 0 {
+			setColsStr := strings.Join(setCols, ", ")
+			sql := fmt.Sprintf(`UPDATE %s SET %s`, tableFName, setColsStr) + noDebugKey
+			_, err = conn.Exec(sql)
+			if err != nil {
+				err = g.Error(err, "could not apply post update query")
+				return
+			}
+		}
+	}
+
+	return ds.Count, ds.Err()
+}
+
+// BcpImportFile Import using bcp tool
+// https://docs.microsoft.com/en-us/sql/tools/bcp-utility?view=sql-server-ver15
+// bcp dbo.test1 in '/tmp/LargeDataset.csv' -S tcp:sqlserver.host,51433 -d master -U sa -P 'password' -c -t ',' -b 5000
+// Limitation: if comma or delimite is in field, it will error.
+// need to use delimiter not in field, or do some other transformation
+func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count uint64, err error) {
+	var stderr, stdout bytes.Buffer
+	url, err := dburl.Parse(conn.URL)
 	if err != nil {
-		ds.Context.CaptureErr(g.Error(err, "Error csv.WriteStream(ds) to "+filePath))
-		ds.Context.Cancel()
-		return 0, ds.Context.Err()
-	} else if csvRowCnt == 0 {
-		// no data from source
-		return 0, nil
+		return
 	}
 
 	// Import to Database
@@ -288,7 +326,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 		"-d", database,
 		"-U", user,
 		"-P", password,
-		"-t", string(csv.Delimiter),
+		"-t", ",",
 		"-m", "1",
 		"-c",
 		"-q",
@@ -319,58 +357,7 @@ func (conn *MsSQLServerConn) BcpImportStream(tableFName string, ds *iop.Datastre
 				cmdStr, stderr.String(), stdout.String(),
 			),
 		)
-		ds.Context.CaptureErr(err)
-		ds.Context.Cancel()
 		return
-	}
-
-	// post process if strings have been modified
-	if len(postUpdateCol) > 0 {
-		setCols := []string{}
-		for i, col := range ds.Columns {
-			if _, ok := postUpdateCol[i]; !ok {
-				continue
-			}
-
-			replExpr1 := g.R(
-				`REPLACE(CONVERT(VARCHAR(MAX), {field}), '{delimiterRep}', '{delimiter}')`,
-				"field", col.Name,
-				"delimiterRep", delimiterRep,
-				"delimiter", string(csv.Delimiter),
-			)
-			replExpr2 := g.R(
-				`REPLACE({replExpr1}, '{quoteRep}', '{quote}')`,
-				"replExpr1", replExpr1,
-				"quoteRep", quoteRep,
-				"quote", `"`,
-			)
-			replExpr3 := g.R(
-				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
-				"replExpr2", replExpr2,
-				"newlRep", carrRep,
-				"newl", `CHAR(13)`,
-			)
-			replExpr4 := g.R(
-				`REPLACE({replExpr2}, '{newlRep}', {newl})`,
-				"replExpr2", replExpr3,
-				"newlRep", newlRep,
-				"newl", `CHAR(10)`,
-			)
-			setCols = append(
-				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr4),
-			)
-		}
-
-		// do update statement if needed
-		if len(setCols) > 0 {
-			setColsStr := strings.Join(setCols, ", ")
-			sql := fmt.Sprintf(`UPDATE %s SET %s`, tableFName, setColsStr)
-			_, err = conn.Exec(sql)
-			if err != nil {
-				err = g.Error(err, "could not apply post update query")
-				return
-			}
-		}
 	}
 
 	return
@@ -529,28 +516,36 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 	return 0, nil
 }
 
-func writeCsvWithoutQuotes(path string, ds *iop.Datastream) (cnt uint64, err error) {
+func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64, err error) {
 	file, err := os.Create(path)
 	if err != nil {
 		return cnt, err
 	}
-	fields := ds.GetFields(true, true)
+	fields := batch.Columns.Names(true, true)
 
 	_, err = file.Write([]byte(strings.Join(fields, ",") + "\n"))
 	if err != nil {
 		return cnt, g.Error(err, "could not write header to file")
 	}
 
-	for row0 := range ds.Rows() {
+	Sp := batch.Ds().Sp
+	Sp.SetConfig(map[string]string{"datetime_format": "2006-01-02 15:04:05.000"})
+	for row0 := range batch.Rows {
 		cnt++
 		row := make([]string, len(row0))
 		for i, val := range row0 {
-			row[i] = ds.Sp.CastToString(i, val, ds.Columns[i].Type)
+			row[i] = Sp.CastToString(i, val, batch.Columns[i].Type)
 		}
 		_, err = file.Write([]byte(strings.Join(row, ",") + "\n"))
 		if err != nil {
 			return cnt, g.Error(err, "could not write row to file")
 		}
+
+		if batch.Count == int64(limit) {
+			batch.Close()
+			continue
+		}
+
 	}
 	err = file.Close()
 	if err != nil {

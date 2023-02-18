@@ -165,3 +165,41 @@ func LoadEnvFile(path string) (ef EnvFile) {
 func GetEnvFilePath(dir string) string {
 	return path.Join(dir, "env.yaml")
 }
+
+func GetHomeDirConnsMap() (connsMap map[string]map[string]any, err error) {
+	connsMap = map[string]map[string]any{}
+	for _, homeDir := range HomeDirs {
+		envFilePath := GetEnvFilePath(homeDir)
+		if g.PathExists(envFilePath) {
+			m := g.M()
+			g.JSONConvert(LoadEnvFile(envFilePath), &m)
+			cm, _ := readConnectionsMap(m)
+			for k, v := range cm {
+				connsMap[k] = v
+			}
+		}
+	}
+	return connsMap, nil
+}
+
+func readConnectionsMap(env map[string]interface{}) (conns map[string]map[string]any, err error) {
+	conns = map[string]map[string]any{}
+
+	if connections, ok := env["connections"]; ok {
+		switch connectionsV := connections.(type) {
+		case map[string]interface{}, map[interface{}]interface{}:
+			connMap := cast.ToStringMap(connectionsV)
+			for name, v := range connMap {
+				switch v.(type) {
+				case map[string]interface{}, map[interface{}]interface{}:
+					conns[strings.ToLower(name)] = cast.ToStringMap(v)
+				default:
+					g.Warn("did not handle %s", name)
+				}
+			}
+		default:
+			g.Warn("did not handle connections profile type %T", connections)
+		}
+	}
+	return
+}

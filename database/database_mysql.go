@@ -33,7 +33,9 @@ func (conn *MySQLConn) Init() error {
 	conn.BaseConn.SetProp("allow_bulk_export", "false")
 
 	// InsertBatchStream is faster than LoadDataInFile
-	conn.BaseConn.SetProp("allow_bulk_import", "false")
+	if conn.BaseConn.GetProp("allow_bulk_import") == "" {
+		conn.BaseConn.SetProp("allow_bulk_import", "false")
+	}
 
 	var instance Connection
 	instance = conn
@@ -116,9 +118,7 @@ func (conn *MySQLConn) BulkImportStream(tableFName string, ds *iop.Datastream) (
 	if err != nil {
 		g.Trace("mysql not found in path. Using cursor...")
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
-	}
-
-	if conn.BaseConn.GetProp("allow_bulk_import") != "true" {
+	} else if conn.GetProp("allow_bulk_import") != "true" {
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	}
 

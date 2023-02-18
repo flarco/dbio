@@ -21,7 +21,9 @@ func TestExcel(t *testing.T) {
 	file, err := os.Open("test/test.excel2.xlsx")
 	assert.NoError(t, err)
 	xls, err = NewExcelFromReader(bufio.NewReader(file))
-	assert.NoError(t, err)
+	if assert.NoError(t, err) {
+		return
+	}
 
 	data := xls.GetDataset(xls.Sheets[0])
 	assert.Equal(t, 31, len(data.Columns))

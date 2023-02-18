@@ -83,7 +83,7 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 	}
 
 	// Get Warehouse
-	data, err := conn.Query("SHOW WAREHOUSES" + noTraceKey)
+	data, err := conn.Query("SHOW WAREHOUSES" + noDebugKey)
 	if err != nil {
 		return g.Error(err, "could not SHOW WAREHOUSES")
 	}
@@ -92,10 +92,10 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 	}
 
 	if conn.GetProp("schema") != "" {
-		_, err = conn.Exec("USE SCHEMA " + conn.GetProp("schema") + noTraceKey)
+		_, err = conn.Exec("USE SCHEMA " + conn.GetProp("schema") + noDebugKey)
 	}
 	if conn.GetProp("role") != "" {
-		_, err = conn.Exec("USE ROLE " + conn.GetProp("role") + noTraceKey)
+		_, err = conn.Exec("USE ROLE " + conn.GetProp("role") + noDebugKey)
 	}
 	return err
 }
@@ -106,8 +106,8 @@ func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
 		if schema == "" {
 			schema = conn.GetProp("schema")
 		}
-		conn.Exec("USE SCHEMA " + schema + noTraceKey)
-		_, err := conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging + noTraceKey)
+		conn.Exec("USE SCHEMA " + schema + noDebugKey)
+		_, err := conn.Exec("CREATE STAGE IF NOT EXISTS " + defStaging + noDebugKey)
 		if err != nil {
 			g.Warn("Tried to create Internal Snowflake Stage but failed.\n" + g.ErrMsgSimple(err))
 			return ""
