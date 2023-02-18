@@ -952,7 +952,10 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
 	ds.NoTrace = strings.Contains(query, noTraceKey)
 	ds.Inferred = !InferDBStream
-	ds.SetMetadata(conn.GetProp("METADATA"))
+	if !ds.NoTrace {
+		// don't set metadata for internal queries
+		ds.SetMetadata(conn.GetProp("METADATA"))
+	}
 
 	// drivers that need inferring
 	if conn.Type == dbio.TypeDbSQLite {
@@ -2496,7 +2499,7 @@ func (conn *BaseConn) BulkExportFlowCSV(tables ...Table) (df *iop.Dataflow, err 
 	}
 
 	g.Debug("Unloading to %s", folderPath)
-	df.SetColumns(columns)
+	df.AddColumns(columns, true) // overwrite types so we don't need to infer
 	df.Inferred = true
 
 	return
