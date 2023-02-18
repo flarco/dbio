@@ -2374,11 +2374,6 @@ func (conn *BaseConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err err
 	if UseBulkExportFlowCSV {
 		return conn.BulkExportFlowCSV(tables...)
 	}
-	columns, err := conn.Self().GetSQLColumns(tables...)
-	if err != nil {
-		err = g.Error(err, "Could not get columns.")
-		return
-	}
 
 	ctx := g.NewContext(conn.Context().Ctx)
 	df = iop.NewDataflow()
@@ -2414,9 +2409,6 @@ func (conn *BaseConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err err
 	if err != nil {
 		return df, err
 	}
-
-	df.SetColumns(columns)
-	df.Inferred = true
 
 	return df, nil
 }
