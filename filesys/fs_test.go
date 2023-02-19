@@ -229,6 +229,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -238,6 +239,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err = localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	writeFolderPath = "s3://ocral/test.fs.write.json"
@@ -336,6 +338,7 @@ func TestFileSysS3(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
@@ -399,6 +402,7 @@ func TestFileSysAzure(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -463,6 +467,7 @@ func TestFileSysGoogle(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -525,6 +530,7 @@ func TestFileSysSftp(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))

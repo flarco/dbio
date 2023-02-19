@@ -422,9 +422,6 @@ func (data *Dataset) InferColumnTypes() {
 					}
 				} else {
 					columns[j].Stats.StringCnt++
-					if columns[j].Name == "create_dt" && columns[j].Type == StringType {
-						g.P(val)
-					}
 				}
 			}
 		}

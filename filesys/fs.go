@@ -669,7 +669,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 		processReader := func(batchR *iop.BatchReader) error {
 			fileCount++
-			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileFormat.Ext())
+			subPartURL := fmt.Sprintf("%s.%04d%s", partURL, fileCount, fileFormat.Ext())
 			if singleFile {
 				subPartURL = partURL
 				for _, comp := range []iop.CompressorType{

@@ -255,7 +255,7 @@ func (fs *AzureFileSysClient) ListRecursive(url string) (paths []string, err err
 		contURL := container.GetURL()
 		contPaths, err := fs.List(contURL)
 		if err != nil {
-			err = g.Error(err, "Could not List blobs for conatiner: "+contURL)
+			err = g.Error(err, "Could not List blobs for container: "+contURL)
 			return paths, err
 		}
 		paths = append(paths, contPaths...)
