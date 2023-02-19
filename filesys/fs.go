@@ -198,6 +198,25 @@ type FileType string
 const FileTypeCsv FileType = "csv"
 const FileTypeXml FileType = "xml"
 const FileTypeJson FileType = "json"
+const FileTypeParquet FileType = "parquet"
+const FileTypeJsonLines FileType = "jsonlines"
+
+func (ft FileType) Ext() string {
+	switch ft {
+	case FileTypeJsonLines:
+		return ".jsonl"
+	default:
+		return "." + string(ft)
+	}
+}
+
+func (ft FileType) IsJson() bool {
+	switch ft {
+	case FileTypeJson, FileTypeJsonLines:
+		return true
+	}
+	return false
+}
 
 // PeekFileType peeks into the file to try determine the file type
 // CSV is the default
@@ -421,13 +440,26 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		if strings.Contains(urlStr, ".json") {
+		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
+		if string(fileFormat) == "" {
+			if strings.Contains(strings.ToLower(urlStr), FileTypeJson.Ext()) {
+				fileFormat = FileTypeJson
+			} else if strings.HasSuffix(strings.ToLower(urlStr), FileTypeXml.Ext()) {
+				fileFormat = FileTypeXml
+			} else {
+				fileFormat = FileTypeCsv
+			}
+		}
+
+		switch fileFormat {
+		case FileTypeJson:
 			err = ds.ConsumeJsonReader(reader)
-		} else if strings.HasSuffix(urlStr, ".xml") {
+		case FileTypeXml:
 			err = ds.ConsumeXmlReader(reader)
-		} else {
+		default:
 			err = ds.ConsumeCsvReader(reader)
 		}
+
 		if err != nil {
 			ds.Context.CaptureErr(g.Error(err, "Error consuming reader for %s", urlStr))
 			ds.Context.Cancel()
@@ -577,9 +609,9 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	useBufferedStream := cast.ToBool(fs.GetProp("USE_BUFFERED_STREAM"))
 	concurrency := cast.ToInt(fs.GetProp("CONCURRENCY"))
 	compression := iop.CompressorType(strings.ToUpper(fs.GetProp("COMPRESSION")))
-	fileExt := cast.ToString(fs.GetProp("FILE_EXT"))
+	fileFormat := FileType(strings.ToLower(cast.ToString(fs.GetProp("FORMAT"))))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
-	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_BYTES_LIMIT")) // uncompressed file size
+	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_MAX_BYTES")) // uncompressed file size
 	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
 		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
 	}
@@ -590,14 +622,16 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		concurrency = 7
 	}
 
-	if fileExt == "" {
+	if fileFormat == "" {
 		switch {
-		case strings.Contains(strings.ToLower(url), ".jsonl"):
-			fileExt = "jsonlines"
-		case strings.HasSuffix(strings.ToLower(url), ".json"):
-			fileExt = "json"
+		case strings.Contains(strings.ToLower(url), FileTypeJsonLines.Ext()):
+			fileFormat = FileTypeJsonLines
+		case strings.HasSuffix(strings.ToLower(url), FileTypeJson.Ext()):
+			fileFormat = FileTypeJson
+		case strings.HasSuffix(strings.ToLower(url), FileTypeXml.Ext()):
+			fileFormat = FileTypeXml
 		default:
-			fileExt = "csv"
+			fileFormat = FileTypeCsv
 		}
 	}
 
@@ -618,7 +652,9 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				fileReadyChn <- FileReady{batchR.Columns, partURL, bw0, bID}
 			}
 			if err != nil {
+				g.LogError(err)
 				df.Context.CaptureErr(g.Error(err))
+				ds.Context.CaptureErr(g.Error(err))
 				ds.Context.Cancel()
 				df.Context.Cancel()
 			}
@@ -633,7 +669,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 		processReader := func(batchR *iop.BatchReader) error {
 			fileCount++
-			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileExt)
+			subPartURL := fmt.Sprintf("%s.%04d.%s", partURL, fileCount, fileFormat.Ext())
 			if singleFile {
 				subPartURL = partURL
 				for _, comp := range []iop.CompressorType{
@@ -660,26 +696,26 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			return df.Err()
 		}
 
-		switch fileExt {
-		case "json":
+		switch fileFormat {
+		case FileTypeJson:
 			for reader := range ds.NewJsonReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
+				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1, Batch: ds.CurrentBatch})
 				if err != nil {
 					break
 				}
 			}
-		case "jsonlines":
+		case FileTypeJsonLines:
 			for reader := range ds.NewJsonLinesReaderChnl(fileRowLimit, fileBytesLimit) {
-				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
+				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1, Batch: ds.CurrentBatch})
 				if err != nil {
 					break
 				}
 			}
-		case "csv":
+		case FileTypeCsv:
 			if useBufferedStream {
 				// faster, but dangerous. Holds data in memory
 				for reader := range ds.NewCsvBufferReaderChnl(fileRowLimit, fileBytesLimit) {
-					err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1})
+					err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1, Batch: ds.CurrentBatch})
 					if err != nil {
 						break
 					}
@@ -693,6 +729,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 					}
 				}
 			}
+		default:
+			g.Warn("WriteDataflowReady | File Format not recognized: %s", fileFormat)
 		}
 
 		ds.Buffer = nil // clear buffer
@@ -797,6 +835,7 @@ type FileStreamConfig struct {
 
 // GetDataflow returns a dataflow from specified paths in specified FileSysClient
 func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *iop.Dataflow, err error) {
+	fileFormat := FileType(strings.ToLower(cast.ToString(fs.GetProp("FORMAT"))))
 
 	if len(paths) == 0 {
 		err = g.Error("Provided 0 files for: %#v", paths)
@@ -833,8 +872,8 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 		}
 
 		flatten := cast.ToBool(fs.GetProp("flatten"))
-		if flatten && isJson(paths...) {
-			ds, err := MergeReaders(fs, "json", paths...)
+		if flatten && (fileFormat.IsJson() || isJson(paths...)) {
+			ds, err := MergeReaders(fs, FileTypeJson, paths...)
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
 				return
@@ -848,8 +887,8 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			return // done
 		}
 
-		if flatten && isXml(paths...) {
-			ds, err := MergeReaders(fs, "xml", paths...)
+		if flatten && (fileFormat == FileTypeXml || isXml(paths...)) {
+			ds, err := MergeReaders(fs, FileTypeXml, paths...)
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
 				return
@@ -989,7 +1028,7 @@ func isJson(paths ...string) bool {
 			continue
 		}
 
-		if strings.Contains(path, ".json") && !strings.HasSuffix(path, ".csv") && !strings.HasSuffix(path, ".xml") {
+		if strings.Contains(path, FileTypeJson.Ext()) && !strings.HasSuffix(path, FileTypeCsv.Ext()) && !strings.HasSuffix(path, FileTypeXml.Ext()) {
 			jsonCnt++
 		}
 	}
@@ -1006,14 +1045,14 @@ func isXml(paths ...string) bool {
 			continue
 		}
 
-		if strings.Contains(path, ".xml") && !strings.HasSuffix(path, ".csv") && !strings.HasSuffix(path, ".json") {
+		if strings.Contains(path, FileTypeXml.Ext()) && !strings.HasSuffix(path, FileTypeCsv.Ext()) && !strings.HasSuffix(path, FileTypeJson.Ext()) {
 			jsonCnt++
 		}
 	}
 	return len(paths) == jsonCnt+dirCnt
 }
 
-func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.Datastream, err error) {
+func MergeReaders(fs FileSysClient, fileType FileType, paths ...string) (ds *iop.Datastream, err error) {
 	if len(paths) == 0 {
 		err = g.Error("Provided 0 files for: %#v", paths)
 		return
@@ -1082,11 +1121,11 @@ func MergeReaders(fs FileSysClient, fileType string, paths ...string) (ds *iop.D
 	}()
 
 	switch fileType {
-	case "json":
+	case FileTypeJson:
 		err = ds.ConsumeJsonReader(pipeR)
-	case "xml":
+	case FileTypeXml:
 		err = ds.ConsumeXmlReader(pipeR)
-	case "csv":
+	case FileTypeCsv:
 		err = ds.ConsumeCsvReader(pipeR)
 	default:
 		return ds, g.Error("unrecognized fileType (%s) for MergeReaders", fileType)

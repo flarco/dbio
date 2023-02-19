@@ -9,6 +9,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
 
@@ -77,6 +78,54 @@ func TestFileSysLocalCsv(t *testing.T) {
 	assert.EqualValues(t, 18, len(data1.Rows))
 
 }
+
+func TestFileSysLocalFormat(t *testing.T) {
+	t.Parallel()
+	iop.SampleSize = 4
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	// clean up existing
+	os.RemoveAll("test/test_write")
+
+	for _, format := range []FileType{FileTypeJson, FileTypeJsonLines, FileTypeCsv} {
+		if t.Failed() {
+			break
+		}
+
+		formatS := string(format)
+
+		// file
+		fs2, err := NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS)
+		assert.NoError(t, err, formatS)
+		df2, _ := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
+		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.test", formatS))
+		assert.NoError(t, err, formatS)
+		df3, err := fs2.ReadDataflow(g.F("test/test_write/%s.test", formatS))
+		assert.NoError(t, err, formatS)
+		_, err = df3.Collect()
+		assert.NoError(t, err, formatS)
+		assert.Equal(t, cast.ToInt(df2.Count()), cast.ToInt(df3.Count()))
+
+		// folder
+		fs2, err = NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS, "FILE_MAX_ROWS=5")
+		assert.NoError(t, err, formatS)
+		df2, _ = fs.ReadDataflow("test/test2/test2.1.noheader.csv")
+		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.folder", formatS))
+		assert.NoError(t, err, formatS)
+		df3, err = fs2.ReadDataflow(g.F("test/test_write/%s.folder", formatS))
+		assert.NoError(t, err, formatS)
+		_, err = df3.Collect()
+		assert.NoError(t, err, formatS)
+		assert.Equal(t, cast.ToInt(df2.Count()), cast.ToInt(df3.Count()))
+
+	}
+
+	if !t.Failed() {
+		os.RemoveAll("test/test_write")
+	}
+}
+
 func TestFileSysLocalJson(t *testing.T) {
 	t.Parallel()
 	iop.SampleSize = 4
@@ -294,7 +343,7 @@ func TestFileSysS3(t *testing.T) {
 	err = Delete(fs, writeFolderPath)
 	assert.NoError(t, err)
 
-	fs.SetProp("FILE_BYTES_LIMIT", "20000")
+	fs.SetProp("FILE_MAX_BYTES", "20000")
 	_, err = fs.WriteDataflow(df2, writeFolderPath)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())

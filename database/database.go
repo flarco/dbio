@@ -2874,8 +2874,8 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	if cast.ToInt(conn.GetProp("FILE_MAX_ROWS")) == 0 {
 		conn.SetProp("FILE_MAX_ROWS", "500000")
 	}
-	if cast.ToInt(conn.GetProp("FILE_BYTES_LIMIT")) == 0 {
-		conn.SetProp("FILE_BYTES_LIMIT", "16000000")
+	if cast.ToInt(conn.GetProp("FILE_MAX_BYTES")) == 0 {
+		conn.SetProp("FILE_MAX_BYTES", "16000000")
 	}
 
 	compr := strings.ToUpper(conn.GetProp("COMPRESSION"))
