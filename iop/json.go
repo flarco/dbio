@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/flarco/g"
+	"github.com/jmespath/go-jmespath"
 	"github.com/nqd/flat"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -19,19 +20,21 @@ type decoderLike interface {
 type jsonStream struct {
 	ColumnMap map[string]*Column
 
-	ds      *Datastream
-	sp      *StreamProcessor
-	decoder decoderLike
-	flatten bool
-	buffer  chan []interface{}
+	ds       *Datastream
+	sp       *StreamProcessor
+	decoder  decoderLike
+	jmespath string
+	flatten  bool
+	buffer   chan []interface{}
 }
 
-func NewJSONStream(ds *Datastream, decoder decoderLike, flatten bool) *jsonStream {
+func NewJSONStream(ds *Datastream, decoder decoderLike, flatten bool, jmespath string) *jsonStream {
 	js := &jsonStream{
 		ColumnMap: map[string]*Column{},
 		ds:        ds,
 		decoder:   decoder,
 		flatten:   flatten,
+		jmespath:  jmespath,
 		buffer:    make(chan []interface{}, 100000),
 		sp:        NewStreamProcessor(),
 	}
@@ -65,6 +68,14 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 	} else if err != nil {
 		it.Context.CaptureErr(g.Error(err, "could not decode JSON body"))
 		return false
+	}
+
+	if js.jmespath != "" {
+		payload, err = jmespath.Search(js.jmespath, payload)
+		if err != nil {
+			it.Context.CaptureErr(g.Error(err, "could not search jmespath: %s", js.jmespath))
+			return false
+		}
 	}
 
 	switch payloadV := payload.(type) {

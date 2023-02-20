@@ -45,6 +45,7 @@ type streamConfig struct {
 	maxDecimals    float64
 	flatten        bool
 	fieldsPerRec   int
+	jmespath       string
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -172,6 +173,9 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 	if configMap["trim_space"] != "" {
 		sp.config.trimSpace = cast.ToBool(configMap["trim_space"])
+	}
+	if configMap["jmespath"] != "" {
+		sp.config.jmespath = cast.ToString(configMap["jmespath"])
 	}
 	if configMap["skip_blank_lines"] != "" {
 		sp.config.skipBlankLines = cast.ToBool(configMap["skip_blank_lines"])

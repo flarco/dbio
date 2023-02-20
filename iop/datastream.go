@@ -664,7 +664,7 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 	}
 
 	decoder := json.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
@@ -684,7 +684,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 	}
 
 	decoder := xml.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
