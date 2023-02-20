@@ -398,6 +398,7 @@ func (c *Connection) setURL() (err error) {
 	case dbio.TypeDbBigQuery:
 		setIfMissing("dataset", c.Data["schema"])
 		setIfMissing("schema", c.Data["dataset"])
+		setIfMissing("location", "US")
 		template = "bigquery://{project}/{location}/{dataset}?"
 		if val, ok := c.Data["key_file"]; ok {
 			c.Data["keyfile"] = val
