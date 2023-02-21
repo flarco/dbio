@@ -4,12 +4,17 @@
 package database
 
 import (
-	"database/sql/driver"
+	"context"
+	"database/sql"
+	"path"
+	"runtime"
 	"strings"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
+	"github.com/flarco/g/net"
+	"github.com/samber/lo"
 )
 
 // DuckDbConn is a Duck DB connection
@@ -37,12 +42,56 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
 		connURL = newURL[0]
 	}
-	URL := strings.ReplaceAll(
-		connURL,
-		"duckdb://",
-		"",
-	)
+	URL := strings.ReplaceAll(connURL, "duckdb://", "")
 	return URL
+}
+
+// EnsureBinDuckDB ensures duckdb binary exists
+// if missing, downloads and uses
+func EnsureBinDuckDB(version string) (binPath string, err error) {
+	folderPath := path.Join(g.UserHomeDir(), "duckdb")
+	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
+	binPath = path.Join(g.UserHomeDir(), "duckdb", "duckdb"+extension)
+	found := g.PathExists(binPath)
+
+	// TODO: check version if found
+	if found {
+
+	}
+
+	if !found {
+		// we need to download it ourselves
+		var downloadURL string
+		zipPath := path.Join(g.UserHomeDir(), "duckdb.zip")
+
+		switch runtime.GOOS {
+		case "windows":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-windows-amd64.zip"
+		case "darwin":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-osx-universal.zip"
+		case "linux":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-linux-amd64.zip"
+		default:
+			return "", g.Error("OS %s not handled", runtime.GOOS)
+		}
+
+		g.Info("downloading duckdb %s for %s", version, runtime.GOOS)
+		err = net.DownloadFile(downloadURL, zipPath)
+		if err != nil {
+			return "", g.Error(err, "Unable to download duckdb binary")
+		}
+
+		paths, err := iop.Unzip(zipPath, folderPath)
+		if err != nil {
+			return "", g.Error(err, "Error unzipping duckdb zip")
+		}
+
+		if !g.PathExists(binPath) {
+			return "", g.Error("cannot find %s, paths are: %s", binPath, g.Marshal(paths))
+		}
+	}
+
+	return binPath, nil
 }
 
 // ExecContext runs a sql query with context, returns `error`
