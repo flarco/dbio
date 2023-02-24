@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g/net"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
@@ -28,6 +30,8 @@ type SQLiteConn struct {
 	BaseConn
 	URL string
 }
+
+const SQLiteVersion = "3.41.0"
 
 // Init initiates the object
 func (conn *SQLiteConn) Init() error {
@@ -70,13 +74,16 @@ func (conn *SQLiteConn) GetURL(newURL ...string) string {
 
 // BulkImportStream inserts a stream into a table
 func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
-	_, err = exec.LookPath("sqlite3")
+	defer ds.Close()
+	var columns iop.Columns
+
+	bin, err := EnsureBinSQLite()
 	if err != nil {
 		g.DebugLow("sqlite3 not found in path. Using cursor...")
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
-	cmd := exec.Command("sqlite3")
+	cmd := exec.Command(bin)
 
 	conn.Close()
 	defer conn.Connect()
@@ -96,46 +103,96 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	dbPath := strings.TrimPrefix(conn.GetURL(), "file:")
 	dbPath = strings.ReplaceAll(dbPath, "?"+dbPathU.U.RawQuery, "")
 
-	// write to temp CSV
-	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-	csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
-	sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
+	// need to clean up
+	tempFiles := []string{}
+	defer func() {
+		for _, fp := range tempFiles {
+			os.Remove(fp)
+		}
+	}()
 
-	// set header false
-	cfgMap := ds.GetConfig()
-	cfgMap["header"] = "false"
-	ds.SetConfig(cfgMap)
+	for batch := range ds.BatchChan {
+		if batch.ColumnsChanged() || batch.IsFirst() {
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			if err != nil {
+				return count, g.Error(err, "could not get list of columns from table")
+			}
 
-	if runtime.GOOS == "windows" {
-		fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
-		if err != nil {
-			err = g.Error(err, "could not obtain client for temp file")
-			return 0, err
+			err = batch.Shape(columns)
+			if err != nil {
+				return count, g.Error(err, "could not shape batch stream")
+			}
 		}
 
-		_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
-		if err != nil {
-			err = g.Error(err, "could not write to temp file")
-			return 0, err
+		sameCols := g.Marshal(ds.Columns.Names(true, true)) == g.Marshal(columns.Names(true, true))
+
+		// write to temp CSV
+		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+		csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
+		sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
+
+		// set header. not needed if not creating a temp table
+		cfgMap := ds.GetConfig()
+		cfgMap["header"] = lo.Ternary(sameCols, "false", "true")
+		ds.SetConfig(cfgMap)
+
+		if runtime.GOOS == "windows" {
+			fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
+			if err != nil {
+				err = g.Error(err, "could not obtain client for temp file")
+				return 0, err
+			}
+
+			_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
+			if err != nil {
+				err = g.Error(err, "could not write to temp file")
+				return 0, err
+			}
+			tempFiles = append(tempFiles, csvPath)
+
+		} else {
+			csvPath = "/dev/stdin"
+			cmd.Stdin = ds.NewCsvReader(0, 0)
 		}
-		defer func() { os.Remove(csvPath) }()
-	} else {
-		csvPath = "/dev/stdin"
-		cmd.Stdin = ds.NewCsvReader(0, 0)
-	}
 
-	loadSQL := g.F("PRAGMA journal_mode=WAL;\n.separator \",\"\n.import %s %s", csvPath, table.Name)
+		tempTable := g.RandSuffix("temp_", 4)
+		columnNames := lo.Map(columns.Names(true, true), func(col string, i int) string {
+			name, _ := ParseColumnName(col, conn.Type)
+			return name
+		})
 
-	err = ioutil.WriteFile(sqlPath, []byte(loadSQL), 0777)
-	if err != nil {
-		return 0, g.Error(err, "could not create load SQL for sqlite3")
-	}
-	defer func() { os.Remove(sqlPath) }()
+		sqlLines := []string{
+			"PRAGMA journal_mode=WAL ;",
+			g.F(".import --csv %s %s", csvPath, tempTable),
+			g.F(`insert into %s (%s) select * from %s ;`, table.Name, strings.Join(columnNames, ", "), tempTable),
+			g.F("drop table %s ;", tempTable),
+		}
 
-	cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
-	out, err := cmd.Output()
-	if err != nil {
-		return 0, g.Error(err, "could not ingest csv file: %s", string(out))
+		if sameCols {
+			// no need for temp table
+			sqlLines = []string{
+				"PRAGMA journal_mode=WAL ;",
+				g.F(".import --csv %s %s", csvPath, table.Name),
+			}
+		}
+
+		loadSQL := strings.Join(sqlLines, "\n")
+
+		err = ioutil.WriteFile(sqlPath, []byte(loadSQL), 0777)
+		if err != nil {
+			return 0, g.Error(err, "could not create load SQL for sqlite3")
+		}
+		tempFiles = append(tempFiles, sqlPath)
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
+		out, err := cmd.Output()
+		stderrVal := stderr.String()
+		if err != nil {
+			return 0, g.Error(err, "could not ingest csv file: %s\n%s", string(out), stderrVal)
+		}
 	}
 
 	g.Trace("COPY %d ROWS", ds.Count)
@@ -287,4 +344,86 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return tr.RoundTrip(req)
+}
+
+// EnsureBinSQLite ensures sqlite binary exists
+// if missing, downloads and uses
+func EnsureBinSQLite() (binPath string, err error) {
+	folderPath := path.Join(g.UserHomeDir(), "sqlite")
+	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
+	binPath = path.Join(g.UserHomeDir(), "sqlite", "sqlite3"+extension)
+	found := g.PathExists(binPath)
+
+	checkVersion := func() (bool, error) {
+
+		out, err := exec.Command(binPath, "-version").Output()
+		if err != nil {
+			return false, g.Error(err, "could not get version for sqlite")
+		}
+
+		if strings.HasPrefix(string(out), SQLiteVersion) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	// TODO: check version if found
+	if found {
+		ok, err := checkVersion()
+		if err != nil {
+			return "", g.Error(err, "error checking version for sqlite")
+		}
+		found = ok // so it can re-download if mismatch
+	}
+
+	if !found {
+		// we need to download it ourselves
+		var downloadURL string
+		zipPath := path.Join(g.UserHomeDir(), "sqlite.zip")
+
+		switch runtime.GOOS {
+		case "windows":
+			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win64-x64-3410000.zip"
+		case "darwin":
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-osx-x86-3410000.zip"
+		case "linux":
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-linux-x86-3410000.zip"
+		default:
+			return "", g.Error("OS %s not handled", runtime.GOOS)
+		}
+
+		downloadURL = g.R(downloadURL, "version", SQLiteVersion)
+
+		g.Info("downloading sqlite %s for %s", SQLiteVersion, runtime.GOOS)
+		err = net.DownloadFile(downloadURL, zipPath)
+		if err != nil {
+			return "", g.Error(err, "Unable to download sqlite binary")
+		}
+
+		paths, err := iop.Unzip(zipPath, folderPath)
+		if err != nil {
+			return "", g.Error(err, "Error unzipping sqlite zip")
+		}
+
+		for _, pathVal := range paths {
+			if strings.HasSuffix(pathVal, "sqlite3") || strings.HasSuffix(pathVal, "sqlite3.exe") {
+				err = os.Rename(pathVal, binPath)
+				if err != nil {
+					return "", g.Error(err, "Error renaming %s to %s", pathVal, binPath)
+				}
+			}
+		}
+
+		if !g.PathExists(binPath) {
+			return "", g.Error("cannot find %s, paths are: %s", binPath, g.Marshal(paths))
+		}
+	}
+
+	_, err = checkVersion()
+	if err != nil {
+		return "", g.Error(err, "error checking version for sqlite")
+	}
+
+	return binPath, nil
 }
