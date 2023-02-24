@@ -15,7 +15,6 @@ import (
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g/net"
-	"github.com/flarco/g/process"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
@@ -77,10 +76,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
-	proc, err := process.NewProc("sqlite3")
-	if err != nil {
-		return 0, g.Error(err, "could not create process for sqlite3")
-	}
+	cmd := exec.Command("sqlite3")
 
 	conn.Close()
 	defer conn.Connect()
@@ -125,7 +121,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		defer func() { os.Remove(csvPath) }()
 	} else {
 		csvPath = "/dev/stdin"
-		proc.StdinOverride = ds.NewCsvReader(0, 0)
+		cmd.Stdin = ds.NewCsvReader(0, 0)
 	}
 
 	loadSQL := g.F("PRAGMA journal_mode=WAL;\n.separator \",\"\n.import %s %s", csvPath, table.Name)
@@ -136,9 +132,10 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	}
 	defer func() { os.Remove(sqlPath) }()
 
-	err = proc.Run(dbPath, g.F(`.read %s`, sqlPath))
+	cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
+	out, err := cmd.Output()
 	if err != nil {
-		return 0, g.Error(err, "could not ingest csv file")
+		return 0, g.Error(err, "could not ingest csv file: %s", string(out))
 	}
 
 	g.Trace("COPY %d ROWS", ds.Count)
@@ -191,6 +188,18 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 		"set_fields", strings.ReplaceAll(upsertMap["set_fields"], "src.", "excluded."),
 		"insert_fields", upsertMap["insert_fields"],
 	)
+
+	return
+}
+
+func writeTempSQL(sql string, filePrefix ...string) (sqlPath string, err error) {
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	sqlPath = path.Join(tempDir, g.NewTsID(filePrefix...)+".sql")
+
+	err = ioutil.WriteFile(sqlPath, []byte(sql), 0777)
+	if err != nil {
+		return "", g.Error(err, "could not create temp sql")
+	}
 
 	return
 }
