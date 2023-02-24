@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"regexp"
 	"runtime"
 	"strings"
@@ -16,6 +17,8 @@ import (
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
 	"github.com/flarco/g/json"
+	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
 	jit "github.com/json-iterator/go"
 
 	"github.com/samber/lo"
@@ -764,6 +767,51 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	return
 }
 
+// ConsumeParquetReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeParquetReaderSeeker(reader io.ReadSeeker) (err error) {
+	p, err := NewParquetStream(reader, Columns{})
+	if err != nil {
+		return g.Error(err, "could create parquet stream")
+	}
+
+	ds.Columns = p.Columns()
+	ds.Inferred = true
+	ds.it = ds.NewIterator(ds.Columns, p.nextFunc)
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
+// ConsumeParquetReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
+	// need to write to temp file prior
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	parquetPath := path.Join(tempDir, g.NewTsID("parquet.temp")+".parquet")
+	ds.Defer(func() { os.Remove(parquetPath) })
+
+	file, err := os.Create(parquetPath)
+	if err != nil {
+		return g.Error(err, "Unable to create temp file: "+parquetPath)
+	}
+
+	bw, err := io.Copy(file, reader)
+	if err != nil {
+		return g.Error(err, "Unable to write to temp file: "+parquetPath)
+	}
+	g.DebugLow("wrote %d bytes to %s", bw, parquetPath)
+
+	_, err = file.Seek(0, 0) // reset to beginning
+	if err != nil {
+		return g.Error(err, "Unable to seek to beginning of temp file: "+parquetPath)
+	}
+
+	return ds.ConsumeParquetReaderSeeker(file)
+}
+
 // AddBytes add bytes as processed
 func (ds *Datastream) AddBytes(b int64) {
 	ds.Bytes = ds.Bytes + cast.ToUint64(b)
@@ -1126,6 +1174,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			if batch.ColumnsChanged() || batch.IsFirst() {
 				err := nextPipe(batch)
 				if err != nil {
+					ds.Context.CaptureErr(err)
 					return
 				}
 			}
@@ -1154,6 +1203,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 					err = nextPipe(batch)
 					if err != nil {
+						ds.Context.CaptureErr(err)
 						return
 					}
 				}
@@ -1298,6 +1348,115 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 			}
 		}
 		pipe.Writer.Close()
+	}()
+
+	return readerChn
+}
+
+// NewParquetReaderChnl provides a channel of readers as the limit is reached
+// each channel flows as fast as the consumer consumes
+func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *BatchReader) {
+	readerChn = make(chan *BatchReader, 100)
+
+	pipeR, pipeW := io.Pipe()
+
+	tbw := int64(0)
+
+	go func() {
+		var fw *goparquet.FileWriter
+		var br *BatchReader
+
+		defer close(readerChn)
+
+		nextPipe := func(batch *Batch) error {
+			if fw != nil {
+				fw.Close()
+			}
+
+			pipeW.Close() // close the prior reader?
+			tbw = 0       // reset
+
+			// new reader
+			pipeR, pipeW = io.Pipe()
+
+			schemaDef, err := getParquetSchemaDef(batch.Columns)
+			if err != nil {
+				return g.Error(err, "could not generate parquet schema definition")
+			}
+			// schemaDef := parquetschema.SchemaDefinitionFromColumnDefinition(
+			// 	getParquetColumns(batch.Columns),
+			// )
+
+			fw = goparquet.NewFileWriter(pipeW,
+				goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				goparquet.WithSchemaDefinition(schemaDef),
+				goparquet.WithCreator("flarco/dbio"),
+			)
+
+			br = &BatchReader{batch, batch.Columns, pipeR, 0}
+			readerChn <- br
+
+			return nil
+		}
+
+		for batch := range ds.BatchChan {
+			if batch.ColumnsChanged() || batch.IsFirst() {
+				err := nextPipe(batch)
+				if err != nil {
+					ds.Context.CaptureErr(err)
+					return
+				}
+			}
+
+			for row := range batch.Rows {
+				rec := g.M()
+
+				for i, col := range batch.Columns {
+					switch {
+					case col.IsBool():
+						row[i] = cast.ToBool(row[i]) // since is stored as string
+					case col.IsDecimal():
+						row[i] = cast.ToString(row[i])
+					case col.IsDatetime():
+						switch valT := row[i].(type) {
+						case time.Time:
+							if row[i] != nil {
+								row[i] = valT.UnixMicro()
+							}
+						}
+					}
+					if i < len(row) {
+						rec[col.Name] = row[i]
+					}
+				}
+				// g.PP(rec)
+
+				err := fw.AddData(rec)
+				if err != nil {
+					ds.Context.CaptureErr(g.Error(err, "error writing row"))
+					ds.Context.Cancel()
+					pipeW.Close()
+					return
+				}
+
+				fw.FlushRowGroup()
+				br.Counter++
+
+				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+					err = nextPipe(batch)
+					if err != nil {
+						ds.Context.CaptureErr(err)
+						return
+					}
+				}
+			}
+		}
+
+		if fw != nil {
+			fw.Close()
+		}
+		pipeW.Close()
+
 	}()
 
 	return readerChn

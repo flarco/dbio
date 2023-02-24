@@ -88,7 +88,7 @@ func TestFileSysLocalFormat(t *testing.T) {
 	// clean up existing
 	os.RemoveAll("test/test_write")
 
-	for _, format := range []FileType{FileTypeJson, FileTypeJsonLines, FileTypeCsv} {
+	for _, format := range []FileType{FileTypeJson, FileTypeJsonLines, FileTypeCsv, FileTypeParquet} {
 		if t.Failed() {
 			break
 		}
@@ -98,10 +98,12 @@ func TestFileSysLocalFormat(t *testing.T) {
 		// file
 		fs2, err := NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS)
 		assert.NoError(t, err, formatS)
+		fs.SetProp("header", "false")
 		df2, _ := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.test", formatS))
 		assert.NoError(t, err, formatS)
 		df3, err := fs2.ReadDataflow(g.F("test/test_write/%s.test", formatS))
+		g.LogError(err)
 		assert.NoError(t, err, formatS)
 		_, err = df3.Collect()
 		assert.NoError(t, err, formatS)
@@ -110,6 +112,7 @@ func TestFileSysLocalFormat(t *testing.T) {
 		// folder
 		fs2, err = NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS, "FILE_MAX_ROWS=5")
 		assert.NoError(t, err, formatS)
+		fs.SetProp("header", "false")
 		df2, _ = fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.folder", formatS))
 		assert.NoError(t, err, formatS)
@@ -164,6 +167,22 @@ func TestFileSysLocalJson(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 20, len(data2.Rows))
 	assert.EqualValues(t, 9, len(data2.Columns))
+
+}
+
+func TestFileSysLocalParquet(t *testing.T) {
+	t.Parallel()
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	df1, err := fs.ReadDataflow("test/test1/parquet")
+	assert.NoError(t, err)
+
+	data1, err := df1.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1018, len(data1.Rows))
+	assert.EqualValues(t, 7, len(data1.Columns))
+	// g.Info(g.Marshal(data1.Columns.Types()))
 
 }
 
@@ -360,6 +379,14 @@ func TestFileSysS3(t *testing.T) {
 	data2, err := iop.MergeDataflow(df3).Collect(int(df3.Limit))
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, len(data2.Rows))
+
+	df3, err = fs.ReadDataflow("s3://ocral-data-1/test/parquet")
+	assert.NoError(t, err)
+
+	data1, err := df3.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1018, len(data1.Rows))
+	assert.EqualValues(t, 7, len(data1.Columns))
 }
 
 func TestFileSysAzure(t *testing.T) {

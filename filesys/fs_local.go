@@ -105,14 +105,14 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 		defer fs.Context().Wg.Read.Done()
 		fs.Context().Wg.Read.Add()
 
-		reader := bufio.NewReader(file)
-
 		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
 		if string(fileFormat) == "" {
 			if strings.Contains(strings.ToLower(path), FileTypeJson.Ext()) {
 				fileFormat = FileTypeJson
 			} else if strings.HasSuffix(strings.ToLower(path), FileTypeXml.Ext()) {
 				fileFormat = FileTypeXml
+			} else if strings.HasSuffix(strings.ToLower(path), FileTypeParquet.Ext()) {
+				fileFormat = FileTypeParquet
 			} else {
 				fileFormat = FileTypeCsv
 			}
@@ -120,11 +120,13 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 		switch fileFormat {
 		case FileTypeJson, FileTypeJsonLines:
-			err = ds.ConsumeJsonReader(reader)
+			err = ds.ConsumeJsonReader(bufio.NewReader(file))
 		case FileTypeXml:
-			err = ds.ConsumeXmlReader(reader)
+			err = ds.ConsumeXmlReader(bufio.NewReader(file))
+		case FileTypeParquet:
+			err = ds.ConsumeParquetReaderSeeker(file)
 		case FileTypeCsv:
-			err = ds.ConsumeCsvReader(reader)
+			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		default:
 			g.Warn("LocalFileSysClient | File Format not recognized: %s", fileFormat)
 		}

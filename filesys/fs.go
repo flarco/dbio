@@ -446,6 +446,8 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 				fileFormat = FileTypeJson
 			} else if strings.HasSuffix(strings.ToLower(urlStr), FileTypeXml.Ext()) {
 				fileFormat = FileTypeXml
+			} else if strings.HasSuffix(strings.ToLower(urlStr), FileTypeParquet.Ext()) {
+				fileFormat = FileTypeParquet
 			} else {
 				fileFormat = FileTypeCsv
 			}
@@ -456,6 +458,8 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			err = ds.ConsumeJsonReader(reader)
 		case FileTypeXml:
 			err = ds.ConsumeXmlReader(reader)
+		case FileTypeParquet:
+			err = ds.ConsumeParquetReader(reader)
 		default:
 			err = ds.ConsumeCsvReader(reader)
 		}
@@ -630,6 +634,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			fileFormat = FileTypeJson
 		case strings.HasSuffix(strings.ToLower(url), FileTypeXml.Ext()):
 			fileFormat = FileTypeXml
+		case strings.HasSuffix(strings.ToLower(url), FileTypeParquet.Ext()):
+			fileFormat = FileTypeParquet
 		default:
 			fileFormat = FileTypeCsv
 		}
@@ -650,6 +656,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			if batchR.Counter != 0 {
 				bID := lo.Ternary(batchR.Batch != nil, batchR.Batch.ID(), "")
 				fileReadyChn <- FileReady{batchR.Columns, partURL, bw0, bID}
+			} else {
+				g.DebugLow("no data, did not write to %s", partURL)
 			}
 			if err != nil {
 				g.LogError(err)
@@ -707,6 +715,13 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		case FileTypeJsonLines:
 			for reader := range ds.NewJsonLinesReaderChnl(fileRowLimit, fileBytesLimit) {
 				err := processReader(&iop.BatchReader{Columns: ds.Columns, Reader: reader, Counter: -1, Batch: ds.CurrentBatch})
+				if err != nil {
+					break
+				}
+			}
+		case FileTypeParquet:
+			for reader := range ds.NewParquetReaderChnl(fileRowLimit, fileBytesLimit) {
+				err := processReader(reader)
 				if err != nil {
 					break
 				}
@@ -769,7 +784,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		if fsClient.FsType() == dbio.TypeFileAzure {
 			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
 		}
-		g.Trace("writing to %s [fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d useBufferedStream=%v]", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream)
+		g.Trace("writing to %s [fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d useBufferedStream=%v fileFormat=%v]", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream, fileFormat)
 
 		df.Context.Wg.Read.Add()
 		ds.SetConfig(fs.Props()) // pass options
@@ -1125,6 +1140,8 @@ func MergeReaders(fs FileSysClient, fileType FileType, paths ...string) (ds *iop
 		err = ds.ConsumeJsonReader(pipeR)
 	case FileTypeXml:
 		err = ds.ConsumeXmlReader(pipeR)
+	case FileTypeParquet:
+		err = ds.ConsumeParquetReader(pipeR)
 	case FileTypeCsv:
 		err = ds.ConsumeCsvReader(pipeR)
 	default:

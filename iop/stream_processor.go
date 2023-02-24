@@ -513,7 +513,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.rowChecksum[i] = uint64(len(sVal))
 			return sVal
 		} else {
-			nVal = strconv.FormatBool(bVal)
+			nVal = strconv.FormatBool(bVal) // keep as string
 			sp.rowChecksum[i] = uint64(len(nVal.(string)))
 		}
 
