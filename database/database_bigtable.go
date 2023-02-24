@@ -366,12 +366,12 @@ func (conn *BigTableConn) GetColumnsFull(tableFName string) (iop.Dataset, error)
 }
 
 // GetTables returns tables for given schema
-func (conn *BigTableConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err error) {
-	if len(sqls) == 0 {
+func (conn *BigTableConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err error) {
+	if len(tables) == 0 {
 		return
 	}
 
-	return conn.GetColumns(sqls[0])
+	return conn.GetColumns(tables[0].FullName())
 }
 
 func (conn *BigTableConn) GetColumns(tableFName string, fields ...string) (columns iop.Columns, err error) {
@@ -401,12 +401,12 @@ func (conn *BigTableConn) GetColumns(tableFName string, fields ...string) (colum
 	return
 }
 
-func (conn *BigTableConn) BulkExportFlow(tableNames ...string) (df *iop.Dataflow, err error) {
-	if len(tableNames) == 0 {
+func (conn *BigTableConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
+	if len(tables) == 0 {
 		return
 	}
 
-	ds, err := conn.StreamRowsContext(conn.context.Ctx, tableNames[0])
+	ds, err := conn.StreamRowsContext(conn.context.Ctx, tables[0].Name)
 	if err != nil {
 		return df, g.Error(err, "could start datastream")
 	}
@@ -457,7 +457,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 	conn.Data.SQL = table
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
-	conn.Data.NoTrace = !strings.Contains(table, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(table, noDebugKey)
 
 	recChan := make(chan bigtable.Row)
 	doneChan := make(chan struct{})
@@ -486,7 +486,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 			bigtable.RowFilter(filter),
 		)
 		if err != nil {
-			if strings.Contains(table, noTraceKey) && !g.IsDebugLow() {
+			if strings.Contains(table, noDebugKey) && !g.IsDebugLow() {
 				err = g.Error(err, "Query Error")
 			} else {
 				err = g.Error(err, "Query Error for:\n"+table)
@@ -593,7 +593,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = !strings.Contains(table, noTraceKey)
+	ds.NoDebug = strings.Contains(table, noDebugKey)
 	// ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
 

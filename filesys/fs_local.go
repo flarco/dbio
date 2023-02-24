@@ -6,11 +6,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
+	"github.com/spf13/cast"
 )
 
 // LocalFileSysClient is a file system client to write file to local file sys.
@@ -103,15 +105,32 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 		defer fs.Context().Wg.Read.Done()
 		fs.Context().Wg.Read.Add()
 
-		reader := bufio.NewReader(file)
-
-		if strings.Contains(path, ".json") {
-			err = ds.ConsumeJsonReader(reader)
-		} else if strings.HasSuffix(path, ".xml") {
-			err = ds.ConsumeXmlReader(reader)
-		} else {
-			err = ds.ConsumeCsvReader(reader)
+		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
+		if string(fileFormat) == "" {
+			if strings.Contains(strings.ToLower(path), FileTypeJson.Ext()) {
+				fileFormat = FileTypeJson
+			} else if strings.HasSuffix(strings.ToLower(path), FileTypeXml.Ext()) {
+				fileFormat = FileTypeXml
+			} else if strings.HasSuffix(strings.ToLower(path), FileTypeParquet.Ext()) {
+				fileFormat = FileTypeParquet
+			} else {
+				fileFormat = FileTypeCsv
+			}
 		}
+
+		switch fileFormat {
+		case FileTypeJson, FileTypeJsonLines:
+			err = ds.ConsumeJsonReader(bufio.NewReader(file))
+		case FileTypeXml:
+			err = ds.ConsumeXmlReader(bufio.NewReader(file))
+		case FileTypeParquet:
+			err = ds.ConsumeParquetReaderSeeker(file)
+		case FileTypeCsv:
+			err = ds.ConsumeCsvReader(bufio.NewReader(file))
+		default:
+			g.Warn("LocalFileSysClient | File Format not recognized: %s", fileFormat)
+		}
+
 		if err != nil {
 			fs.Context().CaptureErr(g.Error(err, "Error consuming reader"))
 			fs.Context().Cancel()
@@ -142,15 +161,27 @@ func (fs *LocalFileSysClient) MkdirAll(path string) (err error) {
 }
 
 // Write creates the file if non-existent and writes from the reader
-func (fs *LocalFileSysClient) Write(path string, reader io.Reader) (bw int64, err error) {
-	path = cleanLocalFilePath(path)
+func (fs *LocalFileSysClient) Write(filePath string, reader io.Reader) (bw int64, err error) {
+	filePath = cleanLocalFilePath(filePath)
 	// manage concurrency
 	defer fs.Context().Wg.Write.Done()
 	fs.Context().Wg.Write.Add()
 
-	file, err := os.Create(path)
+	// create folder if needed
+	folderPath := path.Dir(filePath)
+	if !g.PathExists(folderPath) {
+		err = os.MkdirAll(folderPath, 0777)
+		if err != nil {
+			go io.Copy(ioutil.Discard, reader)
+			err = g.Error(err, "Unable to create folder "+folderPath)
+			return
+		}
+	}
+
+	file, err := os.Create(filePath)
 	if err != nil {
-		err = g.Error(err, "Unable to open "+path)
+		go io.Copy(ioutil.Discard, reader)
+		err = g.Error(err, "Unable to open "+filePath)
 		return
 	}
 	bw, err = io.Copy(io.Writer(file), reader)

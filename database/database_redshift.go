@@ -61,7 +61,7 @@ func isRedshift(URL string) (isRs bool) {
 }
 
 // Unload unloads a query to S3
-func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
+func (conn *RedshiftConn) Unload(tables ...Table) (s3Path string, err error) {
 
 	if conn.GetProp("AWS_BUCKET") == "" {
 		return "", g.Error("need to set AWS_BUCKET")
@@ -71,11 +71,11 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 	AwsAccessKey := conn.GetProp("AWS_SECRET_ACCESS_KEY")
 
 	g.Info("unloading from redshift to s3")
-	unload := func(sql string, s3PathPart string) {
+	unload := func(table Table, s3PathPart string) {
 
 		defer conn.Context().Wg.Write.Done()
 
-		sql = strings.ReplaceAll(strings.ReplaceAll(sql, "\n", " "), "'", "''")
+		sql := strings.ReplaceAll(strings.ReplaceAll(table.Select(), "\n", " "), "'", "''")
 
 		unloadSQL := g.R(
 			conn.template.Core["copy_to_s3"],
@@ -104,10 +104,10 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 	s3Path = fmt.Sprintf("s3://%s/%s/stream/%s.csv", conn.GetProp("AWS_BUCKET"), filePathStorageSlug, cast.ToString(g.Now()))
 
 	filesys.Delete(s3Fs, s3Path)
-	for i, sql := range sqls {
+	for i, table := range tables {
 		s3PathPart := fmt.Sprintf("%s/u%02d-", s3Path, i+1)
 		conn.Context().Wg.Write.Add()
-		go unload(sql, s3PathPart)
+		go unload(table, s3PathPart)
 	}
 
 	conn.Context().Wg.Write.Wait()
@@ -123,7 +123,7 @@ func (conn *RedshiftConn) Unload(sqls ...string) (s3Path string, err error) {
 // BulkExportStream reads in bulk
 func (conn *RedshiftConn) BulkExportStream(sql string) (ds *iop.Datastream, err error) {
 
-	df, err := conn.BulkExportFlow(sql)
+	df, err := conn.BulkExportFlow(Table{SQL: sql})
 	if err != nil {
 		return ds, g.Error(err, "Could not export: \n"+sql)
 	}
@@ -132,15 +132,15 @@ func (conn *RedshiftConn) BulkExportStream(sql string) (ds *iop.Datastream, err 
 }
 
 // BulkExportFlow reads in bulk
-func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *RedshiftConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 
-	columns, err := conn.GetSQLColumns(sqls...)
+	columns, err := conn.GetSQLColumns(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not get columns.")
 		return
 	}
 
-	s3Path, err := conn.Unload(sqls...)
+	s3Path, err := conn.Unload(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not unload.")
 		return
@@ -157,7 +157,7 @@ func (conn *RedshiftConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 		err = g.Error(err, "Could not read S3 Path for UNLOAD: "+s3Path)
 		return
 	}
-	df.SetColumns(columns)
+	df.AddColumns(columns, true) // overwrite types so we don't need to infer
 	df.Inferred = true
 	df.Defer(func() { filesys.Delete(fs, s3Path) })
 

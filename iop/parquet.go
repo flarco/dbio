@@ -4,162 +4,275 @@ import (
 	// "encoding/csv"
 	// "io"
 
-	"os"
+	"io"
 	"strings"
 
 	"github.com/flarco/g"
-	"github.com/xitongsys/parquet-go-source/writerfile"
-	"github.com/xitongsys/parquet-go/source"
-	"github.com/xitongsys/parquet-go/writer"
+
 	// "github.com/xitongsys/parquet-go/reader"
+	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 // Parquet is a parquet object
 type Parquet struct {
-	Path    string
-	Columns []Column
-	File    *os.File
-	PFile   source.ParquetFile
-	Data    *Dataset
+	Path   string
+	Reader *goparquet.FileReader
+	Data   *Dataset
+	colMap map[string]int
 }
 
-func getParquetCsvSchema(columns []Column) []string {
-	typeMap := map[ColumnType]string{
-		"bool":    "BOOLEAN",
-		"int32":   "INT32",
-		"int64":   "INT64",
-		"float32": "FLOAT",
-		"float64": "DOUBLE",
-		"string":  "UTF8",
-		"uint32":  "UINT_32",
-		"uint64":  "UINT_64",
-		// "int32": "DATE",
-		// "int32": "TIME_MILLIS",
-		// "int64": "TIME_MICROS",
-		// "int64": "TIMESTAMP_MILLIS",
-		// "int64": "TIMESTAMP_MICROS",
-		"slice": "LIST",
-		"map":   "MAP",
-
-		"integer":  "INT64",
-		"decimal":  "DOUBLE",
-		"datetime": "UTF8",
+func NewParquetStream(reader io.ReadSeeker, columns Columns) (p *Parquet, err error) {
+	fr, err := goparquet.NewFileReader(reader, columns.Names()...)
+	if err != nil {
+		err = g.Error(err, "could not reader parquet reader")
+		return
 	}
-	schema := make([]string, len(columns))
-	for i, col := range columns {
+	p = &Parquet{Reader: fr}
+	p.colMap = p.Columns().FieldMap(true)
+	return
+}
 
-		Type := ""
-		if _, ok := typeMap[col.Type]; ok {
-			Type = typeMap[col.Type]
-		} else if Type != "" {
-			g.Debug("getParquetCsvSchema - type '%s' not found for '%s'", Type, col.Type)
-			Type = "UTF8"
-		} else {
-			Type = "UTF8"
+func (p *Parquet) Columns() Columns {
+
+	typeMap := map[parquet.Type]ColumnType{
+		parquet.Type_BOOLEAN:              BoolType,
+		parquet.Type_INT32:                IntegerType,
+		parquet.Type_INT64:                BigIntType,
+		parquet.Type_INT96:                BigIntType,
+		parquet.Type_FLOAT:                DecimalType,
+		parquet.Type_DOUBLE:               DecimalType,
+		parquet.Type_BYTE_ARRAY:           StringType,
+		parquet.Type_FIXED_LEN_BYTE_ARRAY: StringType,
+	}
+
+	cols := Columns{}
+	for _, col := range p.Reader.Columns() {
+		colType := col.Type()
+		if colType == nil {
+			ct := parquet.Type_BYTE_ARRAY
+			colType = &ct
 		}
 
-		colSchema := make([]string, 2)
-		colSchema[0] = "name=" + col.Name
-		colSchema[1] = "type=" + Type
-		schema[i] = strings.Join(colSchema, ", ")
+		c := Column{
+			Name:     col.Name(),
+			Type:     typeMap[*colType],
+			Position: len(cols) + 1,
+		}
+
+		lType := col.Element().LogicalType
+		switch {
+		case lType == nil:
+		case lType.IsSetSTRING():
+			c.Type = StringType
+		case lType.IsSetMAP():
+			c.Type = JsonType
+		case lType.IsSetLIST():
+			c.Type = JsonType
+		case lType.IsSetENUM():
+			c.Type = JsonType
+		case lType.IsSetDECIMAL():
+			c.Type = DecimalType
+		case lType.IsSetDATE():
+			c.Type = TimestampType
+		case lType.IsSetTIME():
+			c.Type = TimestampType
+		case lType.IsSetTIMESTAMP():
+			c.Type = TimestampType
+		case lType.IsSetINTEGER():
+			c.Type = BigIntType
+		case lType.IsSetUNKNOWN():
+			c.Type = StringType
+		case lType.IsSetJSON():
+			c.Type = JsonType
+		case lType.IsSetBSON():
+			c.Type = JsonType
+		case lType.IsSetUUID():
+			c.Type = StringType
+		}
+
+		cols = append(cols, c)
 	}
-	return schema
+	return cols
+}
+
+func (p *Parquet) nextFunc(it *Iterator) bool {
+	newRec, err := p.Reader.NextRow()
+	if err == io.EOF {
+		return false
+	} else if err != nil {
+		it.Context.CaptureErr(g.Error(err, "could not read Parquer row"))
+		return false
+	}
+
+	it.Row = make([]interface{}, len(it.ds.Columns))
+	for k, v := range newRec {
+		col := it.ds.Columns[p.colMap[strings.ToLower(k)]]
+		i := col.Position - 1
+		it.Row[i] = v
+	}
+	return true
+}
+
+func getParquetColumns(cols Columns) *parquetschema.ColumnDefinition {
+	colDef := parquetschema.ColumnDefinition{
+		Children:      []*parquetschema.ColumnDefinition{},
+		SchemaElement: &parquet.SchemaElement{Name: "table"},
+	}
+
+	for _, col := range cols {
+		lt := parquet.NewLogicalType()
+		var ct *parquet.ConvertedType
+		var t parquet.Type
+		switch col.Type {
+		case StringType, TextType, BinaryType:
+			lt.STRING = parquet.NewStringType()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8)
+			t = parquet.Type_BYTE_ARRAY
+		case JsonType:
+			lt.JSON = parquet.NewJsonType()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_JSON)
+			t = parquet.Type_BYTE_ARRAY
+		case DateType, DatetimeType, TimestampType, TimestampzType:
+			lt.DATE = parquet.NewDateType()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_DATE)
+			t = parquet.Type_BYTE_ARRAY
+		case SmallIntType, IntegerType, BigIntType:
+			lt.INTEGER = parquet.NewIntType()
+			ct0, _ := parquet.ConvertedTypeFromString("INT_64")
+			ct = &ct0
+			t = parquet.Type_INT64
+		case DecimalType, FloatType:
+			lt.INTEGER = parquet.NewIntType()
+			ct0, _ := parquet.ConvertedTypeFromString("INT_64")
+			ct = &ct0
+			t = parquet.Type_DOUBLE
+		case BoolType:
+			lt.STRING = parquet.NewStringType()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8)
+			t = parquet.Type_BYTE_ARRAY
+		default:
+			g.Warn("unhandled parquet column type: %s", col.Type)
+			lt.STRING = parquet.NewStringType()
+			ct = parquet.ConvertedTypePtr(parquet.ConvertedType_UTF8)
+			t = parquet.Type_BYTE_ARRAY
+		}
+
+		children := &parquetschema.ColumnDefinition{
+			// Children: []*parquetschema.ColumnDefinition{},
+			SchemaElement: &parquet.SchemaElement{
+				Name: col.Name,
+				// LogicalType:   lt,
+				ConvertedType: ct,
+				Type:          &t,
+			},
+		}
+		colDef.Children = append(colDef.Children, children)
+	}
+
+	return &colDef
+}
+
+func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) {
+
+	colTexts := []string{}
+	for _, col := range cols {
+		// logical-type ::= 'STRING'
+		//   | 'DATE'
+		//   | 'TIMESTAMP' '(' <time-unit> ',' <boolean> ')'
+		//   | 'UUID'
+		//   | 'ENUM'
+		//   | 'JSON'
+		//   | 'BSON'
+		//   | 'INT' '(' <bit-width> ',' <boolean> ')'
+		//   | 'DECIMAL' '(' <precision> ',' <scale> ')'
+
+		// type ::= 'binary'
+		// | 'float'
+		// | 'double'
+		// | 'boolean'
+		// | 'int32'
+		// | 'int64'
+		// | 'int96'
+		// | 'fixed_len_byte_array' '(' <number> ')'
+
+		lt := ""
+		t := ""
+		switch col.Type {
+		case StringType, TextType, BinaryType:
+			lt = "(STRING)"
+			t = "binary"
+		case JsonType:
+			lt = "(JSON)"
+			t = "binary"
+		case DateType, DatetimeType, TimestampType, TimestampzType:
+			lt = "(TIMESTAMP(MICROS, true))"
+			t = "int64"
+		case SmallIntType, IntegerType, BigIntType:
+			lt = ""
+			t = "int64"
+		case DecimalType, FloatType:
+			lt = "(DECIMAL(19,6))"
+			t = "binary"
+		case BoolType:
+			lt = ""
+			t = "boolean"
+		default:
+			g.Warn("unhandled parquet column type: %s", col.Type)
+			lt = "(STRING)"
+			t = "binary"
+		}
+
+		_ = lt
+		t = strings.ToLower(t)
+
+		// <type> <identifier> <logical-type-annotation>
+		colTexts = append(colTexts, g.F("  optional %s %s %s;", strings.ToLower(t), col.Name, lt))
+		// colTexts = append(colTexts, g.F("  optional %s %s;", t, col.Name))
+	}
+
+	schemaText := g.F("message table {\n%s\n}", strings.Join(colTexts, "\n"))
+	g.Trace(schemaText)
+	schemaDef, err := parquetschema.ParseSchemaDefinition(schemaText)
+	if err != nil {
+		g.Warn(schemaText)
+		err = g.Error(err, "could not ParseSchemaDefinition")
+	}
+	return schemaDef, err
 }
 
 // WriteStream to Parquet file from datastream
-func (p *Parquet) WriteStream(ds *Datastream) error {
+// func (p *Parquet) WriteStream(ds *Datastream) error {
 
-	if p.File == nil {
-		file, err := os.Create(p.Path)
-		if err != nil {
-			return err
-		}
-		p.File = file
-	}
+// 	if p.File == nil {
+// 		file, err := os.Create(p.Path)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		p.File = file
+// 	}
 
-	p.PFile = writerfile.NewWriterFile(p.File)
+// 	p.PFile = writerfile.NewWriterFile(p.File)
 
-	defer p.File.Close()
+// 	defer p.File.Close()
 
-	schema := getParquetCsvSchema(ds.Columns)
+// 	schema := getParquetCsvSchema(ds.Columns)
 
-	pw, err := writer.NewCSVWriter(schema, p.PFile, 4)
-	if err != nil {
-		return err
-	}
-	// defer pw.Flush(true)
+// 	pw, err := writer.NewCSVWriter(schema, p.PFile, 4)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	// defer pw.Flush(true)
 
-	for row := range ds.Rows() {
-		err := pw.Write(row)
-		if err != nil {
-			return g.Error(err, "error write row to parquet file")
-		}
-	}
+// 	for row := range ds.Rows() {
+// 		err := pw.Write(row)
+// 		if err != nil {
+// 			return g.Error(err, "error write row to parquet file")
+// 		}
+// 	}
 
-	err = pw.WriteStop()
+// 	err = pw.WriteStop()
 
-	return err
-}
-
-// func NewFileReader(file io.Reader) (source.ParquetFile, error) {
-// 	return &Parquet{}, nil
+// 	return err
 // }
-
-// ReadStream returns the read Parquet stream into a Datastream
-// https://github.com/xitongsys/parquet-go/blob/master/example/read_partial.go
-func (p *Parquet) ReadStream() (*Datastream, error) {
-	var ds *Datastream
-
-	if p.File == nil {
-		file, err := os.Open(p.Path)
-		if err != nil {
-			return ds, err
-		}
-		p.File = file
-	}
-
-	// reader.NewParquetReader(p.File, interface{}, 4)
-	// r := csv.NewReader(c.File)
-	// row0, err := r.Read()
-	// if err != nil {
-	// 	return ds, err
-	// } else if err == io.EOF {
-	// 	return ds, nil
-	// }
-
-	// ds = Datastream{
-	// 	Rows:    MakeRowsChan(),
-	// 	Columns: c.Columns,
-	// }
-
-	// if ds.Columns == nil {
-	// 	ds.setFields(row0)
-	// }
-
-	// go func() {
-	// 	defer c.File.Close()
-
-	// 	count := 1
-	// 	for {
-	// 		row0, err := r.Read()
-	// 		if err == io.EOF {
-	// 			break
-	// 		} else if err != nil {
-	// 			Check(err, "Error reading file")
-	// 			break
-	// 		}
-
-	// 		count++
-	// 		row := make([]interface{}, len(row0))
-	// 		for i, val := range row0 {
-	// 			row[i] = castVal(val, ds.Columns[i].Type)
-	// 		}
-	// 		ds.Push(row)
-
-	// 	}
-	// 	// Ensure that at the end of the loop we close the channel!
-	// 	ds.Close()
-	// }()
-
-	return ds, nil
-}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/flarco/dbio/env"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
@@ -160,7 +161,7 @@ var DBs = map[string]*testDB{
 
 	"oracle": {
 		name:        "oracle",
-		URL:         "ORACLE_URL",
+		URL:         os.Getenv("ORACLE_URL"),
 		schema:      "SYSTEM",
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
 		personDDL:   `CREATE TABLE person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
@@ -248,12 +249,21 @@ var DBs = map[string]*testDB{
 	},
 }
 
+var connsMap map[string]map[string]any
+
+func init() {
+	env.SetHomeDir("sling")
+	connsMap, _ = env.GetHomeDirConnsMap()
+	// g.Warn(g.Marshal(connsMap))
+}
+
 func TestPostgres(t *testing.T) {
 	t.Parallel()
 	db := DBs["postgres"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestClickhouse(t *testing.T) {
@@ -271,8 +281,9 @@ func TestSQLite(t *testing.T) {
 	os.Remove(dbPath)
 	db := DBs["sqlite3"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 	os.Remove(dbPath)
 }
 
@@ -282,46 +293,52 @@ func TestDuckDB(t *testing.T) {
 	g.AssertNoError(t, err)
 	// data, err := conn.Query("describe place")
 	// g.PP(data.Records())
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestMySQL(t *testing.T) {
 	t.Parallel()
 	db := DBs["mysql"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestSnowflake(t *testing.T) {
 	t.Parallel()
 	db := DBs["snowflake"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestOracle(t *testing.T) {
 	db := DBs["oracle"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestRedshift(t *testing.T) {
 	db := DBs["redshift"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func TestSqlServer(t *testing.T) {
 	t.Parallel()
 	db := DBs["sqlserver"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 
 	return
 
@@ -344,11 +361,23 @@ func TestBigQuery(t *testing.T) {
 	t.Parallel()
 	db := DBs["bigquery"]
 	conn, err := connect(db)
-	g.AssertNoError(t, err)
-	DBTest(t, db, conn)
+	if g.AssertNoError(t, err) {
+		DBTest(t, db, conn)
+	}
 }
 
 func connect(db *testDB) (conn Connection, err error) {
+	if ce, ok := connsMap[db.name]; ok {
+		if db.URL == "" {
+			db.URL = cast.ToString(ce["url"])
+		}
+	}
+
+	if val := os.Getenv("ALLOW_BULK_IMPORT"); val != "" {
+		val = strings.ToLower(cast.ToString(val))
+		db.propStrs = append(db.propStrs, g.F("ALLOW_BULK_IMPORT=%s", val))
+	}
+
 	conn, err = NewConn(db.URL, db.propStrs...)
 	if err != nil {
 		return
@@ -468,7 +497,6 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	data, err = conn.GetViews(db.schema)
 	g.AssertNoError(t, err)
 	assert.Greater(t, len(data.Rows), 0)
-	// assert.Greater(t, data.Duration, 0.0)
 
 	// GetColumns
 	columns, err := conn.GetColumns(db.schema + ".person")
@@ -754,14 +782,13 @@ func tSelectStreamLarge(t *testing.T, conn Connection, tableName string, dfMult 
 	getRate := func(cnt uint64) string {
 		return humanize.Commaf(math.Round(cast.ToFloat64(cnt) / time.Since(start).Seconds()))
 	}
-
-	sql := "select * from " + tableName
-	sqls := []string{}
+	table, _ := ParseTableName(tableName, conn.GetType())
+	tables := []Table{}
 	for i := 0; i < dfMult; i++ {
-		sqls = append(sqls, sql)
+		tables = append(tables, table)
 	}
 	UseBulkExportFlowCSV = false
-	df, err := conn.BulkExportFlow(sqls...)
+	df, err := conn.BulkExportFlow(tables...)
 	if !g.AssertNoError(t, err) {
 		return
 	}
@@ -884,7 +911,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["duckdb"]}
+	// dbs = []*testDB{DBs["sqlserver"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
@@ -959,7 +986,8 @@ func TestExport(t *testing.T) {
 	db := DBs["bigquery"]
 	conn, err := NewConn(db.URL)
 	g.AssertNoError(t, err)
-	_, err = conn.BulkExportFlow("select * from `proven-cider-633.pg_home.bank_mint_transactions`")
+	table, _ := ParseTableName(`proven-cider-633.pg_home.bank_mint_transactions`, conn.GetType())
+	_, err = conn.BulkExportFlow(table)
 	g.AssertNoError(t, err)
 }
 
@@ -1218,7 +1246,7 @@ func TestGetSQLColumnsLarge(t *testing.T) {
 	g.AssertNoError(t, err)
 
 	// sql := `select * from public.ccxt_price_second limit 500000`
-	sql := `select * from crypto.ccxt_price_second limit 500000`
+	sql := Table{SQL: `select * from crypto.ccxt_price_second limit 500000`}
 	cols, err := conn.GetSQLColumns(sql)
 	g.AssertNoError(t, err)
 	g.P(cols)
@@ -1293,7 +1321,7 @@ func TestDecimal(t *testing.T) {
 
 }
 
-func TestSnowflakeStage(t *testing.T) {
+func TestStageSnowflake(t *testing.T) {
 	db := DBs["snowflake"]
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
@@ -1344,16 +1372,6 @@ func testSnowflakeAuth(t *testing.T) {
 	g.AssertNoError(t, err)
 	g.Debug("found %d tables totalling %d columns", len(schemata.Tables()), len(schemata.Columns()))
 
-}
-
-func TestBinVersion(t *testing.T) {
-	bin, err := EnsureBinSQLite()
-	g.AssertNoError(t, err)
-	g.Warn(bin)
-
-	bin, err = EnsureBinDuckDB()
-	g.AssertNoError(t, err)
-	g.Warn(bin)
 }
 
 func TestSchemataAll(t *testing.T) {

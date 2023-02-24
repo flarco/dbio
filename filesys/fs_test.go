@@ -9,6 +9,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFileSysLocal(t *testing.T) {
+func TestFileSysLocalCsv(t *testing.T) {
 	t.Parallel()
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
@@ -55,30 +56,20 @@ func TestFileSysLocal(t *testing.T) {
 	assert.NotContains(t, paths, "./"+testPath)
 
 	// Test datastream
+	fs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df, err := fs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
-	data, err := iop.MergeDataflow(df).Collect(0)
+	if t.Failed() {
+		return
+	}
+
+	data, err := df.Collect()
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, len(data.Rows))
 	assert.NoError(t, df.Err())
 
-	df, err = fs.ReadDataflow("test/test1/json")
-	assert.NoError(t, err)
-
-	data, err = df.Collect()
-	assert.NoError(t, err)
-	assert.EqualValues(t, 1019, len(data.Rows))
-
-	fs.SetProp("flatten", "true")
-	df, err = fs.ReadDataflow("test/test1/json")
-	assert.NoError(t, err)
-
-	data, err = df.Collect()
-	assert.NoError(t, err)
-	assert.EqualValues(t, 1036, len(data.Rows))
-
-	fs.SetProp("header", "FALSE")
+	fs.SetProp("header", "false")
 	df1, err := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
 	assert.NoError(t, err)
 
@@ -87,30 +78,111 @@ func TestFileSysLocal(t *testing.T) {
 	assert.EqualValues(t, 18, len(data1.Rows))
 
 }
+
+func TestFileSysLocalFormat(t *testing.T) {
+	t.Parallel()
+	iop.SampleSize = 4
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	// clean up existing
+	os.RemoveAll("test/test_write")
+
+	for _, format := range []FileType{FileTypeJson, FileTypeJsonLines, FileTypeCsv, FileTypeParquet} {
+		if t.Failed() {
+			break
+		}
+
+		formatS := string(format)
+
+		// file
+		fs2, err := NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS)
+		assert.NoError(t, err, formatS)
+		fs.SetProp("header", "false")
+		df2, _ := fs.ReadDataflow("test/test2/test2.1.noheader.csv")
+		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.test", formatS))
+		assert.NoError(t, err, formatS)
+		df3, err := fs2.ReadDataflow(g.F("test/test_write/%s.test", formatS))
+		g.LogError(err)
+		assert.NoError(t, err, formatS)
+		_, err = df3.Collect()
+		assert.NoError(t, err, formatS)
+		assert.Equal(t, cast.ToInt(df2.Count()), cast.ToInt(df3.Count()))
+
+		// folder
+		fs2, err = NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS, "FILE_MAX_ROWS=5")
+		assert.NoError(t, err, formatS)
+		fs.SetProp("header", "false")
+		df2, _ = fs.ReadDataflow("test/test2/test2.1.noheader.csv")
+		_, err = fs2.WriteDataflow(df2, g.F("test/test_write/%s.folder", formatS))
+		assert.NoError(t, err, formatS)
+		df3, err = fs2.ReadDataflow(g.F("test/test_write/%s.folder", formatS))
+		assert.NoError(t, err, formatS)
+		_, err = df3.Collect()
+		assert.NoError(t, err, formatS)
+		assert.Equal(t, cast.ToInt(df2.Count()), cast.ToInt(df3.Count()))
+
+	}
+
+	if !t.Failed() {
+		os.RemoveAll("test/test_write")
+	}
+}
+
 func TestFileSysLocalJson(t *testing.T) {
 	t.Parallel()
 	iop.SampleSize = 4
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df, err := fs.ReadDataflow("test/test2/json")
+	df1, err := fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err := df.Collect()
+	data1, err := df1.Collect()
 	assert.NoError(t, err)
-	assert.EqualValues(t, 20, len(data.Rows))
-	assert.EqualValues(t, 1, len(data.Columns))
+	assert.EqualValues(t, 1019, len(data1.Rows))
 
 	fs.SetProp("flatten", "true")
-	df, err = fs.ReadDataflow("test/test2/json")
+	df1, err = fs.ReadDataflow("test/test1/json")
 	assert.NoError(t, err)
 
-	data, err = df.Collect()
+	data1, err = df1.Collect()
 	assert.NoError(t, err)
-	assert.EqualValues(t, 20, len(data.Rows))
-	assert.EqualValues(t, 9, len(data.Columns))
-	g.P(data.Columns.Types())
-	g.P(df.SchemaVersion)
+	assert.EqualValues(t, 1036, len(data1.Rows))
+
+	fs.SetProp("flatten", "false")
+	df2, err := fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data2, err := df2.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data2.Rows))
+	assert.EqualValues(t, 1, len(data2.Columns))
+
+	fs.SetProp("flatten", "true")
+	df2, err = fs.ReadDataflow("test/test2/json")
+	assert.NoError(t, err)
+
+	data2, err = df2.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 20, len(data2.Rows))
+	assert.EqualValues(t, 9, len(data2.Columns))
+
+}
+
+func TestFileSysLocalParquet(t *testing.T) {
+	t.Parallel()
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	df1, err := fs.ReadDataflow("test/test1/parquet")
+	assert.NoError(t, err)
+
+	data1, err := df1.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1018, len(data1.Rows))
+	assert.EqualValues(t, 7, len(data1.Columns))
+	// g.Info(g.Marshal(data1.Columns.Types()))
 
 }
 
@@ -144,7 +216,9 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -174,6 +248,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -183,6 +258,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err = localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	writeFolderPath = "s3://ocral/test.fs.write.json"
@@ -261,7 +337,9 @@ func TestFileSysS3(t *testing.T) {
 	assert.Contains(t, paths, testPath)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -279,6 +357,7 @@ func TestFileSysS3(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 
@@ -286,7 +365,7 @@ func TestFileSysS3(t *testing.T) {
 	err = Delete(fs, writeFolderPath)
 	assert.NoError(t, err)
 
-	fs.SetProp("FILE_BYTES_LIMIT", "20000")
+	fs.SetProp("FILE_MAX_BYTES", "20000")
 	_, err = fs.WriteDataflow(df2, writeFolderPath)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1036, df2.Count())
@@ -300,6 +379,14 @@ func TestFileSysS3(t *testing.T) {
 	data2, err := iop.MergeDataflow(df3).Collect(int(df3.Limit))
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, len(data2.Rows))
+
+	df3, err = fs.ReadDataflow("s3://ocral-data-1/test/parquet")
+	assert.NoError(t, err)
+
+	data1, err := df3.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1018, len(data1.Rows))
+	assert.EqualValues(t, 7, len(data1.Columns))
 }
 
 func TestFileSysAzure(t *testing.T) {
@@ -324,7 +411,9 @@ func TestFileSysAzure(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -340,6 +429,7 @@ func TestFileSysAzure(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -385,7 +475,9 @@ func TestFileSysGoogle(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -402,6 +494,7 @@ func TestFileSysGoogle(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))
@@ -428,6 +521,9 @@ func TestFileSysSftp(t *testing.T) {
 		"URL="+os.Getenv("SSH_TEST_PASSWD_URL"),
 	)
 	assert.NoError(t, err)
+	if t.Failed() {
+		return
+	}
 
 	root := os.Getenv("SSH_TEST_PASSWD_URL")
 	rootU, err := net.NewURL(root)
@@ -442,7 +538,9 @@ func TestFileSysSftp(t *testing.T) {
 	assert.EqualValues(t, 5, bw)
 
 	reader2, err := fs.GetReader(testPath)
-	assert.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	testBytes, err := ioutil.ReadAll(reader2)
 	assert.NoError(t, err)
@@ -459,6 +557,7 @@ func TestFileSysSftp(t *testing.T) {
 	localFs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
+	localFs.SetProp("datetime_format", "02-01-2006 15:04:05.000")
 	df2, err := localFs.ReadDataflow("test/test1/csv")
 	assert.NoError(t, err)
 	// assert.EqualValues(t, 3, len(df2.Streams))

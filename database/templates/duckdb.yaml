@@ -5,6 +5,7 @@ core:
   replace: replace into {table} ({names}) values({values})
   truncate_table: delete from {table}
   insert_option: ""
+  modify_column: 'alter {column} type {type}'
 
 
 metadata:
@@ -131,8 +132,7 @@ analysis:
 
 function:
   sleep: select sqlite3_sleep({seconds}*1000)
-  checksum_datetime: CAST((strftime('%s', {field}) || substr(strftime('%f',{field}),4) ) as bigint)
-  checksum_boolean: '{field}'  # bool is usually number
+  checksum_datetime: CAST((epoch({field}) || substr(strftime('%f',{field}),4) ) as bigint)
   checksum_decimal: 'abs(cast({field} as bigint))'
 
 variable:

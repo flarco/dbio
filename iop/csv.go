@@ -25,7 +25,7 @@ type CSV struct {
 	File            *os.File
 	Data            Dataset
 	Reader          io.Reader
-	NoTrace         bool
+	NoDebug         bool
 	bytes           int64
 	noInfer         bool
 	cleanup         bool
@@ -153,7 +153,7 @@ func (c *CSV) Read() (data Dataset, err error) {
 	if err != nil {
 		return c.Data, g.Error(err, "Error collecting")
 	}
-	c.Data.NoTrace = c.NoTrace
+	c.Data.NoDebug = c.NoDebug
 	return c.Data, err
 }
 
@@ -237,7 +237,7 @@ func (c *CSV) getReader(delimiter string) (*csv.Reader, error) {
 		deli, numCols, err = detectDelimiter(delimiter, testBytes)
 		if err != nil {
 			return r, g.Error(err, "could not detect delimiter")
-		} else if !c.NoTrace && deli != ',' {
+		} else if !c.NoDebug && deli != ',' {
 			if delimiter == "" {
 				g.Info("delimiter auto-detected: %#v", string(deli))
 			} else {
@@ -337,7 +337,7 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 	}
 
 	ds = NewDatastreamIt(context.Background(), c.Columns, nextFunc)
-	ds.NoTrace = c.NoTrace
+	ds.NoDebug = c.NoDebug
 
 	err = ds.Start()
 	if err != nil {

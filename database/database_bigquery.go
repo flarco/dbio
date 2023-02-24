@@ -18,7 +18,6 @@ import (
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/g/net"
-	"github.com/samber/lo"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
@@ -222,8 +221,10 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 	}
 
 	res := bqResult{}
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
+	noDebug := strings.Contains(sql, noDebugKey)
+	if noDebug {
+		g.Trace(sql)
+	} else {
 		g.Debug(sql)
 	}
 
@@ -236,7 +237,7 @@ func (conn *BigQueryConn) ExecContext(ctx context.Context, sql string, args ...i
 
 	it, err := q.Read(ctx)
 	if err != nil {
-		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(sql, noDebugKey) && !g.IsDebugLow() {
 			err = g.Error(err, "Error executing query")
 			return
 		} else {
@@ -344,8 +345,10 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 		return ds, nil
 	}
 
-	noTrace := strings.Contains(sql, noTraceKey)
-	if !noTrace {
+	noDebug := strings.Contains(sql, noDebugKey)
+	if noDebug {
+		g.Trace(sql)
+	} else {
 		g.Debug(sql)
 	}
 	queryContext := g.NewContext(ctx)
@@ -357,7 +360,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 
 	it, err := q.Read(queryContext.Ctx)
 	if err != nil {
-		if strings.Contains(sql, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(sql, noDebugKey) && !g.IsDebugLow() {
 			err = g.Error(err, "SQL Error")
 		} else {
 			err = g.Error(err, "SQL Error for:\n"+sql)
@@ -368,7 +371,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	conn.Data.SQL = sql
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
-	conn.Data.NoTrace = !strings.Contains(sql, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(sql, noDebugKey)
 
 	// need to fetch first row to get schema
 	var values []bigquery.Value
@@ -408,9 +411,11 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = !strings.Contains(sql, noTraceKey)
+	ds.NoDebug = strings.Contains(sql, noDebugKey)
 	ds.Inferred = !InferDBStream
-	ds.SetMetadata(conn.GetProp("METADATA"))
+	if !ds.NoDebug {
+		ds.SetMetadata(conn.GetProp("METADATA"))
+	}
 
 	// add first row pulled to buffer
 	row := make([]interface{}, len(values))
@@ -736,13 +741,13 @@ func (conn *BigQueryConn) CopyFromGCS(gcsURI string, tableFName string, dsColumn
 }
 
 // BulkExportFlow reads in bulk
-func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BigQueryConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 	if conn.GetProp("GC_BUCKET") == "" {
 		g.Warn("No GCS Bucket was provided, pulling from cursor (which may be slower for big datasets). ")
-		return conn.BaseConn.BulkExportFlow(sqls...)
+		return conn.BaseConn.BulkExportFlow(tables...)
 	}
 
-	gsURL, err := conn.Unload(sqls...)
+	gsURL, err := conn.Unload(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not unload.")
 		return
@@ -784,36 +789,20 @@ func (conn *BigQueryConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err 
 // }
 
 // Unload to Google Cloud Storage
-func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
+func (conn *BigQueryConn) Unload(tables ...Table) (gsPath string, err error) {
 	gcBucket := conn.GetProp("GC_BUCKET")
 	if gcBucket == "" {
 		err = g.Error("Must provide prop 'GC_BUCKET'")
 		return
 	}
 
-	doExport := func(sql string, gsPartURL string) {
+	doExport := func(table Table, gsPartURL string) {
 		defer conn.Context().Wg.Write.Done()
 
 		bucket := conn.GetProp("GC_BUCKET")
 		if bucket == "" {
 			err = g.Error("need to provide prop 'GC_BUCKET'")
 			return
-		}
-
-		table, err := ParseTableName(sql, conn.Type)
-		if err != nil {
-			conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
-			return
-		}
-
-		if strings.HasPrefix(sql, "select * from ") {
-			table, err = ParseTableName(strings.TrimPrefix(sql, "select * from "), conn.Type)
-			if err != nil {
-				conn.Context().CaptureErr(g.Error(err, "could not parse table name"))
-				return
-			} else if table.IsQuery() {
-				table.SQL = sql
-			}
 		}
 
 		err = conn.CopyToGCS(table, gsPartURL)
@@ -831,10 +820,10 @@ func (conn *BigQueryConn) Unload(sqls ...string) (gsPath string, err error) {
 
 	filesys.Delete(gsFs, gsPath)
 
-	for i, sql := range sqls {
+	for i, table := range tables {
 		gsPathPart := fmt.Sprintf("%s/part%02d-*", gsPath, i+1)
 		conn.Context().Wg.Write.Add()
-		go doExport(sql, gsPathPart)
+		go doExport(table, gsPathPart)
 	}
 
 	conn.Context().Wg.Write.Wait()
@@ -1076,9 +1065,18 @@ func (conn *BigQueryConn) GetSchemata(schemaName string, tableNames ...string) (
 	for _, dataset := range datasets {
 		g.Debug("getting schemata for %s", dataset)
 		values := g.M("schema", dataset)
-		if len(tableNames) > 0 {
-			tablesQ := lo.Map(tableNames, func(t string, i int) string { return `'` + t + `'` })
-			values["tables"] = strings.Join(tablesQ, ", ")
+
+		if len(tableNames) > 0 && !(tableNames[0] == "" && len(tableNames) == 1) {
+			tablesQ := []string{}
+			for _, tableName := range tableNames {
+				if strings.TrimSpace(tableName) == "" {
+					continue
+				}
+				tablesQ = append(tablesQ, `'`+tableName+`'`)
+			}
+			if len(tablesQ) > 0 {
+				values["tables"] = strings.Join(tablesQ, ", ")
+			}
 		}
 
 		ctx.Wg.Read.Add()

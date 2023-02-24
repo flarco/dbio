@@ -42,7 +42,7 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 	ds.Batches = append(ds.Batches, batch)
 	ds.CurrentBatch = batch
 	ds.BatchChan <- batch
-	if !ds.NoTrace {
+	if !ds.NoDebug {
 		g.Trace("new batch %s", batch.ID())
 	}
 	return batch
@@ -57,6 +57,10 @@ func (ds *Datastream) LatestBatch() *Batch {
 
 func (b *Batch) ID() string {
 	return g.F("%s-%d", b.ds.ID, b.id)
+}
+
+func (b *Batch) Ds() *Datastream {
+	return b.ds
 }
 
 func (b *Batch) IsFirst() bool {
@@ -74,7 +78,7 @@ func (b *Batch) Close() {
 		}
 		b.closed = true
 		close(b.Rows)
-		if !b.ds.NoTrace {
+		if !b.ds.NoDebug {
 			g.Trace("closed %s", b.ID())
 		}
 	}
@@ -141,13 +145,17 @@ func (b *Batch) Shape(tgtColumns Columns, pause ...bool) (err error) {
 		b.ds.Pause()
 	}
 	b.Columns = tgtColumns // should match the target columns
-	b.transforms = append(b.transforms, mapRowCol)
+	b.AddTransform(mapRowCol)
 	g.DebugLow("%s | added mapRowCol, len(b.transforms) = %d", b.ID(), len(b.transforms))
 	if doPause {
 		b.ds.Unpause()
 	}
 
 	return nil
+}
+
+func (b *Batch) AddTransform(transf func(row []any) []any) {
+	b.transforms = append(b.transforms, transf)
 }
 
 func (b *Batch) Push(row []any) {

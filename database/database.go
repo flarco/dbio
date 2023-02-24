@@ -57,7 +57,7 @@ type Connection interface {
 	BaseURL() string
 	Begin(options ...*sql.TxOptions) error
 	BeginContext(ctx context.Context, options ...*sql.TxOptions) error
-	BulkExportFlow(sqls ...string) (*iop.Dataflow, error)
+	BulkExportFlow(tables ...Table) (*iop.Dataflow, error)
 	BulkExportStream(sql string) (*iop.Datastream, error)
 	BulkImportFlow(tableFName string, df *iop.Dataflow) (count uint64, err error)
 	BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error)
@@ -97,7 +97,7 @@ type Connection interface {
 	GetProp(string) string
 	GetSchemas() (iop.Dataset, error)
 	GetSchemata(schemaName string, tableNames ...string) (Schemata, error)
-	GetSQLColumns(sqls ...string) (columns iop.Columns, err error)
+	GetSQLColumns(tables ...Table) (columns iop.Columns, err error)
 	GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error)
 	GetTables(string) (iop.Dataset, error)
 	GetTemplateValue(path string) (value string)
@@ -204,7 +204,7 @@ var (
 
 	filePathStorageSlug = "temp"
 
-	noTraceKey = " /* nT */"
+	noDebugKey = " /* nD */"
 
 	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
 	usePool  = os.Getenv("USE_POOL") == "TRUE"
@@ -778,7 +778,7 @@ func (conn *BaseConn) LoadTemplates() error {
 
 	TypesNativeCSV := iop.CSV{Reader: bufio.NewReader(TypesNativeFile)}
 	TypesNativeCSV.Delimiter = '\t'
-	TypesNativeCSV.NoTrace = true
+	TypesNativeCSV.NoDebug = true
 
 	data, err := TypesNativeCSV.Read()
 	if err != nil {
@@ -802,7 +802,7 @@ func (conn *BaseConn) LoadTemplates() error {
 
 	TypesGeneralCSV := iop.CSV{Reader: bufio.NewReader(TypesGeneralFile)}
 	TypesGeneralCSV.Delimiter = '\t'
-	TypesGeneralCSV.NoTrace = true
+	TypesGeneralCSV.NoDebug = true
 
 	data, err = TypesGeneralCSV.Read()
 	if err != nil {
@@ -863,7 +863,9 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	if conn.tx != nil {
 		result, err = conn.tx.QueryContext(queryContext.Ctx, query)
 	} else {
-		if !strings.Contains(query, noTraceKey) {
+		if strings.Contains(query, noDebugKey) {
+			g.Trace(query)
+		} else {
 			g.Debug(query)
 		}
 		result, err = conn.db.QueryxContext(queryContext.Ctx, query)
@@ -874,7 +876,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 		err = nil
 	} else if err != nil {
 		queryContext.Cancel()
-		if strings.Contains(query, noTraceKey) && !g.IsDebugLow() {
+		if strings.Contains(query, noDebugKey) && !g.IsDebugLow() {
 			return ds, g.Error(err, "SQL Error")
 		}
 		return ds, g.Error(err, "SQL Error for:\n"+query)
@@ -916,7 +918,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	conn.Data.Duration = time.Since(start).Seconds()
 	conn.Data.Rows = [][]interface{}{}
 	conn.Data.Columns = SQLColumns(colTypes, conn)
-	conn.Data.NoTrace = !strings.Contains(query, noTraceKey)
+	conn.Data.NoDebug = !strings.Contains(query, noDebugKey)
 
 	g.Trace("query responded in %f secs", conn.Data.Duration)
 
@@ -950,9 +952,12 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	}
 
 	ds = iop.NewDatastreamIt(queryContext.Ctx, conn.Data.Columns, nextFunc)
-	ds.NoTrace = strings.Contains(query, noTraceKey)
+	ds.NoDebug = strings.Contains(query, noDebugKey)
 	ds.Inferred = !InferDBStream
-	ds.SetMetadata(conn.GetProp("METADATA"))
+	if !ds.NoDebug {
+		// don't set metadata for internal queries
+		ds.SetMetadata(conn.GetProp("METADATA"))
+	}
 
 	// drivers that need inferring
 	if conn.Type == dbio.TypeDbSQLite {
@@ -1120,15 +1125,17 @@ func (conn *BaseConn) ExecContext(ctx context.Context, q string, args ...interfa
 	// conn.AddLog(q)
 	if conn.tx != nil {
 		result, err = conn.tx.ExecContext(ctx, q, args...)
-		q = q + noTraceKey // just to not show twice the sql in error since tx does
+		q = q + noDebugKey // just to not show twice the sql in error since tx does
 	} else {
-		if !strings.Contains(q, noTraceKey) {
-			g.Debug(CleanSQL(conn, q), args...)
+		if strings.Contains(q, noDebugKey) {
+			g.Trace(q)
+		} else {
+			g.DebugLow(CleanSQL(conn, q), args...)
 		}
 		result, err = conn.db.ExecContext(ctx, q, args...)
 	}
 	if err != nil {
-		if strings.Contains(q, noTraceKey) {
+		if strings.Contains(q, noDebugKey) {
 			err = g.Error(err, "Error executing query [tx: %t]", conn.tx != nil)
 		} else {
 			err = g.Error(err, "Error executing [tx: %t] %s", conn.tx != nil, CleanSQL(conn, q))
@@ -1234,7 +1241,7 @@ func (conn *BaseConn) SumbitTemplate(level string, templateMap map[string]string
 		return
 	}
 
-	template = template + noTraceKey
+	template = strings.TrimSpace(template) + noDebugKey
 	sql, err := conn.ProcessTemplate(level, template, values)
 	if err != nil {
 		err = g.Error("error processing template")
@@ -1374,24 +1381,28 @@ func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.Colu
 }
 
 // GetSQLColumns return columns from a sql query result
-func (conn *BaseConn) GetSQLColumns(sqls ...string) (columns iop.Columns, err error) {
-	sql := ""
-	if len(sqls) > 0 {
-		sql = sqls[0]
+func (conn *BaseConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err error) {
+	var table Table
+	if len(tables) > 0 {
+		table = tables[0]
 	} else {
 		err = g.Error("no query provided")
 		return
 	}
 
+	if !table.IsQuery() {
+		return conn.GetColumns(table.FullName())
+	}
+
 	limitSQL := g.R(
 		conn.GetTemplateValue("core.limit"),
-		"sql", sql,
+		"sql", table.SQL,
 		"limit", "1",
 	)
 
 	// get column types
 	g.Trace("GetSQLColumns: %s", limitSQL)
-	limitSQL = limitSQL + " /* GetSQLColumns */ " + noTraceKey
+	limitSQL = limitSQL + " /* GetSQLColumns */ " + noDebugKey
 	ds, err := conn.Self().StreamRows(limitSQL)
 	if err != nil {
 		if g.IsDebugLow() {
@@ -1424,14 +1435,14 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 		"single", conn.template.Metadata, "columns",
 		g.M("schema", table.Schema, "table", table.Name),
 	)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "does not exist") {
 		return false, g.Error(err, "could not check table existence: "+tableFName)
 	}
 
 	if len(colData.Rows) > 0 {
 		exists = true
 	}
-	return
+	return exists, nil
 }
 
 // GetColumns returns columns for given table. `tableFName` should
@@ -1439,7 +1450,7 @@ func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
 // fields should be `column_name|data_type`
 func (conn *BaseConn) GetTableColumns(table *Table, fields ...string) (columns iop.Columns, err error) {
 	if table.IsQuery() {
-		return conn.GetSQLColumns(table.SQL)
+		return conn.GetSQLColumns(*table)
 	}
 
 	columns = iop.Columns{}
@@ -2297,7 +2308,7 @@ func (conn *BaseConn) GenerateDDL(tableFName string, data iop.Dataset, temporary
 			return "", g.Error(err, "no native mapping")
 		}
 
-		if !data.NoTrace {
+		if !data.NoDebug {
 			g.Trace("%s - %s %s", col.Name, col.Type, g.Marshal(col.Stats))
 		}
 
@@ -2364,16 +2375,11 @@ func (conn *BaseConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (count
 }
 
 // BulkExportFlow creates a dataflow from a sql query
-func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BaseConn) BulkExportFlow(tables ...Table) (df *iop.Dataflow, err error) {
 
 	g.Trace("BulkExportFlow not implemented for %s", conn.GetType())
 	if UseBulkExportFlowCSV {
-		return conn.BulkExportFlowCSV(sqls...)
-	}
-	columns, err := conn.Self().GetSQLColumns(sqls...)
-	if err != nil {
-		err = g.Error(err, "Could not get columns.")
-		return
+		return conn.BulkExportFlowCSV(tables...)
 	}
 
 	ctx := g.NewContext(conn.Context().Ctx)
@@ -2386,8 +2392,8 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 		defer close(dsCh)
 		dss := []*iop.Datastream{}
 
-		for _, sql := range sqls {
-			ds, err := conn.Self().BulkExportStream(sql)
+		for _, table := range tables {
+			ds, err := conn.Self().BulkExportStream(table.Select())
 			if err != nil {
 				df.Context.CaptureErr(g.Error(err, "Error running query"))
 				return
@@ -2411,16 +2417,13 @@ func (conn *BaseConn) BulkExportFlow(sqls ...string) (df *iop.Dataflow, err erro
 		return df, err
 	}
 
-	df.SetColumns(columns)
-	df.Inferred = true
-
 	return df, nil
 }
 
 // BulkExportFlowCSV creates a dataflow from a sql query, using CSVs
-func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err error) {
+func (conn *BaseConn) BulkExportFlowCSV(tables ...Table) (df *iop.Dataflow, err error) {
 
-	columns, err := conn.Self().GetSQLColumns(sqls...)
+	columns, err := conn.Self().GetSQLColumns(tables...)
 	if err != nil {
 		err = g.Error(err, "Could not get columns.")
 		return
@@ -2429,11 +2432,11 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	df = iop.NewDataflow()
 	dsCh := make(chan *iop.Datastream)
 
-	unload := func(sql string, pathPart string) {
+	unload := func(table Table, pathPart string) {
 		defer df.Context.Wg.Read.Done()
 		defer close(dsCh)
 		fileReadyChn := make(chan filesys.FileReady, 10000)
-		ds, err := conn.Self().BulkExportStream(sql)
+		ds, err := conn.Self().BulkExportStream(table.Select())
 		if err != nil {
 			df.Context.CaptureErr(g.Error(err, "Error running query"))
 			df.Context.Cancel()
@@ -2481,10 +2484,10 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 
 	go func() {
 		defer df.Close()
-		for i, sql := range sqls {
+		for i, table := range tables {
 			pathPart := fmt.Sprintf("%s/sql%02d", folderPath, i+1)
 			df.Context.Wg.Read.Add()
-			go unload(sql, pathPart)
+			go unload(table, pathPart)
 		}
 
 		// wait until all nDs are pushed to close
@@ -2500,7 +2503,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 	}
 
 	g.Debug("Unloading to %s", folderPath)
-	df.SetColumns(columns)
+	df.AddColumns(columns, true) // overwrite types so we don't need to infer
 	df.Inferred = true
 
 	return
@@ -2508,7 +2511,7 @@ func (conn *BaseConn) BulkExportFlowCSV(sqls ...string) (df *iop.Dataflow, err e
 
 // GenerateUpsertSQL returns a sql for upsert
 func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
-	return
+	return "", g.Error("GenerateUpsertSQL is not implemented for %s", conn.Type)
 }
 
 // GenerateUpsertExpressions returns a map with needed expressions
@@ -2796,7 +2799,7 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 	}
 
 	sql := g.F(
-		"select %s from %s "+noTraceKey,
+		"select %s from %s ",
 		strings.Join(exprs, ", "),
 		tableName,
 	)
@@ -2871,8 +2874,8 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	if cast.ToInt(conn.GetProp("FILE_MAX_ROWS")) == 0 {
 		conn.SetProp("FILE_MAX_ROWS", "500000")
 	}
-	if cast.ToInt(conn.GetProp("FILE_BYTES_LIMIT")) == 0 {
-		conn.SetProp("FILE_BYTES_LIMIT", "16000000")
+	if cast.ToInt(conn.GetProp("FILE_MAX_BYTES")) == 0 {
+		conn.SetProp("FILE_MAX_BYTES", "16000000")
 	}
 
 	compr := strings.ToUpper(conn.GetProp("COMPRESSION"))
@@ -3020,7 +3023,8 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 
 // CleanSQL removes creds from the query
 func CleanSQL(conn Connection, sql string) string {
-	if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
+	// if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
+	if os.Getenv("_DEBUG") != "" {
 		return sql
 	}
 

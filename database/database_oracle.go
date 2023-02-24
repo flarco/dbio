@@ -35,7 +35,9 @@ func (conn *OracleConn) Init() error {
 	conn.BaseConn.Type = dbio.TypeDbOracle
 	conn.BaseConn.defaultPort = 1521
 
-	conn.SetProp("allow_bulk_import", "true")
+	if conn.BaseConn.GetProp("allow_bulk_import") == "" {
+		conn.SetProp("allow_bulk_import", "true")
+	}
 
 	var instance Connection
 	instance = conn
@@ -86,9 +88,7 @@ func (conn *OracleConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	} else if runtime.GOOS == "windows" {
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
-	}
-
-	if conn.GetProp("allow_bulk_import") != "true" {
+	} else if conn.GetProp("allow_bulk_import") != "true" {
 		return conn.BaseConn.InsertBatchStream(tableFName, ds)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"regexp"
 	"runtime"
 	"strings"
@@ -16,6 +17,8 @@ import (
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
 	"github.com/flarco/g/json"
+	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
 	jit "github.com/json-iterator/go"
 
 	"github.com/samber/lo"
@@ -40,7 +43,7 @@ type Datastream struct {
 	Bytes         uint64
 	Sp            *StreamProcessor
 	SafeInference bool
-	NoTrace       bool
+	NoDebug       bool
 	Inferred      bool
 	deferFuncs    []func()
 	closed        bool
@@ -431,7 +434,7 @@ loop:
 			}
 			break loop
 		default:
-			if ds.it.Counter == 1 && !ds.NoTrace {
+			if ds.it.Counter == 1 && !ds.NoDebug {
 				g.Trace("%#v", ds.it.Row) // trace first row for debugging
 			}
 
@@ -447,7 +450,7 @@ loop:
 	if !ds.Inferred {
 		sampleData := NewDataset(ds.Columns)
 		sampleData.Rows = ds.Buffer
-		sampleData.NoTrace = ds.NoTrace
+		sampleData.NoDebug = ds.NoDebug
 		sampleData.SafeInference = ds.SafeInference
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
 		sampleData.InferColumnTypes()
@@ -514,7 +517,7 @@ loop:
 
 	go ds.processBwRows()
 
-	if !ds.NoTrace {
+	if !ds.NoDebug {
 		g.Trace("new ds.Start %s [%s]", ds.ID, ds.Metadata.StreamURL.Value)
 	}
 	go func() {
@@ -543,7 +546,7 @@ loop:
 
 	loop:
 		for ds.it.next() {
-			// if !ds.NoTrace {
+			// if !ds.NoDebug {
 			// 	g.Warn("ds.it.next() ROW %s > %d", ds.ID, ds.it.Counter)
 			// }
 
@@ -560,7 +563,7 @@ loop:
 					goto loop
 				}
 
-				if df := ds.df; df != nil && df.OnColumnAdded != nil {
+				if df := ds.df; df != nil && df.OnColumnAdded != nil && df.OnColumnChanged != nil {
 					select {
 					case <-ds.pauseChan:
 						<-ds.unpauseChan // wait for unpause
@@ -624,7 +627,7 @@ loop:
 
 		ds.SetEmpty()
 
-		if !ds.NoTrace {
+		if !ds.NoDebug {
 			g.DebugLow("Pushed %d rows for %s", ds.it.Counter, ds.ID)
 		}
 	}()
@@ -664,7 +667,7 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 	}
 
 	decoder := json.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
@@ -684,7 +687,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 	}
 
 	decoder := xml.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
@@ -762,6 +765,51 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	}
 
 	return
+}
+
+// ConsumeParquetReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeParquetReaderSeeker(reader io.ReadSeeker) (err error) {
+	p, err := NewParquetStream(reader, Columns{})
+	if err != nil {
+		return g.Error(err, "could create parquet stream")
+	}
+
+	ds.Columns = p.Columns()
+	ds.Inferred = true
+	ds.it = ds.NewIterator(ds.Columns, p.nextFunc)
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
+// ConsumeParquetReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
+	// need to write to temp file prior
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	parquetPath := path.Join(tempDir, g.NewTsID("parquet.temp")+".parquet")
+	ds.Defer(func() { os.Remove(parquetPath) })
+
+	file, err := os.Create(parquetPath)
+	if err != nil {
+		return g.Error(err, "Unable to create temp file: "+parquetPath)
+	}
+
+	bw, err := io.Copy(file, reader)
+	if err != nil {
+		return g.Error(err, "Unable to write to temp file: "+parquetPath)
+	}
+	g.DebugLow("wrote %d bytes to %s", bw, parquetPath)
+
+	_, err = file.Seek(0, 0) // reset to beginning
+	if err != nil {
+		return g.Error(err, "Unable to seek to beginning of temp file: "+parquetPath)
+	}
+
+	return ds.ConsumeParquetReaderSeeker(file)
 }
 
 // AddBytes add bytes as processed
@@ -1126,6 +1174,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			if batch.ColumnsChanged() || batch.IsFirst() {
 				err := nextPipe(batch)
 				if err != nil {
+					ds.Context.CaptureErr(err)
 					return
 				}
 			}
@@ -1154,6 +1203,7 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
 					err = nextPipe(batch)
 					if err != nil {
+						ds.Context.CaptureErr(err)
 						return
 					}
 				}
@@ -1168,54 +1218,26 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 	return readerChn
 }
 
-// NewJsonReaderChnl provides a channel of readers as the limit is reached
-// each channel flows as fast as the consumer consumes
 func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *io.PipeReader) {
 	readerChn = make(chan *io.PipeReader, 100)
+
+	pipe := g.NewPipe()
+	firstRec := true
+
+	readerChn <- pipe.Reader
+	tbw := int64(0)
 
 	go func() {
 		defer close(readerChn)
 
 		c := 0 // local counter
-		firstRec := true
-		pipe := g.NewPipe()
 
-		nextPipe := func() error {
-			if c > 0 {
-				pipe.Write([]byte("]")) // close array
-			}
-			pipe.Writer.Close() // close the prior reader?
+		bw, _ := pipe.Writer.Write([]byte("["))
+		tbw = tbw + cast.ToInt64(bw)
 
-			// new reader
-			c = 0
-			pipe = g.NewPipe()
-			readerChn <- pipe.Reader
-
-			_, err := pipe.Write([]byte("["))
-			if err != nil {
-				err = g.Error(err, "error writing row")
-				ds.Context.CaptureErr(err)
-				ds.Context.Cancel()
-				pipe.Writer.Close()
-				return err
-			}
-			firstRec = true
-			return nil
-		}
-
-		w := json.NewEncoder(pipe)
 		for batch := range ds.BatchChan {
-
-			// open array
-			err := nextPipe()
-			if err != nil {
-				ds.Context.CaptureErr(g.Error(err, "error writing row"))
-				ds.Context.Cancel()
-				pipe.Writer.Close()
-				return
-			}
-
 			fields := batch.Columns.Names(true)
+
 			for row0 := range batch.Rows {
 				c++
 
@@ -1224,31 +1246,48 @@ func (ds *Datastream) NewJsonReaderChnl(rowLimit int, bytesLimit int64) (readerC
 					rec[fields[i]] = val
 				}
 
-				if !firstRec {
-					pipe.Write([]byte(",")) // comma in between records
+				b, err := json.Marshal(rec)
+				if err != nil {
+					ds.Context.CaptureErr(g.Error(err, "error marshaling rec"))
+					ds.Context.Cancel()
+					pipe.Writer.Close()
+					return
 				}
 
-				err = w.Encode(rec)
-				ds.Bytes = cast.ToUint64(pipe.BytesWritten)
+				if !firstRec {
+					bw, _ := pipe.Writer.Write([]byte{','}) // comma in between records
+					tbw = tbw + cast.ToInt64(bw)
+				} else {
+					firstRec = false
+				}
+
+				bw, err := pipe.Writer.Write(b)
+				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "error writing row"))
 					ds.Context.Cancel()
 					pipe.Writer.Close()
 					return
 				}
-				firstRec = false
 
-				if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && pipe.BytesWritten >= bytesLimit) {
-					err = nextPipe()
-					if err != nil {
-						ds.Context.CaptureErr(g.Error(err, "error writing row"))
-						ds.Context.Cancel()
-						pipe.Writer.Close()
-						return
-					}
+				if (rowLimit > 0 && c >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+					pipe.Writer.Write([]byte("]")) // close bracket
+					pipe.Writer.Close()            // close the prior reader?
+					tbw = 0                        // reset
+
+					// new reader
+					c = 0
+					firstRec = true
+					pipe = g.NewPipe()
+					readerChn <- pipe.Reader
+					bw, _ := pipe.Writer.Write([]byte("["))
+					tbw = tbw + cast.ToInt64(bw)
 				}
 			}
 		}
+
+		pipe.Writer.Write([]byte("]")) // close bracket
+		pipe.Writer.Close()
 	}()
 
 	return readerChn
@@ -1288,7 +1327,7 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 					return
 				}
 
-				bw, err := pipe.Writer.Write(b)
+				bw, err := pipe.Writer.Write(append(b, '\n'))
 				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "error writing row"))
@@ -1309,6 +1348,115 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 			}
 		}
 		pipe.Writer.Close()
+	}()
+
+	return readerChn
+}
+
+// NewParquetReaderChnl provides a channel of readers as the limit is reached
+// each channel flows as fast as the consumer consumes
+func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *BatchReader) {
+	readerChn = make(chan *BatchReader, 100)
+
+	pipeR, pipeW := io.Pipe()
+
+	tbw := int64(0)
+
+	go func() {
+		var fw *goparquet.FileWriter
+		var br *BatchReader
+
+		defer close(readerChn)
+
+		nextPipe := func(batch *Batch) error {
+			if fw != nil {
+				fw.Close()
+			}
+
+			pipeW.Close() // close the prior reader?
+			tbw = 0       // reset
+
+			// new reader
+			pipeR, pipeW = io.Pipe()
+
+			schemaDef, err := getParquetSchemaDef(batch.Columns)
+			if err != nil {
+				return g.Error(err, "could not generate parquet schema definition")
+			}
+			// schemaDef := parquetschema.SchemaDefinitionFromColumnDefinition(
+			// 	getParquetColumns(batch.Columns),
+			// )
+
+			fw = goparquet.NewFileWriter(pipeW,
+				goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				goparquet.WithSchemaDefinition(schemaDef),
+				goparquet.WithCreator("flarco/dbio"),
+			)
+
+			br = &BatchReader{batch, batch.Columns, pipeR, 0}
+			readerChn <- br
+
+			return nil
+		}
+
+		for batch := range ds.BatchChan {
+			if batch.ColumnsChanged() || batch.IsFirst() {
+				err := nextPipe(batch)
+				if err != nil {
+					ds.Context.CaptureErr(err)
+					return
+				}
+			}
+
+			for row := range batch.Rows {
+				rec := g.M()
+
+				for i, col := range batch.Columns {
+					switch {
+					case col.IsBool():
+						row[i] = cast.ToBool(row[i]) // since is stored as string
+					case col.IsDecimal():
+						row[i] = cast.ToString(row[i])
+					case col.IsDatetime():
+						switch valT := row[i].(type) {
+						case time.Time:
+							if row[i] != nil {
+								row[i] = valT.UnixMicro()
+							}
+						}
+					}
+					if i < len(row) {
+						rec[col.Name] = row[i]
+					}
+				}
+				// g.PP(rec)
+
+				err := fw.AddData(rec)
+				if err != nil {
+					ds.Context.CaptureErr(g.Error(err, "error writing row"))
+					ds.Context.Cancel()
+					pipeW.Close()
+					return
+				}
+
+				fw.FlushRowGroup()
+				br.Counter++
+
+				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {
+					err = nextPipe(batch)
+					if err != nil {
+						ds.Context.CaptureErr(err)
+						return
+					}
+				}
+			}
+		}
+
+		if fw != nil {
+			fw.Close()
+		}
+		pipeW.Close()
+
 	}()
 
 	return readerChn

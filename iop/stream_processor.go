@@ -2,6 +2,7 @@ package iop
 
 import (
 	"math"
+	"math/big"
 	"os"
 	"reflect"
 	"regexp"
@@ -44,6 +45,7 @@ type streamConfig struct {
 	maxDecimals    float64
 	flatten        bool
 	fieldsPerRec   int
+	jmespath       string
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -171,6 +173,9 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 	if configMap["trim_space"] != "" {
 		sp.config.trimSpace = cast.ToBool(configMap["trim_space"])
+	}
+	if configMap["jmespath"] != "" {
+		sp.config.jmespath = cast.ToString(configMap["jmespath"])
 	}
 	if configMap["skip_blank_lines"] != "" {
 		sp.config.skipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
@@ -332,6 +337,10 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	switch v := val.(type) {
 	case godror.Number:
 		val = sp.ParseString(cast.ToString(val), i)
+	case big.Int:
+		val = v.Int64()
+	case *big.Int:
+		val = v.Int64()
 	case []uint8:
 		sVal = string(v)
 		val = sVal
@@ -504,7 +513,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.rowChecksum[i] = uint64(len(sVal))
 			return sVal
 		} else {
-			nVal = strconv.FormatBool(bVal)
+			nVal = strconv.FormatBool(bVal) // keep as string
 			sp.rowChecksum[i] = uint64(len(nVal.(string)))
 		}
 

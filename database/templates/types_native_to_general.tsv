@@ -364,5 +364,5 @@ duckdb	uinteger	bigint	col_uinteger uinteger	TRUE	TRUE
 duckdb	usmallint	integer	col_usmallint usmallint	TRUE	TRUE	
 duckdb	utinyint	integer	col_utinyint utinyint	TRUE	TRUE	
 duckdb	uuid	string	col_uuid uuid	TRUE	TRUE	
-duckdb	hugeint	decimal	col_hugeint hugeint	TRUE	TRUE	
+duckdb	hugeint	bigint	col_hugeint hugeint	TRUE	TRUE	
 duckdb	interval	string	col_interval interval	TRUE	TRUE	
