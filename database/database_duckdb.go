@@ -1,16 +1,25 @@
-//go:build !windows
-// +build !windows
-
 package database
 
 import (
+	"bytes"
+	"context"
+	"database/sql"
 	"database/sql/driver"
+	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
-	duckdb "github.com/marcboeker/go-duckdb"
+	"github.com/flarco/g/net"
+	"github.com/samber/lo"
+	"github.com/spf13/cast"
 )
 
 // DuckDbConn is a Duck DB connection
@@ -18,6 +27,8 @@ type DuckDbConn struct {
 	BaseConn
 	URL string
 }
+
+const DuckDbVersion = "0.7.0"
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
@@ -46,8 +57,214 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 	return URL
 }
 
+func (conn *DuckDbConn) Connect(timeOut ...int) (err error) {
+	conn.SetProp("connected", "true")
+	return nil
+}
+
+// EnsureBinDuckDB ensures duckdb binary exists
+// if missing, downloads and uses
+func EnsureBinDuckDB() (binPath string, err error) {
+	folderPath := path.Join(g.UserHomeDir(), "duckdb")
+	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
+	binPath = path.Join(g.UserHomeDir(), "duckdb", "duckdb"+extension)
+	found := g.PathExists(binPath)
+
+	checkVersion := func() (bool, error) {
+
+		out, err := exec.Command(binPath, "-version").Output()
+		if err != nil {
+			return false, g.Error(err, "could not get version for duckdb")
+		}
+
+		if strings.HasPrefix(string(out), "v"+DuckDbVersion) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	// TODO: check version if found
+	if found {
+		ok, err := checkVersion()
+		if err != nil {
+			return "", g.Error(err, "error checking version for duckdb")
+		}
+		found = ok // so it can re-download if mismatch
+	}
+
+	if !found {
+		// we need to download it ourselves
+		var downloadURL string
+		zipPath := path.Join(g.UserHomeDir(), "duckdb.zip")
+
+		switch runtime.GOOS {
+		case "windows":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-windows-amd64.zip"
+		case "darwin":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-osx-universal.zip"
+		case "linux":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-amd64.zip"
+		default:
+			return "", g.Error("OS %s not handled", runtime.GOOS)
+		}
+
+		downloadURL = g.R(downloadURL, "version", DuckDbVersion)
+
+		g.Info("downloading duckdb %s for %s", DuckDbVersion, runtime.GOOS)
+		err = net.DownloadFile(downloadURL, zipPath)
+		if err != nil {
+			return "", g.Error(err, "Unable to download duckdb binary")
+		}
+
+		paths, err := iop.Unzip(zipPath, folderPath)
+		if err != nil {
+			return "", g.Error(err, "Error unzipping duckdb zip")
+		}
+
+		if !g.PathExists(binPath) {
+			return "", g.Error("cannot find %s, paths are: %s", binPath, g.Marshal(paths))
+		}
+	}
+
+	_, err = checkVersion()
+	if err != nil {
+		return "", g.Error(err, "error checking version for duckdb")
+	}
+
+	return binPath, nil
+}
+
+// ExecContext runs a sql query with context, returns `error`
+func (conn *DuckDbConn) ExecMultiContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
+	return conn.ExecContext(ctx, sql, args...)
+}
+
+type duckDbResult struct {
+	TotalRows uint64
+	res       driver.Result
+}
+
+func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err error) {
+
+	bin, err := EnsureBinDuckDB()
+	if err != nil {
+		return cmd, "", g.Error(err, "could not get duckdb binary")
+	}
+
+	sqlPath, err = writeTempSQL(sql)
+	if err != nil {
+		return cmd, "", g.Error(err, "could not create temp sql file for duckdb")
+	}
+
+	dbPathU, err := net.NewURL(conn.BaseConn.URL)
+	if err != nil {
+		err = g.Error(err, "could not get sqlite file path")
+		return
+	}
+	dbPath := strings.ReplaceAll(conn.GetURL(), "?"+dbPathU.U.RawQuery, "")
+
+	cmd = exec.Command(bin)
+	cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
+
+	return cmd, sqlPath, nil
+}
+
+func (r duckDbResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (r duckDbResult) RowsAffected() (int64, error) {
+	return cast.ToInt64(r.TotalRows), nil
+}
+
+func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
+	var stderr bytes.Buffer
+
+	if len(args) > 0 {
+		for i, arg := range args {
+			ph := g.F("$%d", i+1)
+
+			switch val := arg.(type) {
+			case int, int64, int8, int32, int16:
+				sql = strings.Replace(sql, ph, fmt.Sprintf("%d", val), 1)
+			case float32, float64:
+				sql = strings.Replace(sql, ph, fmt.Sprintf("%f", val), 1)
+			case time.Time:
+				sql = strings.Replace(sql, ph, fmt.Sprintf("'%s'", val.Format("2006-01-02 15:04:05")), 1)
+			case nil:
+				sql = strings.Replace(sql, ph, "NULL", 1)
+			default:
+				v := strings.ReplaceAll(cast.ToString(val), "\n", "\\n")
+				v = strings.ReplaceAll(v, "'", "\\'")
+				sql = strings.Replace(sql, ph, fmt.Sprintf("'%s'", v), 1)
+			}
+		}
+	}
+
+	cmd, sqlPath, err := conn.getCmd(sql)
+	if err != nil {
+		return result, g.Error(err, "could not get cmd duckdb")
+	}
+	defer func() { os.Remove(sqlPath) }()
+
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return result, g.Error(err, "could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
+	}
+
+	result = duckDbResult{}
+
+	return
+}
+
+func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error) {
+
+	cmd, sqlPath, err := conn.getCmd(sql)
+	if err != nil {
+		return ds, g.Error(err, "could not get cmd duckdb")
+	}
+	defer func() { os.Remove(sqlPath) }()
+
+	cmd.Args = append(cmd.Args, "-csv")
+
+	stdOutReader, err := cmd.StdoutPipe()
+	if err != nil {
+		return ds, g.Error(err, "could not get stdout for duckdb")
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return ds, g.Error(err, "could not exec SQL for duckdb")
+	}
+	ds = iop.NewDatastream(iop.Columns{})
+	err = ds.ConsumeCsvReader(stdOutReader)
+	if err != nil {
+		return ds, g.Error(err, "could not read output stream")
+	}
+
+	return
+}
+
+// Close closes the connection
+func (conn *DuckDbConn) Close() error {
+	return nil
+}
+
+// InsertBatchStream inserts a stream into a table in batch
+func (conn *DuckDbConn) InsertBatchStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	return conn.BulkImportStream(tableFName, ds)
+}
+
+// InsertStream demonstrates loading data into a BigQuery table using a file on the local filesystem.
+func (conn *DuckDbConn) InsertStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	return conn.BulkImportStream(tableFName, ds)
+}
+
 // BulkImportStream inserts a stream into a table
 func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) (count uint64, err error) {
+	defer ds.Close()
 	var columns iop.Columns
 
 	// FIXME: batching works better when transactions are closed
@@ -56,7 +273,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
-		err = g.Error(err, "could not get  table name for imoprt")
+		err = g.Error(err, "could not get table name for imoprt")
 		return
 	}
 
@@ -73,70 +290,69 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			}
 		}
 
-		err = func() error {
-			// COPY needs a transaction
-			dbConn, err := conn.Db().Conn(ds.Context.Ctx)
+		// write to temp CSV
+		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+		csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
+
+		// set header false
+		cfgMap := ds.GetConfig()
+		cfgMap["header"] = "false"
+		cfgMap["datetime_format"] = "2006-01-02 15:04:05.000000-07:00"
+		ds.SetConfig(cfgMap)
+
+		if runtime.GOOS == "windows" {
+			fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
 			if err != nil {
-				return g.Error(err, "could not open transaction conn")
+				err = g.Error(err, "could not obtain client for temp file")
+				return 0, err
 			}
 
-			err = dbConn.Raw(
-				func(driverConn any) (err error) {
-					drvConn, ok := driverConn.(driver.Conn)
-					if !ok {
-						return g.Error("could not cast duckdb conn as driver.Conn")
-					}
-
-					appender, err := duckdb.NewAppenderFromConn(drvConn, table.Schema, table.Name)
-					if err != nil {
-						return g.Error(err, "could not open transaction appender")
-					}
-
-					for row0 := range batch.Rows {
-						// g.PP(batch.Columns.MakeRec(row))
-
-						row := make([]driver.Value, len(row0))
-						for i := range row0 {
-							row[i] = row0[i]
-						}
-
-						count++
-
-						// Do insert
-						ds.Context.Lock()
-						err := appender.AppendRow(row...)
-						ds.Context.Unlock()
-						if err != nil {
-							ds.Context.CaptureErr(g.Error(err, "could not Append Row into table %s", tableFName))
-							ds.Context.Cancel()
-							g.Trace("error for row: %#v", row)
-							return g.Error(err, "could not execute statement")
-						}
-					}
-
-					err = appender.Close()
-					if err != nil {
-						return g.Error(err, "could not close transaction appender")
-					}
-
-					return nil
-				})
+			_, err = fs.Write("file://"+csvPath, ds.NewCsvReader(0, 0))
 			if err != nil {
-				return g.Error(err, "could not open insert appender rows")
+				err = g.Error(err, "could not write to temp file")
+				return 0, err
 			}
+			ds.Defer(func() { os.Remove(csvPath) })
+		} else {
+			csvPath = "/dev/stdin"
+		}
 
-			return nil
-		}()
+		columnNames := lo.Map(columns.Names(true, true), func(col string, i int) string {
+			name, _ := ParseColumnName(col, conn.Type)
+			return name
+		})
 
+		sqlLines := []string{
+			// g.F(".separator ,"),
+			// g.F(".import --csv %s %s", csvPath, table.Name),
+			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=False, auto_detect=True);`, table.Name, strings.Join(columnNames, ", "), csvPath),
+		}
+
+		cmd, sqlPath, err := conn.getCmd(strings.Join(sqlLines, ";\n"))
 		if err != nil {
-			return count, g.Error(err, "could not copy data")
+			return count, g.Error(err, "could not get cmd duckdb")
+		}
+		ds.Defer(func() { os.Remove(sqlPath) })
+		_ = sqlPath
+
+		if runtime.GOOS != "windows" {
+			cmd.Stdin = ds.NewCsvReader(0, 0)
+		}
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		out, err := cmd.Output()
+		stderrVal := stderr.String()
+		if err != nil {
+			return count, g.Error(err, "could not ingest for duckdb: %s\n%s", string(out), stderrVal)
+		} else if strings.Contains(stderrVal, "expected") {
+			g.Warn("%#v", cmd.Args)
+			return count, g.Error("could not ingest for duckdb: %s\n%s", string(out), stderrVal)
 		}
 	}
 
-	ds.SetEmpty()
-
-	g.Trace("COPY %d ROWS", count)
-	return count, nil
+	return ds.Count, nil
 }
 
 // GenerateUpsertSQL generates the upsert SQL
