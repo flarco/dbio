@@ -225,7 +225,11 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return result, g.Error(err, "could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
+		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
+		if strings.Contains(errText, "version number") {
+			errText = "Please set the DuckDB version with environment variable DUCKDB_VERSION. Example: DUCKDB_VERSION=0.6.0\n" + errText
+		}
+		return result, g.Error(err, errText)
 	}
 
 	result = duckDbResult{}
