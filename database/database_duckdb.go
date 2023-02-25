@@ -98,20 +98,30 @@ func EnsureBinDuckDB() (binPath string, err error) {
 		var downloadURL string
 		zipPath := path.Join(g.UserHomeDir(), "duckdb.zip")
 
-		switch runtime.GOOS {
-		case "windows":
+		switch runtime.GOOS + "/" + runtime.GOARCH {
+
+		case "windows/amd64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-windows-amd64.zip"
-		case "darwin":
+
+		case "windows/386":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-windows-i386.zip"
+
+		case "darwin/386", "darwin/arm", "darwin/arm64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-osx-universal.zip"
-		case "linux":
+
+		case "linux/386":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-linux-i386.zip"
+
+		case "linux/amd64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-amd64.zip"
+
 		default:
-			return "", g.Error("OS %s not handled", runtime.GOOS)
+			return "", g.Error("OS %s/%s not handled", runtime.GOOS, runtime.GOARCH)
 		}
 
 		downloadURL = g.R(downloadURL, "version", DuckDbVersion)
 
-		g.Info("downloading duckdb %s for %s", DuckDbVersion, runtime.GOOS)
+		g.Info("downloading duckdb %s for %s/%s", DuckDbVersion, runtime.GOOS, runtime.GOARCH)
 		err = net.DownloadFile(downloadURL, zipPath)
 		if err != nil {
 			return "", g.Error(err, "Unable to download duckdb binary")

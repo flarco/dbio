@@ -41,7 +41,9 @@ func (ds *Datastream) NewBatch(columns Columns) *Batch {
 	}
 	ds.Batches = append(ds.Batches, batch)
 	ds.CurrentBatch = batch
-	ds.BatchChan <- batch
+	if !ds.closed {
+		ds.BatchChan <- batch
+	}
 	if !ds.NoDebug {
 		g.Trace("new batch %s", batch.ID())
 	}

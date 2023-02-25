@@ -79,7 +79,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 	bin, err := EnsureBinSQLite()
 	if err != nil {
-		g.DebugLow("sqlite3 not found in path. Using cursor...")
+		g.DebugLow("sqlite3 not found in path. Using cursor... %s", err.Error())
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
@@ -354,6 +354,14 @@ func EnsureBinSQLite() (binPath string, err error) {
 	binPath = path.Join(g.UserHomeDir(), "sqlite", "sqlite3"+extension)
 	found := g.PathExists(binPath)
 
+	defaultBin := func(name string) (string, error) {
+		binPath, err := exec.LookPath(name)
+		if err != nil {
+			err = g.Error(err, "could not find sqlite3 bin")
+		}
+		return binPath, err
+	}
+
 	checkVersion := func() (bool, error) {
 
 		out, err := exec.Command(binPath, "-version").Output()
@@ -382,20 +390,32 @@ func EnsureBinSQLite() (binPath string, err error) {
 		var downloadURL string
 		zipPath := path.Join(g.UserHomeDir(), "sqlite.zip")
 
-		switch runtime.GOOS {
-		case "windows":
+		// all valid GOARCH -> https://gist.github.com/nictuku/c9858a4fe2c7b92a01da2e635b7c147c
+		// compile steps: https://sqlite.org/forum/info/8b223b66319f05bf
+		switch runtime.GOOS + "/" + runtime.GOARCH {
+
+		case "windows/386":
+			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win32-x86-3410000.zip"
+		case "windows/amd64":
 			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win64-x64-3410000.zip"
-		case "darwin":
+
+		case "darwin/386":
 			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-osx-x86-3410000.zip"
-		case "linux":
+		case "darwin/arm", "darwin/arm64":
+			downloadURL = `https://ocral.nyc3.cdn.digitaloceanspaces.com/slingdata.io%2Fsqlite%2F3.41%2Fsqlite3-darwin-arm64-3.41.zip`
+
+		case "linux/386":
 			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-linux-x86-3410000.zip"
+		case "linux/amd64":
+			downloadURL = `https://ocral.nyc3.cdn.digitaloceanspaces.com/slingdata.io%2Fsqlite%2F3.41%2Fsqlite-linux-amd64-3.41.zip`
+
 		default:
-			return "", g.Error("OS %s not handled", runtime.GOOS)
+			return defaultBin("sqlite3")
 		}
 
 		downloadURL = g.R(downloadURL, "version", SQLiteVersion)
 
-		g.Info("downloading sqlite %s for %s", SQLiteVersion, runtime.GOOS)
+		g.Info("downloading sqlite %s for %s/%s", SQLiteVersion, runtime.GOOS, runtime.GOARCH)
 		err = net.DownloadFile(downloadURL, zipPath)
 		if err != nil {
 			return "", g.Error(err, "Unable to download sqlite binary")
@@ -412,6 +432,7 @@ func EnsureBinSQLite() (binPath string, err error) {
 				if err != nil {
 					return "", g.Error(err, "Error renaming %s to %s", pathVal, binPath)
 				}
+				break
 			}
 		}
 

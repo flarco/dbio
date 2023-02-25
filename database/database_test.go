@@ -289,6 +289,7 @@ func TestSQLite(t *testing.T) {
 
 func TestDuckDB(t *testing.T) {
 	db := DBs["duckdb"]
+	os.Remove(strings.TrimPrefix(db.URL, "file://"))
 	conn, err := connect(db)
 	g.AssertNoError(t, err)
 	// data, err := conn.Query("describe place")
@@ -911,7 +912,7 @@ func TestLargeDataset(t *testing.T) {
 		schema: "PUBLIC",
 	}
 
-	// dbs = []*testDB{DBs["sqlserver"]}
+	// dbs = []*testDB{DBs["sqlite3"], DBs["duckdb"]}
 
 	ctx := g.NewContext(context.Background(), 5)
 	doTest := func(db *testDB) {
