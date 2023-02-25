@@ -28,7 +28,7 @@ type DuckDbConn struct {
 	URL string
 }
 
-const DuckDbVersion = "0.7.0"
+var DuckDbVersion = "0.7.0"
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
@@ -65,6 +65,10 @@ func (conn *DuckDbConn) Connect(timeOut ...int) (err error) {
 // EnsureBinDuckDB ensures duckdb binary exists
 // if missing, downloads and uses
 func EnsureBinDuckDB() (binPath string, err error) {
+	if version := os.Getenv("DUCKDB_VERSION"); version != "" {
+		DuckDbVersion = version
+	}
+
 	folderPath := path.Join(g.UserHomeDir(), "duckdb")
 	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
 	binPath = path.Join(g.UserHomeDir(), "duckdb", "duckdb"+extension)
@@ -104,13 +108,13 @@ func EnsureBinDuckDB() (binPath string, err error) {
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-windows-amd64.zip"
 
 		case "windows/386":
-			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-windows-i386.zip"
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-windows-i386.zip"
 
 		case "darwin/386", "darwin/arm", "darwin/arm64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-osx-universal.zip"
 
 		case "linux/386":
-			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v0.7.0/duckdb_cli-linux-i386.zip"
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-i386.zip"
 
 		case "linux/amd64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-amd64.zip"
