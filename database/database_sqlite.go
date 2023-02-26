@@ -83,8 +83,6 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
-	cmd := exec.Command(bin)
-
 	conn.Close()
 	defer conn.Connect()
 
@@ -123,6 +121,8 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 				return count, g.Error(err, "could not shape batch stream")
 			}
 		}
+
+		cmd := exec.Command(bin)
 
 		sameCols := g.Marshal(ds.Columns.Names(true, true)) == g.Marshal(columns.Names(true, true))
 

@@ -173,6 +173,7 @@ func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err e
 
 	dbPathU, err := net.NewURL(conn.BaseConn.URL)
 	if err != nil {
+		os.Remove(sqlPath)
 		err = g.Error(err, "could not get sqlite file path")
 		return
 	}
@@ -220,16 +221,36 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 	if err != nil {
 		return result, g.Error(err, "could not get cmd duckdb")
 	}
-	defer func() { os.Remove(sqlPath) }()
+
+	if strings.Contains(sql, noDebugKey) {
+		g.Trace(sql)
+	} else {
+		g.DebugLow(CleanSQL(conn, sql), args...)
+	}
 
 	cmd.Stderr = &stderr
+
+	conn.Context().Mux.Lock()
 	out, err := cmd.Output()
+	time.Sleep(100 * time.Millisecond) // so that cmd releases process
+	conn.Context().Mux.Unlock()
+
+	os.Remove(sqlPath) // delete sql temp file
+
 	if err != nil {
 		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
 		if strings.Contains(errText, "version number") {
 			errText = "Please set the DuckDB version with environment variable DUCKDB_VERSION. Example: DUCKDB_VERSION=0.6.0\n" + errText
 		}
 		return result, g.Error(err, errText)
+	} else if exitCode := cmd.ProcessState.ExitCode(); exitCode != 0 {
+		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
+		if strings.Contains(errText, "version number") {
+			errText = "Please set the DuckDB version with environment variable DUCKDB_VERSION. Example: DUCKDB_VERSION=0.6.0\n" + errText
+		}
+		err = g.Error("exit code is %d", exitCode)
+		return result, g.Error(err, errText)
+
 	}
 
 	result = duckDbResult{}
@@ -245,6 +266,12 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	}
 	defer func() { os.Remove(sqlPath) }()
 
+	if strings.Contains(sql, noDebugKey) {
+		g.Trace(sql)
+	} else {
+		g.DebugLow(sql)
+	}
+
 	cmd.Args = append(cmd.Args, "-csv")
 
 	stdOutReader, err := cmd.StdoutPipe()
@@ -252,11 +279,14 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 		return ds, g.Error(err, "could not get stdout for duckdb")
 	}
 
+	conn.Context().Mux.Lock()
 	err = cmd.Start()
 	if err != nil {
 		return ds, g.Error(err, "could not exec SQL for duckdb")
 	}
 	ds = iop.NewDatastream(iop.Columns{})
+	ds.Defer(func() { conn.Context().Mux.Unlock() })
+
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
 		return ds, g.Error(err, "could not read output stream")
@@ -330,7 +360,6 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 				err = g.Error(err, "could not write to temp file")
 				return 0, err
 			}
-			ds.Defer(func() { os.Remove(csvPath) })
 		} else {
 			csvPath = "/dev/stdin"
 		}
@@ -346,21 +375,36 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=False, auto_detect=True);`, table.Name, strings.Join(columnNames, ", "), csvPath),
 		}
 
-		cmd, sqlPath, err := conn.getCmd(strings.Join(sqlLines, ";\n"))
+		sql := strings.Join(sqlLines, ";\n")
+		cmd, sqlPath, err := conn.getCmd(sql)
 		if err != nil {
+			os.Remove(csvPath)
 			return count, g.Error(err, "could not get cmd duckdb")
 		}
-		ds.Defer(func() { os.Remove(sqlPath) })
-		_ = sqlPath
 
-		if runtime.GOOS != "windows" {
+		if strings.Contains(sql, noDebugKey) {
+			g.Trace(sql)
+		} else {
+			g.DebugLow(sql)
+		}
+
+		if csvPath == "/dev/stdin" {
 			cmd.Stdin = ds.NewCsvReader(0, 0)
 		}
 
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 
+		conn.Context().Mux.Lock()
 		out, err := cmd.Output()
+		conn.Context().Mux.Unlock()
+		time.Sleep(100 * time.Millisecond) // so that cmd releases process
+
+		if csvPath != "/dev/stdin" {
+			os.Remove(csvPath) // delete csv file
+		}
+		os.Remove(sqlPath) // delete sql temp file
+
 		stderrVal := stderr.String()
 		if err != nil {
 			return count, g.Error(err, "could not ingest for duckdb: %s\n%s", string(out), stderrVal)

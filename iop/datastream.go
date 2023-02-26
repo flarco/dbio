@@ -713,7 +713,7 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 
 	row0, err := r.Read()
 	if err == io.EOF {
-		g.Warn("csv stream provided is empty")
+		g.Debug("%s, csv stream provided is empty", ds.ID)
 		ds.SetReady()
 		ds.Close()
 		return nil
@@ -1476,9 +1476,9 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 		case batch = <-ds.BatchChan:
 		default:
 			batch = ds.LatestBatch()
-			if batch == nil {
-				return
-			}
+		}
+		if batch == nil {
+			return
 		}
 
 		// ensure that previous batch has same amount of columns
