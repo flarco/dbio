@@ -25,6 +25,7 @@ type CSV struct {
 	File            *os.File
 	Data            Dataset
 	Reader          io.Reader
+	Config          map[string]string
 	NoDebug         bool
 	bytes           int64
 	noInfer         bool
@@ -337,6 +338,7 @@ func (c *CSV) ReadStream() (ds *Datastream, err error) {
 	}
 
 	ds = NewDatastreamIt(context.Background(), c.Columns, nextFunc)
+	ds.SetConfig(c.Config)
 	ds.NoDebug = c.NoDebug
 
 	err = ds.Start()

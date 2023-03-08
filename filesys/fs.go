@@ -963,7 +963,7 @@ func MakeDatastream(reader io.Reader, cfg map[string]string) (ds *iop.Datastream
 			return nil, err
 		}
 	} else {
-		csv := iop.CSV{Reader: reader2}
+		csv := iop.CSV{Reader: reader2, Config: cfg}
 		ds, err = csv.ReadStream()
 		if err != nil {
 			return nil, err
