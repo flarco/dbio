@@ -83,6 +83,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		return conn.BaseConn.BulkImportStream(tableFName, ds)
 	}
 
+	conn.Commit()
 	conn.Close()
 	defer conn.Connect()
 
