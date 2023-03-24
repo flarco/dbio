@@ -1,6 +1,8 @@
 package database
 
 import (
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/flarco/dbio"
+	"github.com/youmark/pkcs8"
 
 	"github.com/flarco/dbio/filesys"
 	"github.com/snowflakedb/gosnowflake"
@@ -44,6 +47,14 @@ func (conn *SnowflakeConn) Init() error {
 		conn.CopyMethod = conn.GetProp("CopyMethod")
 	}
 
+	if kp := conn.GetProp("private_key_path"); kp != "" {
+		encPK, err := getEncodedPrivateKey(kp, conn.GetProp("private_key_passphrase"))
+		if err != nil {
+			return g.Error(err, "could not get encoded private key")
+		}
+		conn.SetProp("encoded_private_key", encPK)
+	}
+
 	var instance Connection
 	instance = conn
 	conn.BaseConn.instance = &instance
@@ -59,9 +70,11 @@ func (conn *SnowflakeConn) ConnString() string {
 		connString = strings.ReplaceAll(connString, "CopyMethod="+m, "")
 	}
 
-	if strings.HasSuffix(connString, "?") {
-		connString = connString[0 : len(connString)-1]
+	if epk := conn.GetProp("encoded_private_key"); epk != "" {
+		connString = connString + "&authenticator=SNOWFLAKE_JWT&privateKey=" + epk
 	}
+
+	connString = strings.TrimSuffix(connString, "?")
 
 	connString = strings.ReplaceAll(
 		connString,
@@ -98,6 +111,56 @@ func (conn *SnowflakeConn) Connect(timeOut ...int) error {
 		_, err = conn.Exec("USE ROLE " + conn.GetProp("role") + noDebugKey)
 	}
 	return err
+}
+
+func getEncodedPrivateKey(keyPath, passphrase string) (epk string, err error) {
+	if !g.PathExists(keyPath) {
+		err = g.Error("private_key_path does not exists (%s)", keyPath)
+		return
+	}
+
+	pemBytes, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", g.Error(err)
+	}
+
+	block, _ := pem.Decode(pemBytes)
+	key, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(passphrase))
+	if err != nil {
+		return "", g.Error(err, "could not parse key")
+	}
+
+	privKeyPem, err := pkcs8.MarshalPrivateKey(key, nil, nil)
+	if err != nil {
+		return "", g.Error(err, "could not marshal key")
+	}
+
+	// key, params, err := pkcs8.ParsePrivateKey(pemBytes, []byte(passphrase))
+	// if err != nil {
+	// 	return "", g.Error(err, "could not parse key")
+	// }
+
+	// block, _ := pem.Decode(pemBytes)
+	// g.P(block)
+	// if passphrase != "" {
+	// 	out, err := x509.DecryptPEMBlock(block, []byte(passphrase))
+	// 	if err != nil {
+	// 		return "", g.Error(err, "could not decrypt private key pem block")
+	// 	}
+	// 	block, _ = pem.Decode(out)
+	// }
+
+	// parseResult, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	// if err != nil {
+	// 	return "", g.Error(err)
+	// }
+	// key := parseResult.(*rsa.PrivateKey)
+	// keyValue, err := key.Decrypt(nil, []byte(passphrase), crypto.BLAKE2b_256)
+	// if err != nil {
+	// 	return "", g.Error(err)
+	// }
+
+	return base64.URLEncoding.EncodeToString(privKeyPem), nil
 }
 
 func (conn *SnowflakeConn) getOrCreateStage(schema string) string {
