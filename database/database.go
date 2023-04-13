@@ -2871,10 +2871,11 @@ func (conn *BaseConn) credsProvided(provider string) bool {
 // settingMppBulkImportFlow sets settings for MPP databases type
 // for BulkImportFlow
 func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
-	if cast.ToInt(conn.GetProp("FILE_MAX_ROWS")) == 0 {
+	if val := conn.GetProp("FILE_MAX_ROWS"); val == "" {
 		conn.SetProp("FILE_MAX_ROWS", "500000")
 	}
-	if cast.ToInt(conn.GetProp("FILE_MAX_BYTES")) == 0 {
+
+	if val := conn.GetProp("FILE_MAX_BYTES"); val == "" {
 		conn.SetProp("FILE_MAX_BYTES", "16000000")
 	}
 

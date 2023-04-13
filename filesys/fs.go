@@ -784,7 +784,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		if fsClient.FsType() == dbio.TypeFileAzure {
 			partURL = fmt.Sprintf("%s/part.%02d", url, partCnt)
 		}
-		g.Trace("writing to %s [fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d useBufferedStream=%v fileFormat=%v]", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream, fileFormat)
+		g.DebugLow("writing to %s [fileRowLimit=%d fileBytesLimit=%d compression=%s concurrency=%d useBufferedStream=%v fileFormat=%v]", partURL, fileRowLimit, fileBytesLimit, compression, concurrency, useBufferedStream, fileFormat)
 
 		df.Context.Wg.Read.Add()
 		ds.SetConfig(fs.Props()) // pass options
