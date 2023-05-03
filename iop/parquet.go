@@ -102,7 +102,7 @@ func (p *Parquet) nextFunc(it *Iterator) bool {
 	if err == io.EOF {
 		return false
 	} else if err != nil {
-		it.Context.CaptureErr(g.Error(err, "could not read Parquer row"))
+		it.Context.CaptureErr(g.Error(err, "could not read Parquet row"))
 		return false
 	}
 
