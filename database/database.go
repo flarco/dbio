@@ -132,7 +132,6 @@ type Connection interface {
 	StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error)
 	SumbitTemplate(level string, templateMap map[string]string, name string, values map[string]interface{}) (data iop.Dataset, err error)
 	SwapTable(srcTable string, tgtTable string) (err error)
-	TableExists(tableFName string) (exists bool, err error)
 	Template() Template
 	Tx() Transaction
 	Unquote(string) string
@@ -1424,15 +1423,15 @@ func (conn *BaseConn) GetSQLColumns(tables ...Table) (columns iop.Columns, err e
 }
 
 // TableExists returns true if the table exists
-func (conn *BaseConn) TableExists(tableFName string) (exists bool, err error) {
+func TableExists(conn Connection, tableFName string) (exists bool, err error) {
 
-	table, err := ParseTableName(tableFName, conn.Type)
+	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
 		return false, g.Error(err, "could not parse table name: "+tableFName)
 	}
 
 	colData, err := conn.SumbitTemplate(
-		"single", conn.template.Metadata, "columns",
+		"single", conn.Template().Metadata, "columns",
 		g.M("schema", table.Schema, "table", table.Name),
 	)
 	if err != nil && !strings.Contains(err.Error(), "does not exist") {
@@ -1635,7 +1634,7 @@ func (conn *BaseConn) CreateTemporaryTable(tableName string, cols iop.Columns) (
 func (conn *BaseConn) CreateTable(tableName string, cols iop.Columns, tableDDL string) (err error) {
 
 	// check table existence
-	exists, err := conn.TableExists(tableName)
+	exists, err := TableExists(conn, tableName)
 	if err != nil {
 		return g.Error(err, "Error checking table "+tableName)
 	} else if exists {

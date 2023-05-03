@@ -88,7 +88,9 @@ func NewStreamProcessor() *StreamProcessor {
 		"2006-01-02",
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04:05.000",
+		"2006-01-02 15:04:05.000000",
 		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05.000000Z",
 		"02-Jan-06",
 		"02-Jan-06 15:04:05",
 		"02-Jan-06 03:04:05 PM",
@@ -579,7 +581,7 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		} else if sp.config.datetimeFormat != "" && strings.ToLower(sp.config.datetimeFormat) != "auto" {
 			return tVal.Format(sp.config.datetimeFormat)
 		}
-		return tVal.Format("2006-01-02 15:04:05.000 -07")
+		return tVal.Format("2006-01-02 15:04:05.000000 -07")
 	default:
 		return cast.ToString(val)
 		// return fmt.Sprintf("%v", val)
