@@ -38,12 +38,19 @@ jobs:
     #     key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
     #     restore-keys: |
     #       ${{ runner.os }}-go-
-  
+    - name: Configure EnvKey Environment
+      env:
+        ENVKEY: ${{ secrets.ENVKEY }}
+      uses: rojopolis/envkey-action@master
+
     - name: Test
+      env:
+        ENVKEY: ${{ secrets.ENVKEY }}
       run: |
-        source /__/envkey/dbio/development && ENVKEY=$ENVKEY /__/bin/envkey-source -f --dot-env > .env
+        /__/bin/envkey-source -f --dot-env > .env
         sed -i "s/_DEBUG='TRUE'/_DEBUG=''/g" .env
-        docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && set -ea && . ./.env && bash scripts/test.sh"
+        
+        docker run --rm --env-file .env -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && bash scripts/test.sh"
 
     
         

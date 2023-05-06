@@ -662,7 +662,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 	err = conn.DropTable("person", "place", "transact", "test1")
 	g.AssertNoError(t, err)
 
-	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh,clickhouse,duckdb", db.name) {
+	if !strings.Contains("redshift,bigquery,sqlite3,azuredwh,clickhouse,duckdb,oracle", db.name) {
 		// test sleep function
 		sleepSQL := g.R(
 			conn.GetTemplateValue("function.sleep"),
