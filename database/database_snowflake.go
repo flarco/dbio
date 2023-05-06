@@ -842,7 +842,7 @@ func (conn *SnowflakeConn) GetSchemas() (data iop.Dataset, err error) {
 		return data1, err
 	}
 
-	return data1.Pick("schema_name"), nil
+	return data1.Pick("name"), nil
 }
 
 // GetTables returns tables

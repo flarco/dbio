@@ -307,7 +307,7 @@ func (data *Dataset) Pick(colNames ...string) (nData Dataset) {
 func (data *Dataset) ColValuesStr(col int) []string {
 	vals := make([]string, len(data.Rows))
 	for i, row := range data.Rows {
-		vals[i] = data.Sp.CastToString(i, row[col], data.Columns[i].Type)
+		vals[i] = data.Sp.CastToString(i, row[col], data.Columns[col].Type)
 	}
 	return vals
 
