@@ -900,6 +900,24 @@ func (conn *BigQueryConn) CopyToGCS(table Table, gcsURI string) error {
 	return nil
 }
 
+// CastColumnForSelect casts to the correct target column type
+func (conn *BigQueryConn) CastColumnForSelect(srcCol iop.Column, tgtCol iop.Column) (selectStr string) {
+	qName := conn.Self().Quote(srcCol.Name)
+
+	switch {
+	case srcCol.IsString() && !srcCol.Type.IsJSON() && tgtCol.Type.IsJSON():
+		selectStr = g.F("to_json(%s) as %s", qName, qName)
+	case srcCol.IsString() && tgtCol.IsNumber():
+		selectStr = g.F("cast(%s as numeric) as %s", qName, qName)
+	case srcCol.IsString() && tgtCol.IsDatetime():
+		selectStr = g.F("cast(%s as timestamp) as %s", qName, qName)
+	default:
+		selectStr = qName
+	}
+
+	return selectStr
+}
+
 // GenerateUpsertSQL generates the upsert SQL
 func (conn *BigQueryConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
 
