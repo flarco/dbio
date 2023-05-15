@@ -254,6 +254,13 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 			}
 		}
 		URL = u.String() // update url
+
+		// issue with some drivers not parsing special characters in go escaped format
+		if u.Password() != "" {
+			passwordEncOld := strings.Replace(u.U.User.String(), u.Username()+":", "", 1)
+			passwordEncNew := url.QueryEscape(u.Password())
+			URL = strings.Replace(URL, ":"+passwordEncOld+"@", ":"+passwordEncNew+"@", 1)
+		}
 	} else {
 		return nil, g.Error(err, "could not parse URL")
 	}
