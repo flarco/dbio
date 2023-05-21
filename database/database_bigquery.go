@@ -77,6 +77,9 @@ func (conn *BigQueryConn) Init() error {
 	if conn.GetProp("GC_KEY_FILE") == "" {
 		conn.SetProp("GC_KEY_FILE", conn.GetProp("keyfile")) // dbt style
 	}
+	if conn.GetProp("GC_KEY_FILE") == "" {
+		conn.SetProp("GC_KEY_FILE", conn.GetProp("credentialsFile"))
+	}
 
 	// set MAX_DECIMALS to fix bigquery import for numeric types
 	os.Setenv("MAX_DECIMALS", "9")
@@ -146,7 +149,6 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 		} else if err != nil {
 			return g.Error(err, "Failed to get datasets")
 		}
-
 		conn.Datasets = append(conn.Datasets, dataset.DatasetID)
 		if conn.Location == "" {
 			md, _ := dataset.Metadata(conn.Context().Ctx)
@@ -979,7 +981,18 @@ func (conn *BigQueryConn) GetSchemata(schemaName string, tableNames ...string) (
 		conn:      conn,
 	}
 
-	datasets := conn.Datasets
+	// refresh datasets
+	err := conn.Connect()
+	if err != nil {
+		return schemata, g.Error(err, "could not get connect to get datasets")
+	}
+
+	data, err := conn.GetSchemas()
+	if err != nil {
+		return schemata, g.Error(err, "could not get schemas")
+	}
+
+	datasets := data.ColValuesStr(0)
 	if schemaName != "" {
 		datasets = []string{schemaName}
 	}
