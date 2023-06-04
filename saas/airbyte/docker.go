@@ -58,7 +58,7 @@ func (c *Connector) startUsingClient(args ...string) (msgChan chan AirbyteMessag
 
 	msgChan = make(chan AirbyteMessage)
 
-	opts := process.ContainerOptions{
+	opts := ContainerOptions{
 		Image:      c.Definition.Image(),
 		Mounts:     map[string]string{c.tempFolder: "/work"},
 		WorkingDir: "/work",
@@ -66,7 +66,7 @@ func (c *Connector) startUsingClient(args ...string) (msgChan chan AirbyteMessag
 		Scanner:    c.dockerScanner(msgChan),
 		AutoRemove: true,
 	}
-	cont, err := process.ContainerStart(c.ctx.Ctx, &opts)
+	cont, err := ContainerStart(c.ctx.Ctx, &opts)
 	if err != nil {
 		return msgChan, g.Error(err, "error starting docker command: "+c.Definition.Name)
 	}
