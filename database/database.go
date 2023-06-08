@@ -27,6 +27,7 @@ import (
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/flarco/dbio/iop"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/ibmdb/go_ibm_db"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
