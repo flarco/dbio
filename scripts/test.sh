@@ -1,7 +1,7 @@
 set -e  # exit on error
 # set -o allexport; source .env; set +o allexport
 
-export _DEBUG=''
+export DEBUG=''
 
 cd connection
 go test

@@ -44,7 +44,7 @@ jobs:
         ENVKEY: ${{ secrets.ENVKEY }}
       run: |
         /__/bin/envkey-source -f > .env
-        sed -i "s/_DEBUG='TRUE'/_DEBUG=''/g" .env
+        sed -i "s/DEBUG='TRUE'/DEBUG=''/g" .env
 
         docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "source .env && go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && bash scripts/test.sh"
 

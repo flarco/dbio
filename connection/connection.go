@@ -310,6 +310,9 @@ func (c *Connection) setURL() (err error) {
 	if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
+			// this does not return the full error since that can leak passwords
+			// only in TRACE debug mode
+			g.Trace(err.Error())
 			return g.Error("could not parse provided credentials / url")
 		}
 

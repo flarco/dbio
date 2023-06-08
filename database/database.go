@@ -3030,8 +3030,8 @@ func TestPermissions(conn Connection, tableName string) (err error) {
 
 // CleanSQL removes creds from the query
 func CleanSQL(conn Connection, sql string) string {
-	// if g.In(os.Getenv("_DEBUG"), "LOW", "TRACE") {
-	if os.Getenv("_DEBUG") != "" {
+	// if g.In(os.Getenv("DEBUG"), "LOW", "TRACE") {
+	if os.Getenv("DEBUG") != "" {
 		return sql
 	}
 
