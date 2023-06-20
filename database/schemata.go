@@ -103,8 +103,8 @@ func (t *Table) Select(fields ...string) string {
 
 // Database represents a schemata database
 type Database struct {
-	Name    string `json:"name"`
-	Schemas map[string]Schema
+	Name    string            `json:"name"`
+	Schemas map[string]Schema `json:"schemas"`
 }
 
 func (db *Database) Tables() map[string]Table {
@@ -133,8 +133,8 @@ func (db *Database) Columns() map[string]iop.Column {
 
 // Schema represents a schemata schema
 type Schema struct {
-	Name   string `json:"name"`
-	Tables map[string]Table
+	Name   string           `json:"name"`
+	Tables map[string]Table `json:"tables"`
 }
 
 func (schema *Schema) Columns() map[string]iop.Column {
@@ -164,8 +164,8 @@ func (schema *Schema) ToData() (data iop.Dataset) {
 
 // Schemata contains the full schema for a connection
 type Schemata struct {
-	Databases map[string]Database
-	conn      Connection
+	Databases map[string]Database `json:"databases"`
+	conn      Connection          `json:"-"`
 }
 
 // LoadTablesJSON loads from a json string

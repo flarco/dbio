@@ -190,6 +190,16 @@ func (cols Columns) Names(args ...bool) []string {
 	return fields
 }
 
+// Names return the column names
+// args -> (lower bool, cleanUp bool)
+func (cols Columns) Keys() []string {
+	fields := make([]string, len(cols))
+	for j, column := range cols {
+		fields[j] = column.Key()
+	}
+	return fields
+}
+
 // Types return the column names/types
 // args -> (lower bool, cleanUp bool)
 func (cols Columns) Types(args ...bool) []string {
@@ -526,7 +536,20 @@ func MakeRowsChan() chan []any {
 }
 
 func (col *Column) Key() string {
-	return col.Schema + "." + col.Table + "." + col.Name
+	parts := []string{}
+	if col.Database != "" {
+		parts = append(parts, col.Database)
+	}
+	if col.Schema != "" {
+		parts = append(parts, col.Schema)
+	}
+	if col.Table != "" {
+		parts = append(parts, col.Table)
+	}
+	if col.Name != "" {
+		parts = append(parts, col.Name)
+	}
+	return strings.ToLower(strings.Join(parts, "."))
 }
 
 func (col *Column) IsUnique() bool {

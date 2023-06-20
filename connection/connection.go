@@ -117,7 +117,7 @@ func NewConnectionFromDbt(name string) (c Connection, err error) {
 	if conn, ok := conns[name]; ok {
 		return conn, nil
 	}
-	return
+	return c, g.Error("dbt connection '%s' was not found", name)
 }
 
 // NewConnectionFromProfiles loads a Connection from YAML Profiles

@@ -20,7 +20,7 @@ func TestDataAnalyzer(t *testing.T) {
 		return
 	}
 
-	err = da.AnalyzeColumns(10000)
+	err = da.AnalyzeColumns(10000, false)
 	if !g.AssertNoError(t, err) {
 		return
 	}

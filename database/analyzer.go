@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"io/ioutil"
 	"strings"
 
@@ -105,7 +106,7 @@ func (da *DataAnalyzer) GetSchemata(force bool) (err error) {
 
 var sqlAnalyzeColumns = `
 	select {cols_sql}
-	from ( select * from {schema}.{table} limit {limit} ) t
+	from ( select * from {table} order by {order_col} desc limit {limit} ) t
 `
 
 type StatFieldSQL struct {
@@ -113,7 +114,41 @@ type StatFieldSQL struct {
 	TemplateSQL string
 }
 
-func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
+func getOrderCol(table Table) (orderCol iop.Column) {
+	for _, col := range table.Columns {
+		key := strings.ToLower(col.Name)
+		if (col.IsDatetime() || col.IsNumber()) && strings.Contains(key, "create") {
+			return col
+		}
+	}
+
+	for _, col := range table.Columns {
+		key := strings.ToLower(col.Name)
+		if (col.IsDatetime() || col.IsNumber()) &&
+			(strings.Contains(key, "update") || strings.Contains(key, "modified")) {
+			return col
+		}
+	}
+
+	for _, col := range table.Columns {
+		key := strings.ToLower(col.Name)
+		if (col.IsString() || col.IsNumber()) && key == "id" {
+			return col
+		}
+	}
+
+	for _, col := range table.Columns {
+		key := strings.ToLower(col.Name)
+		if (col.IsString() || col.IsNumber()) && (strings.HasSuffix(key, "id")) {
+			return col
+		}
+	}
+
+	// if none matched, get first
+	return table.Columns[0]
+}
+
+func (da *DataAnalyzer) AnalyzeColumns(sampleSize int, includeViews bool) (err error) {
 	err = da.GetSchemata(false)
 	if err != nil {
 		err = g.Error(err, "could not get schemata")
@@ -131,7 +166,63 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 		// {"value_maximum", "max({field}::text)"}, // pulls customer data
 	}
 
+	ctx := g.NewContext(context.Background(), 2) // threads max
+	analyze := func(table Table, cols []iop.Column) {
+		defer ctx.Wg.Read.Done()
+
+		colsSQL := []string{}
+		for _, col := range cols {
+			for _, sf := range statsFields {
+				colSQL := g.R(
+					g.F("%s as {alias}_%s", sf.TemplateSQL, sf.Name),
+					"field", da.Conn.Quote(col.Name),
+					"alias", strings.ReplaceAll(col.Name, "-", "_"),
+				)
+				colsSQL = append(colsSQL, colSQL)
+			}
+		}
+
+		sql := g.R(
+			sqlAnalyzeColumns,
+			"cols_sql", strings.Join(colsSQL, ", "),
+			"table", table.FDQN(),
+			"order_col", getOrderCol(table).Name,
+			"limit", cast.ToString(sampleSize),
+		)
+		data, err := da.Conn.Query(sql)
+		if err != nil {
+			ctx.ErrGroup.Capture(g.Error(err, "could not get analysis sql for %s", table.FullName()))
+		} else if len(data.Rows) == 0 {
+			ctx.ErrGroup.Capture(g.Error("got zero rows for analysis sql for %s", table.FullName()))
+		}
+
+		// retrieve values, since in order
+		row := data.Rows[0]
+		i := 0
+		for _, col := range cols {
+			m := g.M()
+			for _, sf := range statsFields {
+				m[sf.Name] = row[i]
+				i++
+			}
+			// unmarshal
+			err = g.Unmarshal(g.Marshal(m), &col.Stats)
+			if err != nil {
+				ctx.ErrGroup.Capture(g.Error(err, "could not get unmarshal sql stats for %s:\n%s", table.FullName(), g.Marshal(m)))
+			}
+
+			// store in master map
+			da.ColumnMap[col.Key()] = col
+			if col.IsUnique() {
+				g.Info("    %s is unique [%d rows]", col.Key(), col.Stats.TotalCnt)
+			}
+		}
+	}
+
 	for _, table := range da.Schemata.Tables() {
+		if !includeViews && table.IsView {
+			continue
+		}
 		g.Info("analyzing table %s", table.FullName())
 
 		tableColMap := table.ColumnsMap()
@@ -142,7 +233,8 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 			// t := strings.ToLower(c.DbType)
 			isText := c.IsString() && c.Type != iop.JsonType
 			// isNumber := strings.Contains(t, "int") || strings.Contains(t, "double")
-			return isText
+			isNumber := c.IsInteger()
+			return isText || isNumber
 			// TODO: should be string or number?
 			// skip date column for now
 			return !(strings.Contains(c.Name, "time") || strings.Contains(c.Name, "date"))
@@ -150,68 +242,41 @@ func (da *DataAnalyzer) AnalyzeColumns(sampleSize int) (err error) {
 
 		g.Debug("getting stats for %d columns", len(colsAll))
 		// chunk to not submit too many
-		for _, cols := range lo.Chunk(colsAll, 100) {
-
-			colsSQL := []string{}
-			for _, col := range cols {
-				for _, sf := range statsFields {
-					colSQL := g.R(
-						g.F("%s as {alias}_%s", sf.TemplateSQL, sf.Name),
-						"field", da.Conn.Quote(col.Name),
-						"alias", strings.ReplaceAll(col.Name, "-", "_"),
-					)
-					colsSQL = append(colsSQL, colSQL)
-				}
-			}
-
-			sql := g.R(
-				sqlAnalyzeColumns,
-				"cols_sql", strings.Join(colsSQL, ", "),
-				"schema", da.Conn.Quote(table.Schema),
-				"table", da.Conn.Quote(table.Name),
-				"limit", cast.ToString(sampleSize),
-			)
-			data, err := da.Conn.Query(sql)
-			if err != nil {
-				return g.Error(err, "could not get analysis sql for %s", table.FullName())
-			} else if len(data.Rows) == 0 {
-				return g.Error("got zero rows for analysis sql for %s", table.FullName())
-			}
-
-			// retrieve values, since in order
-			row := data.Rows[0]
-			i := 0
-			for _, col := range cols {
-				m := g.M()
-				for _, sf := range statsFields {
-					m[sf.Name] = row[i]
-					i++
-				}
-				// unmarshal
-				err = g.Unmarshal(g.Marshal(m), &col.Stats)
-				if err != nil {
-					return g.Error(err, "could not get unmarshal sql stats for %s:\n%s", table.FullName(), g.Marshal(m))
-				}
-
-				// store in master map
-				da.ColumnMap[col.Key()] = col
-				if col.IsUnique() {
-					g.Info("    %s is unique [%d rows]", col.Key(), col.Stats.TotalCnt)
-				}
-			}
+		for _, cols := range lo.Chunk(colsAll, 50) {
+			ctx.Wg.Read.Add()
+			go analyze(table, cols)
 		}
+	}
+
+	ctx.Wg.Read.Wait()
+
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 
 	return
 }
 
 func (da *DataAnalyzer) ProcessRelations() (err error) {
+	err = da.ProcessRelationsString()
+	if err != nil {
+		return g.Error(err, "could not process relations for string columns")
+	}
+
+	err = da.ProcessRelationsInteger()
+	if err != nil {
+		return g.Error(err, "could not process relations for integer columns")
+	}
+	return
+}
+
+func (da *DataAnalyzer) ProcessRelationsString() (err error) {
 
 	// same length text fields, uuid
 	lenColMap := map[int]iop.Columns{}
 	for _, col := range da.ColumnMap {
 		if col.IsString() && col.Type != iop.JsonType &&
-			col.Stats.MaxLen-col.Stats.MinLen <= 2 && // min/max len are about the same
+			col.Stats.MaxLen-col.Stats.MinLen <= 1 && // min/max len are about the same
 			col.Stats.MinLen > 0 {
 			if arr, ok := lenColMap[col.Stats.MinLen]; ok {
 				lenColMap[col.Stats.MinLen] = append(arr, col)
@@ -225,15 +290,16 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 	uniqueCols := iop.Columns{}
 	nonUniqueCols := iop.Columns{}
 	for lenI, cols := range lenColMap {
-		g.Info("%d | %d cols", lenI, len(cols))
 		if lenI > 4 && len(cols) > 1 {
 			// do process
 		} else if !g.In(lenI, 36, 18, 19, 28, 27) {
 			// only UUID (36), sfdc id (18), stripe (18, 19, 28, 27) for now
 			continue
 		}
+		g.Info("Got %d string columns with min length %d: %s", len(cols), lenI, g.Marshal(cols.Keys()))
 		for _, col := range cols {
 			if col.Stats.TotalCnt <= 1 {
+				g.Debug("skipped %s", col.Key())
 				continue // skip single row tables for now
 			} else if col.IsUnique() {
 				uniqueCols = append(uniqueCols, col)
@@ -243,48 +309,118 @@ func (da *DataAnalyzer) ProcessRelations() (err error) {
 		}
 	}
 
-	err = da.GetOneToMany(uniqueCols, nonUniqueCols)
+	g.Info("processing string relations: OneToMany")
+	err = da.GetOneToMany(uniqueCols, nonUniqueCols, true)
 	if err != nil {
 		return g.Error(err, "could not run GetOneToMany")
 	}
 
-	err = da.GetOneToOne(uniqueCols)
+	g.Info("processing string relations: OneToOne")
+	err = da.GetOneToOne(uniqueCols, true)
 	if err != nil {
 		return g.Error(err, "could not run GetOneToMany")
 	}
 
-	err = da.GetManyToMany(nonUniqueCols)
+	g.Info("processing string relations: ManyToMany")
+	err = da.GetManyToMany(nonUniqueCols, true)
 	if err != nil {
 		return g.Error(err, "could not run GetOneToMany")
-	}
-
-	// save yaml
-	out, err := yaml.Marshal(da.RelationMap)
-	if err != nil {
-		return g.Error(err, "could not marshal to yaml")
-	}
-
-	err = ioutil.WriteFile("relations.yaml", out, 0755)
-	if err != nil {
-		return g.Error(err, "could not write to yaml")
 	}
 
 	return
 }
 
-func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns) (err error) {
+func (da *DataAnalyzer) ProcessRelationsInteger() (err error) {
+
+	// same length text fields, uuid
+	lenColMap := map[int]iop.Columns{}
+	for _, col := range da.ColumnMap {
+		if col.IsInteger() && col.Stats.MaxLen > 0 {
+			if arr, ok := lenColMap[col.Stats.MaxLen]; ok {
+				lenColMap[col.Stats.MaxLen] = append(arr, col)
+			} else {
+				lenColMap[col.Stats.MaxLen] = iop.Columns{col}
+			}
+		}
+	}
+
+	if len(lenColMap) == 0 {
+		return
+	}
+
+	// iterate over non-unique ones, and grab a value, and try to join to unique ones
+	uniqueCols := iop.Columns{}
+	nonUniqueCols := iop.Columns{}
+	for lenI, cols := range lenColMap {
+		if len(cols) < 2 {
+			continue
+		}
+
+		g.Info("Got %d integer columns with max length %d: %s", len(cols), lenI, g.Marshal(cols.Keys()))
+		for _, col := range cols {
+			if col.Stats.TotalCnt <= 1 {
+				g.Debug("skipped %s", col.Key())
+				continue // skip single row tables for now
+			} else if col.IsUnique() {
+				uniqueCols = append(uniqueCols, col)
+			} else {
+				nonUniqueCols = append(nonUniqueCols, col)
+			}
+		}
+	}
+
+	g.Info("processing integer relations: OneToMany")
+	err = da.GetOneToMany(uniqueCols, nonUniqueCols, false)
+	if err != nil {
+		return g.Error(err, "could not run GetOneToMany")
+	}
+
+	g.Info("processing integer relations: OneToOne")
+	err = da.GetOneToOne(uniqueCols, false)
+	if err != nil {
+		return g.Error(err, "could not run GetOneToMany")
+	}
+
+	g.Info("processing integer relations: ManyToMany")
+	err = da.GetManyToMany(nonUniqueCols, false)
+	if err != nil {
+		return g.Error(err, "could not run GetOneToMany")
+	}
+
+	return
+}
+
+func (da *DataAnalyzer) WriteRelationsYaml(path string) (err error) {
+	out, err := yaml.Marshal(da.RelationMap)
+	if err != nil {
+		return g.Error(err, "could not marshal to yaml")
+	}
+
+	err = ioutil.WriteFile(path, out, 0755)
+	if err != nil {
+		return g.Error(err, "could not write to yaml")
+	}
+
+	return nil
+}
+
+func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns, asString bool) (err error) {
 	if len(uniqueCols) == 0 || len(nonUniqueCols) == 0 {
 		return g.Error("len(uniqueCols) == %d || len(nonUniqueCols) == %d", len(uniqueCols), len(nonUniqueCols))
 	}
 	// build all_non_unique_values
 	stringType := da.Conn.Template().Function["string_type"]
 	nonUniqueExpressions := lo.Map(nonUniqueCols, func(col iop.Column, i int) string {
-		template := `select * from (select '{col_key}' as non_unique_column_key, cast({field} as {string_type}) as val from {schema}.{table} where {field} is not null limit 1) t`
+		// integer template, matches only the max value on both sides
+		template := `select * from (select '{col_key}' as non_unique_column_key, max({field}) as val from {schema}.{table} where {field} is not null limit 1) t`
+		// if asString {
+		// 	// string template, matches any value
+		// 	template = `select * from (select '{col_key}' as non_unique_column_key, {field} as val from {schema}.{table} where {field} is not null limit 1) t`
+		// }
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", da.Conn.Quote(col.Name),
-			"string_type", stringType,
+			"field", lo.Ternary(asString, g.F("cast(%s as %s)", da.Conn.Quote(col.Name), stringType), da.Conn.Quote(col.Name)),
 			"schema", da.Conn.Quote(col.Schema),
 			"table", da.Conn.Quote(col.Table),
 		)
@@ -293,12 +429,19 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns) (err
 
 	// get 1-N and N-1
 	matchingSQLs := lo.Map(uniqueCols, func(col iop.Column, i int) string {
-		template := `select nuv.non_unique_column_key,	'{col_key}' as unique_column_key	from all_non_unique_values nuv
-				inner join {schema}.{table} t on cast(t.{field} as {string_type}) = nuv.val`
+		// integer template, matches only the max value on both sides
+		template := `select nuv.non_unique_column_key, '{col_key}' as unique_column_key	from all_non_unique_values nuv
+				where nuv.val = ( select max({field}) from {schema}.{table} )`
+		if asString {
+			// string template, matches any value
+			template = `select nuv.non_unique_column_key, '{col_key}' as unique_column_key	from all_non_unique_values nuv
+				inner join {schema}.{table} t on {field} = nuv.val`
+		}
 		return g.R(
 			template,
 			"col_key", col.Key(),
 			"field", da.Conn.Quote(col.Name),
+			"field", lo.Ternary(asString, g.F("cast(t.%s as %s)", da.Conn.Quote(col.Name), stringType), da.Conn.Quote(col.Name)),
 			"string_type", stringType,
 			"schema", da.Conn.Quote(col.Schema),
 			"table", da.Conn.Quote(col.Table),
@@ -364,14 +507,19 @@ func (da *DataAnalyzer) GetOneToMany(uniqueCols, nonUniqueCols iop.Columns) (err
 	return
 }
 
-func (da *DataAnalyzer) GetOneToOne(uniqueCols iop.Columns) (err error) {
+func (da *DataAnalyzer) GetOneToOne(uniqueCols iop.Columns, asString bool) (err error) {
 	stringType := da.Conn.Template().Function["string_type"]
 	uniqueExpressions := lo.Map(uniqueCols, func(col iop.Column, i int) string {
-		template := `select * from (select '{col_key}' as unique_column_key_1, cast({field} as {string_type}) as val from {schema}.{table} where {field} is not null limit 1) t`
+		// integer template, matches only the max value on both sides
+		template := `select * from (select '{col_key}' as unique_column_key_1, max({field}) as val from {schema}.{table} where {field} is not null limit 1) t`
+		// if asString {
+		// 	// string template, matches any value
+		// 	template = `select * from (select '{col_key}' as unique_column_key_1, {field} as val from {schema}.{table} where {field} is not null limit 1) t`
+		// }
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", da.Conn.Quote(col.Name),
+			"field", lo.Ternary(asString, g.F("cast(%s as %s)", da.Conn.Quote(col.Name), stringType), da.Conn.Quote(col.Name)),
 			"string_type", stringType,
 			"schema", da.Conn.Quote(col.Schema),
 			"table", da.Conn.Quote(col.Table),
@@ -381,12 +529,18 @@ func (da *DataAnalyzer) GetOneToOne(uniqueCols iop.Columns) (err error) {
 
 	// get 1-1
 	matchingSQLs := lo.Map(uniqueCols, func(col iop.Column, i int) string {
+		// integer template, matches only the max value on both sides
 		template := `select uv.unique_column_key_1,	'{col_key}' as unique_column_key_2	from unique_values uv
-				inner join {schema}.{table} t on cast(t.{field} as {string_type}) = uv.val`
+				where uv.val = ( select max({field}) from {schema}.{table} )`
+		if asString {
+			// string template, matches any value
+			template = `select uv.unique_column_key_1,	'{col_key}' as unique_column_key_2	from unique_values uv
+				inner join {schema}.{table} t on {field} = uv.val`
+		}
 		return g.R(
 			template,
 			"col_key", col.Key(),
-			"field", da.Conn.Quote(col.Name),
+			"field", lo.Ternary(asString, g.F("cast(%s as %s)", da.Conn.Quote(col.Name), stringType), da.Conn.Quote(col.Name)),
 			"string_type", stringType,
 			"schema", da.Conn.Quote(col.Schema),
 			"table", da.Conn.Quote(col.Table),
@@ -453,6 +607,6 @@ func (da *DataAnalyzer) GetOneToOne(uniqueCols iop.Columns) (err error) {
 	return
 }
 
-func (da *DataAnalyzer) GetManyToMany(nonUniqueCols iop.Columns) (err error) {
+func (da *DataAnalyzer) GetManyToMany(nonUniqueCols iop.Columns, asString bool) (err error) {
 	return nil
 }
