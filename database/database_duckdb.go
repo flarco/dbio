@@ -28,7 +28,7 @@ type DuckDbConn struct {
 	URL string
 }
 
-var DuckDbVersion = "0.7.0"
+var DuckDbVersion = "0.8.1"
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
