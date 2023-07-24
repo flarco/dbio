@@ -76,21 +76,22 @@ func (s *spreadsheet) makeDatasetAuto(rows [][]string) (data iop.Dataset) {
 
 		row := make([]interface{}, len(row0))
 		for i, val := range row0 {
-			row[i] = data.Sp.CastVal(i, val, &data.Columns[i])
+			row[i] = val
 		}
+		row = data.Sp.CastRow(row, data.Columns)
 		data.Rows = append(data.Rows, row)
 
 		if i == iop.SampleSize {
 			data.InferColumnTypes()
-			for _, row := range data.Rows {
-				row = data.Sp.CastRow(row, data.Columns)
+			for i, row := range data.Rows {
+				data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 			}
 		}
 	}
 	if !data.Inferred {
 		data.InferColumnTypes()
-		for _, row := range data.Rows {
-			row = data.Sp.CastRow(row, data.Columns)
+		for i, row := range data.Rows {
+			data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 		}
 	}
 	return
@@ -101,29 +102,28 @@ func (s *spreadsheet) makeDatasetStr(rangeRows [][]string) (data iop.Dataset) {
 	for i, row0 := range rangeRows {
 		if i == 0 {
 			// assume first row is header row
-			row0 = iop.CleanHeaderRow(row0)
-			data.SetFields(row0)
+			data.SetFields(iop.CleanHeaderRow(row0))
 			continue
 		}
 
 		row := make([]interface{}, len(row0))
 		for i, val := range row0 {
-			row[i] = data.Sp.CastVal(i, val, &data.Columns[i])
+			row[i] = val
 		}
 		data.Append(row)
 
 		if i == iop.SampleSize {
 			data.InferColumnTypes()
-			for _, row := range data.Rows {
-				row = data.Sp.CastRow(row, data.Columns)
+			for i, row := range data.Rows {
+				data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 			}
 		}
 	}
 
 	if !data.Inferred {
 		data.InferColumnTypes()
-		for _, row := range data.Rows {
-			row = data.Sp.CastRow(row, data.Columns)
+		for i, row := range data.Rows {
+			data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 		}
 	}
 	return
@@ -143,21 +143,20 @@ func (s *spreadsheet) makeDatasetInterf(rangeRows [][]interface{}) (data iop.Dat
 			continue
 		}
 
-		row = data.Sp.CastRow(row, data.Columns)
 		data.Append(row)
 
 		if i == iop.SampleSize {
 			data.InferColumnTypes()
-			for _, row := range data.Rows {
-				row = data.Sp.CastRow(row, data.Columns)
+			for i, row := range data.Rows {
+				data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 			}
 		}
 	}
 
 	if !data.Inferred {
 		data.InferColumnTypes()
-		for _, row := range data.Rows {
-			row = data.Sp.CastRow(row, data.Columns)
+		for i, row := range data.Rows {
+			data.Rows[i] = data.Sp.CastRow(row, data.Columns)
 		}
 	}
 	return
@@ -292,14 +291,12 @@ func (xls *Excel) GetDatasetFromRange(sheet, cellRange string) (data iop.Dataset
 
 	if len(allRows) < rowEnd {
 		err = g.Error(
-			err,
 			"Input row range is larger than file row range: %d < %d",
 			len(allRows), rowEnd,
 		)
 		return
 	} else if len(allRows[0]) < colEnd {
 		err = g.Error(
-			err,
 			"Input col range is larger than file col range: %d < %d",
 			len(allRows[0]), colEnd,
 		)

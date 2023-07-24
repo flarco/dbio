@@ -246,6 +246,8 @@ func (data *Dataset) Stream() *Datastream {
 	ds := NewDatastreamIt(context.Background(), data.Columns, nextFunc)
 	ds.it.IsCasted = true
 	ds.Inferred = data.Inferred
+	ds.Sp = data.Sp
+	ds.Sp.ds = ds
 
 	go func() {
 		defer close(rows)
