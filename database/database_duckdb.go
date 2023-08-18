@@ -275,7 +275,6 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 
 	cmd.Args = append(cmd.Args, "-csv")
 
-	g.Warn("conn.Context().Mux.Lock() [%p]", conn.Context().Mux)
 	conn.Context().Mux.Lock()
 
 	stdOutReader, err := cmd.StdoutPipe()
@@ -293,7 +292,7 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 		return ds, g.Error(err, "could not exec SQL for duckdb")
 	}
 	ds = iop.NewDatastream(iop.Columns{})
-	ds.Defer(func() { conn.Context().Mux.Unlock(); g.Warn("conn.Context().Mux.Unlock() [%p]", conn.Context().Mux) })
+	ds.Defer(func() { conn.Context().Mux.Unlock() })
 
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
@@ -425,7 +424,6 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		if err != nil {
 			return count, g.Error(err, "could not ingest for duckdb: %s\n%s", string(out), stderrVal)
 		} else if strings.Contains(stderrVal, "expected") {
-			g.Warn("%#v", cmd.Args)
 			return count, g.Error("could not ingest for duckdb: %s\n%s", string(out), stderrVal)
 		}
 	}
