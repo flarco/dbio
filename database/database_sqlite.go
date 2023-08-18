@@ -134,6 +134,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 		// set header. not needed if not creating a temp table
 		cfgMap := ds.GetConfig()
+		cfgMap["delimiter"] = ","
 		cfgMap["header"] = lo.Ternary(sameCols, "false", "true")
 		ds.SetConfig(cfgMap)
 

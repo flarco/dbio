@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -69,9 +70,9 @@ func EnsureBinDuckDB() (binPath string, err error) {
 		DuckDbVersion = version
 	}
 
-	folderPath := path.Join(g.UserHomeDir(), "duckdb")
+	folderPath := path.Join(g.UserHomeDir(), "duckdb", DuckDbVersion)
 	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
-	binPath = path.Join(g.UserHomeDir(), "duckdb", "duckdb"+extension)
+	binPath = path.Join(folderPath, "duckdb"+extension)
 	found := g.PathExists(binPath)
 
 	checkVersion := func() (bool, error) {
@@ -274,22 +275,36 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 
 	cmd.Args = append(cmd.Args, "-csv")
 
+	g.Warn("conn.Context().Mux.Lock() [%p]", conn.Context().Mux)
+	conn.Context().Mux.Lock()
+
 	stdOutReader, err := cmd.StdoutPipe()
 	if err != nil {
 		return ds, g.Error(err, "could not get stdout for duckdb")
 	}
 
-	conn.Context().Mux.Lock()
+	stdErrReader, err := cmd.StderrPipe()
+	if err != nil {
+		return ds, g.Error(err, "could not get stderr for duckdb")
+	}
+
 	err = cmd.Start()
 	if err != nil {
 		return ds, g.Error(err, "could not exec SQL for duckdb")
 	}
 	ds = iop.NewDatastream(iop.Columns{})
-	ds.Defer(func() { conn.Context().Mux.Unlock() })
+	ds.Defer(func() { conn.Context().Mux.Unlock(); g.Warn("conn.Context().Mux.Unlock() [%p]", conn.Context().Mux) })
 
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
 		return ds, g.Error(err, "could not read output stream")
+	}
+
+	errOut, err := io.ReadAll(stdErrReader)
+	if err != nil {
+		return ds, g.Error(err, "could not read error stream")
+	} else if errOutS := string(errOut); errOutS != "" {
+		return ds, g.Error(errOutS)
 	}
 
 	return
@@ -345,6 +360,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		// set header false
 		cfgMap := ds.GetConfig()
 		cfgMap["header"] = "false"
+		cfgMap["delimiter"] = ","
 		cfgMap["datetime_format"] = "2006-01-02 15:04:05.000000-07:00"
 		ds.SetConfig(cfgMap)
 
