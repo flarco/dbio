@@ -30,12 +30,16 @@ type DuckDbConn struct {
 }
 
 var DuckDbVersion = "0.8.1"
+var DuckDbUseTempFile = false
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
 
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbDuckDb
+	if strings.HasPrefix(conn.URL, "motherduck") {
+		conn.BaseConn.Type = dbio.TypeDbMotherDuck
+	}
 
 	var instance Connection
 	instance = conn
@@ -55,6 +59,11 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 		"duckdb://",
 		"",
 	)
+	URL = strings.ReplaceAll(
+		URL,
+		"motherduck://",
+		"md:",
+	)
 	return URL
 }
 
@@ -68,6 +77,14 @@ func (conn *DuckDbConn) Connect(timeOut ...int) (err error) {
 func EnsureBinDuckDB() (binPath string, err error) {
 	if version := os.Getenv("DUCKDB_VERSION"); version != "" {
 		DuckDbVersion = version
+	}
+
+	if useTempFile := os.Getenv("DUCKDB_USE_TMP_FILE"); useTempFile != "" {
+		DuckDbUseTempFile = cast.ToBool(useTempFile)
+	} else if g.In(DuckDbVersion, "0.8.0", "0.8.1") {
+		// there is a bug with stdin stream in 0.8.1.
+		// Out of Memory Error
+		DuckDbUseTempFile = true
 	}
 
 	folderPath := path.Join(g.UserHomeDir(), "duckdb", DuckDbVersion)
@@ -111,7 +128,7 @@ func EnsureBinDuckDB() (binPath string, err error) {
 		case "windows/386":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-windows-i386.zip"
 
-		case "darwin/386", "darwin/arm", "darwin/arm64":
+		case "darwin/386", "darwin/arm", "darwin/arm64", "darwin/amd64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-osx-universal.zip"
 
 		case "linux/386":
@@ -119,6 +136,9 @@ func EnsureBinDuckDB() (binPath string, err error) {
 
 		case "linux/amd64":
 			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-amd64.zip"
+
+		case "linux/aarch64":
+			downloadURL = "https://github.com/duckdb/duckdb/releases/download/v{version}/duckdb_cli-linux-aarch64.zip"
 
 		default:
 			return "", g.Error("OS %s/%s not handled", runtime.GOOS, runtime.GOARCH)
@@ -183,6 +203,10 @@ func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err e
 	cmd = exec.Command(bin)
 	cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
 
+	// set token in env
+	if motherduckToken := conn.GetProp("motherduck_token"); motherduckToken != "" {
+		cmd.Env = append(os.Environ(), "motherduck_token="+motherduckToken)
+	}
 	return cmd, sqlPath, nil
 }
 
@@ -335,7 +359,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 	table, err := ParseTableName(tableFName, conn.GetType())
 	if err != nil {
-		err = g.Error(err, "could not get table name for imoprt")
+		err = g.Error(err, "could not get table name for import")
 		return
 	}
 
@@ -363,7 +387,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		cfgMap["datetime_format"] = "2006-01-02 15:04:05.000000-07:00"
 		ds.SetConfig(cfgMap)
 
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == "windows" || DuckDbUseTempFile {
 			fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
 			if err != nil {
 				err = g.Error(err, "could not obtain client for temp file")

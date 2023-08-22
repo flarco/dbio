@@ -339,6 +339,8 @@ func (c *Connection) setURL() (err error) {
 			} else if c.Type == dbio.TypeDbSQLite || c.Type == dbio.TypeDbDuckDb {
 				setIfMissing("instance", U.Path())
 				setIfMissing("schema", "main")
+			} else if c.Type == dbio.TypeDbMotherDuck {
+				setIfMissing("schema", "main")
 			}
 		}
 		if c.Type == dbio.TypeFileSftp {
@@ -455,6 +457,9 @@ func (c *Connection) setURL() (err error) {
 			}
 		}
 		template = "duckdb://{instance}"
+	case dbio.TypeDbMotherDuck:
+		setIfMissing("schema", "main")
+		template = "motherduck://{database}?motherduck_token={motherduck_token}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")

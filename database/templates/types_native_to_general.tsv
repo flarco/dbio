@@ -255,7 +255,6 @@ sqlite	bigint	bigint	col_bigint bigint	TRUE	TRUE
 sqlite	integer	bigint	col_integer integer	TRUE	TRUE	
 sqlite	null	text	col_null null	TRUE	TRUE	
 sqlite	real	decimal	col_real real	TRUE	TRUE	
-sqlite	numeric	decimal	col_numeric numeric	TRUE	TRUE	
 sqlite	decimal	decimal	col_decimal decimal	TRUE	TRUE	
 sqlite	date	datetime	col_date date	TRUE	TRUE	
 sqlite	datetime	datetime	col_datetime datetime	TRUE	TRUE	
@@ -367,3 +366,33 @@ duckdb	utinyint	integer	col_utinyint utinyint	TRUE	TRUE
 duckdb	uuid	string	col_uuid uuid	TRUE	TRUE	
 duckdb	hugeint	bigint	col_hugeint hugeint	TRUE	TRUE	
 duckdb	interval	string	col_interval interval	TRUE	TRUE	
+motherduck	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
+motherduck	binary	binary	col_binary binary(100)	TRUE	TRUE	A fixed-length binary string
+motherduck	blob	binary	col_blob blob	TRUE	TRUE	A small BLOB
+motherduck	char	string	col_char char(17)	TRUE	TRUE	A fixed-length nonbinary (character) string
+motherduck	date	date	col_date date	TRUE	TRUE	A date value in CCYY-MM-DD format
+motherduck	datetime	datetime	col_datetime datetime	TRUE	TRUE	A date and time value inCCYY-MM-DD hh:mm:ssformat
+motherduck	decimal	decimal	col_decimal decimal	TRUE	TRUE	A fixed-point number
+motherduck	double	float	col_double double	TRUE	TRUE	A double-precision floating point number
+motherduck	enum	string	col_enum enum ('value1','value2','value3')	FALSE	FALSE	An enumeration; each column value may be assigned one enumeration member
+motherduck	float	float	col_float float	TRUE	TRUE	A single-precision floating point number
+motherduck	integer	integer	col_int int	TRUE	TRUE	A standard integer
+motherduck	json	json	col_json json	TRUE	TRUE	JSON Data Type
+motherduck	smallint	smallint	col_smallint smallint	TRUE	TRUE	A small integer
+motherduck	text	text	col_text text	TRUE	TRUE	A small non-binary string
+motherduck	time	time	col_time time	TRUE	TRUE	A time value in hh:mm:ss format
+motherduck	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	A timestamp value in CCYY-MM-DD hh:mm:ss format
+motherduck	tinyblob	text	col_tinyblob tinyblob	TRUE	TRUE	A very small BLOB (binary large object)
+motherduck	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	A very small integer
+motherduck	varchar	text	col_varchar varchar(100)	TRUE	TRUE	A variable-length non-binary string
+motherduck	boolean	bool	col_boolean boolean	TRUE	TRUE	
+motherduck	list	json	col_list list	TRUE	TRUE	
+motherduck	struct	json	col_struct struct	TRUE	TRUE	
+motherduck	map	json	col_map map	TRUE	TRUE	
+motherduck	ubigint	bigint	col_ubigint ubigint	TRUE	TRUE	
+motherduck	uinteger	bigint	col_uinteger uinteger	TRUE	TRUE	
+motherduck	usmallint	integer	col_usmallint usmallint	TRUE	TRUE	
+motherduck	utinyint	integer	col_utinyint utinyint	TRUE	TRUE	
+motherduck	uuid	string	col_uuid uuid	TRUE	TRUE	
+motherduck	hugeint	bigint	col_hugeint hugeint	TRUE	TRUE	
+motherduck	interval	string	col_interval interval	TRUE	TRUE	

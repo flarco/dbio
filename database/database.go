@@ -291,7 +291,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &SnowflakeConn{URL: URL}
 	} else if strings.HasPrefix(URL, "sqlite:") {
 		conn = &SQLiteConn{URL: URL}
-	} else if strings.HasPrefix(URL, "duckdb:") {
+	} else if strings.HasPrefix(URL, "duckdb:") || strings.HasPrefix(URL, "motherduck:") {
 		conn = &DuckDbConn{URL: URL}
 	} else {
 		conn = &BaseConn{URL: URL}
@@ -333,7 +333,7 @@ func getDriverName(dbType dbio.Type) (driverName string) {
 		driverName = "snowflake"
 	case dbio.TypeDbSQLite:
 		driverName = "sqlite3"
-	case dbio.TypeDbDuckDb:
+	case dbio.TypeDbDuckDb, dbio.TypeDbMotherDuck:
 		driverName = "duckdb"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure:
 		driverName = "sqlserver"
@@ -1366,7 +1366,7 @@ func NativeTypeToGeneral(name, dbType string, conn Connection) (colType iop.Colu
 			dbType = strings.ReplaceAll(dbType, "nullable(", "")
 			dbType = strings.TrimSuffix(dbType, ")")
 		}
-	} else if conn.GetType() == dbio.TypeDbDuckDb {
+	} else if conn.GetType() == dbio.TypeDbDuckDb || conn.GetType() == dbio.TypeDbMotherDuck {
 		if strings.HasSuffix(dbType, "[]") {
 			dbType = "list"
 		}
