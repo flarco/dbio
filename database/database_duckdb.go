@@ -31,6 +31,7 @@ type DuckDbConn struct {
 
 var DuckDbVersion = "0.8.1"
 var DuckDbUseTempFile = false
+var DuckDbFileContext = map[string]*g.Context{} // so that collision happen
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
@@ -39,6 +40,11 @@ func (conn *DuckDbConn) Init() error {
 	conn.BaseConn.Type = dbio.TypeDbDuckDb
 	if strings.HasPrefix(conn.URL, "motherduck") {
 		conn.BaseConn.Type = dbio.TypeDbMotherDuck
+	}
+
+	if _, ok := DuckDbFileContext[conn.URL]; !ok {
+		c := g.NewContext(conn.Context().Ctx)
+		DuckDbFileContext[conn.URL] = &c
 	}
 
 	var instance Connection
@@ -255,10 +261,11 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 
 	cmd.Stderr = &stderr
 
-	conn.Context().Mux.Lock()
+	fileContext := DuckDbFileContext[conn.URL]
+	fileContext.Mux.Lock()
 	out, err := cmd.Output()
 	time.Sleep(100 * time.Millisecond) // so that cmd releases process
-	conn.Context().Mux.Unlock()
+	fileContext.Mux.Unlock()
 
 	os.Remove(sqlPath) // delete sql temp file
 
@@ -299,7 +306,8 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 
 	cmd.Args = append(cmd.Args, "-csv")
 
-	conn.Context().Mux.Lock()
+	fileContext := DuckDbFileContext[conn.URL]
+	fileContext.Mux.Lock()
 
 	stdOutReader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -316,7 +324,7 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 		return ds, g.Error(err, "could not exec SQL for duckdb")
 	}
 	ds = iop.NewDatastream(iop.Columns{})
-	ds.Defer(func() { conn.Context().Mux.Unlock() })
+	ds.Defer(func() { fileContext.Mux.Unlock() })
 
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
@@ -434,10 +442,11 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 
-		conn.Context().Mux.Lock()
+		fileContext := DuckDbFileContext[conn.URL]
+		fileContext.Mux.Lock()
 		out, err := cmd.Output()
-		conn.Context().Mux.Unlock()
 		time.Sleep(100 * time.Millisecond) // so that cmd releases process
+		fileContext.Mux.Unlock()
 
 		if csvPath != "/dev/stdin" {
 			os.Remove(csvPath) // delete csv file

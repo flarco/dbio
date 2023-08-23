@@ -1458,3 +1458,32 @@ func TestBigTable(t *testing.T) {
 	g.AssertNoError(t, err)
 
 }
+
+func TestConcurrentDuckDb(t *testing.T) {
+
+	db := DBs["duckdb"]
+	conn1, err := connect(db)
+	g.AssertNoError(t, err)
+	conn2, err := connect(db)
+	g.AssertNoError(t, err)
+
+	c := g.NewContext(context.Background())
+	c.Wg.Read.Add()
+	go func() {
+		defer c.Wg.Read.Done()
+		data, err := conn1.Query("select 1 as a")
+		g.AssertNoError(t, err)
+		g.PP(data.Records())
+	}()
+
+	c.Wg.Read.Add()
+	go func() {
+		defer c.Wg.Read.Done()
+		data, err := conn2.Query("select 1 as b")
+		g.AssertNoError(t, err)
+		g.PP(data.Records())
+	}()
+
+	c.Wg.Read.Wait()
+
+}
