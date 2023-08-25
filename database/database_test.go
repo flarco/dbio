@@ -251,12 +251,6 @@ var DBs = map[string]*testDB{
 
 var connsMap map[string]map[string]any
 
-func init() {
-	env.SetHomeDir("sling")
-	connsMap, _ = env.GetHomeDirConnsMap()
-	// g.Warn(g.Marshal(connsMap))
-}
-
 func TestPostgres(t *testing.T) {
 	t.Parallel()
 	db := DBs["postgres"]
@@ -368,6 +362,9 @@ func TestBigQuery(t *testing.T) {
 }
 
 func connect(db *testDB) (conn Connection, err error) {
+	env.SetHomeDir("sling")
+	connsMap, _ = env.GetHomeDirConnsMap()
+
 	if ce, ok := connsMap[db.name]; ok {
 		if db.URL == "" {
 			db.URL = cast.ToString(ce["url"])
