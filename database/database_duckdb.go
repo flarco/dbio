@@ -334,6 +334,7 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 		return ds, g.Error(err, "could not exec SQL for duckdb")
 	}
 	ds = iop.NewDatastream(iop.Columns{})
+	ds.SetConfig(map[string]string{"delimiter": ",", "header": "true"})
 	ds.Defer(func() { fileContext.Mux.Unlock() })
 
 	// ds.SetConfig(map[string]string{"flatten": "true"})
@@ -341,6 +342,7 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	// err = ds.ConsumeParquetReader(stdOutReader)
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
+		ds.Close()
 		return ds, g.Error(err, "could not read output stream")
 	}
 
