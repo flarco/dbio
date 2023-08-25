@@ -10,9 +10,13 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // CSV is a csv object
@@ -40,9 +44,17 @@ func CleanHeaderRow(header []string) []string {
 	regexFirstDigit := *regexp.MustCompile(`^\d`)
 	fieldMap := map[string]string{}
 
+	transformer := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
 	for i, field := range header {
 		field = strings.TrimSpace(field)
-		field = regexAllow.ReplaceAllString(field, "_")
+		field = strings.TrimSuffix(strings.TrimPrefix(field, `"`), `"`)
+		field, _, _ = transform.String(transformer, field)
+
+		// clean up undesired character
+		field = regexAllow.ReplaceAllString(field, "`") // temporary so we can trim
+		field = strings.TrimRight(strings.TrimLeft(field, "`"), "`")
+		field = strings.ReplaceAll(field, "`", "_")
+
 		if regexFirstDigit.Match([]byte(field)) {
 			field = "_" + field
 		}
