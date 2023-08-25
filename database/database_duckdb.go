@@ -297,7 +297,12 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 
 func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, options ...map[string]interface{}) (ds *iop.Datastream, err error) {
 
-	cmd, sqlPath, err := conn.getCmd(sql)
+	// https://duckdb.org/docs/sql/statements/copy
+	// copySQL := g.F("COPY ( %s ) TO '/dev/stdout' ( FORMAT CSV, header true )", sql) // works, but types are not preserved. BIGINT can be Messed up in javascript.
+	// copySQL := g.F("COPY ( %s ) TO '/dev/stdout' ( FORMAT JSON )", sql) // works, but need to flatten, and becomes out of order
+	// copySQL := g.F("COPY ( %s ) TO '/dev/stdout' ( FORMAT PARQUET, compression uncompressed, FIELD_IDS 'auto' )", sql) // does not work, maybe use better parquet lib
+	copySQL := sql
+	cmd, sqlPath, err := conn.getCmd(copySQL)
 	if err != nil {
 		return ds, g.Error(err, "could not get cmd duckdb")
 	}
@@ -331,6 +336,9 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	ds = iop.NewDatastream(iop.Columns{})
 	ds.Defer(func() { fileContext.Mux.Unlock() })
 
+	// ds.SetConfig(map[string]string{"flatten": "true"})
+	// err = ds.ConsumeJsonReader(stdOutReader)
+	// err = ds.ConsumeParquetReader(stdOutReader)
 	err = ds.ConsumeCsvReader(stdOutReader)
 	if err != nil {
 		return ds, g.Error(err, "could not read output stream")
