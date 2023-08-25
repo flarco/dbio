@@ -80,20 +80,25 @@ func (conn *DuckDbConn) Connect(timeOut ...int) (err error) {
 
 // EnsureBinDuckDB ensures duckdb binary exists
 // if missing, downloads and uses
-func EnsureBinDuckDB() (binPath string, err error) {
-	if version := os.Getenv("DUCKDB_VERSION"); version != "" {
-		DuckDbVersion = version
+func EnsureBinDuckDB(version string) (binPath string, err error) {
+
+	if version == "" {
+		if val := os.Getenv("DUCKDB_VERSION"); val != "" {
+			version = val
+		} else {
+			version = DuckDbVersion
+		}
 	}
 
 	if useTempFile := os.Getenv("DUCKDB_USE_TMP_FILE"); useTempFile != "" {
 		DuckDbUseTempFile = cast.ToBool(useTempFile)
-	} else if g.In(DuckDbVersion, "0.8.0", "0.8.1") {
+	} else if g.In(version, "0.8.0", "0.8.1") {
 		// there is a bug with stdin stream in 0.8.1.
 		// Out of Memory Error
 		DuckDbUseTempFile = true
 	}
 
-	folderPath := path.Join(g.UserHomeDir(), "duckdb", DuckDbVersion)
+	folderPath := path.Join(g.UserHomeDir(), "duckdb", version)
 	extension := lo.Ternary(runtime.GOOS == "windows", ".exe", "")
 	binPath = path.Join(folderPath, "duckdb"+extension)
 	found := g.PathExists(binPath)
@@ -105,7 +110,7 @@ func EnsureBinDuckDB() (binPath string, err error) {
 			return false, g.Error(err, "could not get version for duckdb")
 		}
 
-		if strings.HasPrefix(string(out), "v"+DuckDbVersion) {
+		if strings.HasPrefix(string(out), "v"+version) {
 			return true, nil
 		}
 
@@ -150,9 +155,9 @@ func EnsureBinDuckDB() (binPath string, err error) {
 			return "", g.Error("OS %s/%s not handled", runtime.GOOS, runtime.GOARCH)
 		}
 
-		downloadURL = g.R(downloadURL, "version", DuckDbVersion)
+		downloadURL = g.R(downloadURL, "version", version)
 
-		g.Info("downloading duckdb %s for %s/%s", DuckDbVersion, runtime.GOOS, runtime.GOARCH)
+		g.Info("downloading duckdb %s for %s/%s", version, runtime.GOOS, runtime.GOARCH)
 		err = net.DownloadFile(downloadURL, zipPath)
 		if err != nil {
 			return "", g.Error(err, "Unable to download duckdb binary")
@@ -188,7 +193,7 @@ type duckDbResult struct {
 
 func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err error) {
 
-	bin, err := EnsureBinDuckDB()
+	bin, err := EnsureBinDuckDB(conn.GetProp("duckdb_version"))
 	if err != nil {
 		return cmd, "", g.Error(err, "could not get duckdb binary")
 	}
@@ -390,7 +395,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 		// set header false
 		cfgMap := ds.GetConfig()
-		cfgMap["header"] = "false"
+		cfgMap["header"] = "true"
 		cfgMap["delimiter"] = ","
 		cfgMap["datetime_format"] = "2006-01-02 15:04:05.000000-07:00"
 		ds.SetConfig(cfgMap)
@@ -419,7 +424,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		sqlLines := []string{
 			// g.F(".separator ,"),
 			// g.F(".import --csv %s %s", csvPath, table.Name),
-			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=False, auto_detect=True);`, table.Name, strings.Join(columnNames, ", "), csvPath),
+			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.Name, strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
 		}
 
 		sql := strings.Join(sqlLines, ";\n")
@@ -462,6 +467,21 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 	}
 
 	return ds.Count, nil
+}
+
+func (conn *DuckDbConn) generateCsvColumns(columns iop.Columns) (colStr string) {
+	// {'FlightDate': 'DATE', 'UniqueCarrier': 'VARCHAR', 'OriginCityName': 'VARCHAR', 'DestCityName': 'VARCHAR'}
+
+	colsArr := make([]string, len(columns))
+	for i, col := range columns {
+		nativeType, err := conn.GetNativeType(col)
+		if err != nil {
+			g.Warn(err.Error())
+		}
+		colsArr[i] = g.F("'%s':'%s'", col.Name, nativeType)
+	}
+
+	return "{" + strings.Join(colsArr, ", ") + "}"
 }
 
 // GenerateUpsertSQL generates the upsert SQL
