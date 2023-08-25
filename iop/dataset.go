@@ -342,7 +342,11 @@ func (data *Dataset) StringRecords(lower ...bool) []map[string]interface{} {
 	for i, row := range data.Rows {
 		rec := map[string]interface{}{}
 		for j, field := range data.GetFields(Lower) {
-			rec[field] = cast.ToString(row[j])
+			if row[j] == nil {
+				rec[field] = nil
+			} else {
+				rec[field] = cast.ToString(row[j])
+			}
 		}
 		records[i] = rec
 	}
