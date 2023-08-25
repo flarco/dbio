@@ -430,6 +430,19 @@ func (data *Dataset) InferColumnTypes() {
 	}
 
 	data.Columns = InferFromStats(columns, data.SafeInference, data.NoDebug)
+
+	// overwrite if found in config.columns
+	for i, col := range data.Columns {
+		if colType, found := data.Sp.config.columns[strings.ToLower(col.Name)]; found {
+			if colType.IsValid() {
+				data.Columns[i].Type = colType
+			} else {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", colType, strings.ToLower(col.Name))
+				data.Columns[i].Type = StringType
+			}
+		}
+	}
+
 	data.Inferred = true
 }
 

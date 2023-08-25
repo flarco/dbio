@@ -639,3 +639,8 @@ func (ct ColumnType) IsDatetime() bool {
 	}
 	return false
 }
+
+// IsValid returns whether the column has a valid type
+func (ct ColumnType) IsValid() bool {
+	return ct.IsString() || ct.IsJSON() || ct.IsNumber() || ct.IsBool() || ct.IsDatetime()
+}

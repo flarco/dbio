@@ -46,6 +46,7 @@ type streamConfig struct {
 	flatten        bool
 	fieldsPerRec   int
 	jmespath       string
+	columns        map[string]ColumnType // map of column types
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -54,7 +55,7 @@ func NewStreamProcessor() *StreamProcessor {
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9))},
+		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9)), columns: map[string]ColumnType{}},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -181,6 +182,15 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 	if configMap["skip_blank_lines"] != "" {
 		sp.config.skipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
+	}
+	if configMap["columns"] != "" {
+		colMap := map[string]ColumnType{}
+		g.Unmarshal(configMap["columns"], &colMap)
+
+		// lowercase keys
+		for k, v := range colMap {
+			sp.config.columns[strings.ToLower(k)] = v
+		}
 	}
 	sp.config.compression = configMap["compression"]
 

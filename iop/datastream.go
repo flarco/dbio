@@ -453,6 +453,7 @@ loop:
 		sampleData.NoDebug = ds.NoDebug
 		sampleData.SafeInference = ds.SafeInference
 		sampleData.Sp.dateLayouts = ds.Sp.dateLayouts
+		sampleData.Sp.config = ds.Sp.config
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
 		ds.Inferred = true
