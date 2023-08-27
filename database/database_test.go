@@ -3,9 +3,11 @@ package database
 import (
 	"bufio"
 	"context"
+	"io"
 	"log"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -96,7 +98,7 @@ var DBs = map[string]*testDB{
 
 	"duckdb": {
 		name:   "duckdb",
-		URL:    "duckdb:///tmp/test.d.db",
+		URL:    "duckdb:///tmp/test.d.db?interactive=true",
 		schema: "main",
 
 		transactDDL: `CREATE TABLE transact (date_time date, description varchar, original_description varchar, amount decimal(10,5), transaction_type varchar, category varchar, account_name varchar, labels varchar, notes varchar )`,
@@ -106,6 +108,11 @@ var DBs = map[string]*testDB{
 		ON place(country, city)`,
 		placeVwDDL:    "CREATE VIEW place_vw as select * from place where telcode = 65",
 		placeVwSelect: "CREATE VIEW place_vw as select * from place where telcode = 65",
+	},
+
+	"montherduck": {
+		name: "montherduck",
+		URL:  "motherduck://my_db?interactive=true&motherduck_token=" + os.Getenv("MOTHERDUCK_TOKEN"),
 	},
 
 	"mysql": {
@@ -1483,4 +1490,71 @@ func TestConcurrentDuckDb(t *testing.T) {
 
 	c.Wg.Read.Wait()
 
+}
+
+func TestInteractiveDuckDb(t *testing.T) {
+	var err error
+
+	// db := DBs["montherduck"]
+	db := DBs["duckdb"]
+	conn, err := connect(db)
+	g.AssertNoError(t, err)
+
+	assert.True(t, cast.ToBool(conn.GetProp("interactive")))
+
+	data, err := conn.Query("select 1 as a union all select 2 as a")
+	g.AssertNoError(t, err)
+	assert.NotEmpty(t, data.Records())
+
+	data, err = conn.Query("select 1 ,,,")
+	assert.Error(t, err)
+
+	data, err = conn.Query("select 33333 33 33!")
+	assert.Error(t, err)
+
+	_, err = conn.Exec("select 33333 33 33!")
+	assert.Error(t, err)
+}
+
+func TestInteractiveMotherDuck(t *testing.T) {
+	cmd := exec.Command("~/duckdb/0.8.1/duckdb", "-csv", "-cmd", "pragma version", "md:")
+	cmd.Env = append(os.Environ(), "motherduck_token="+os.Getenv("MOTHERDUCK_TOKEN"))
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		log.Fatalln("Error creating the stdin pipe :", err)
+	}
+
+	stdOutReader, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatalln("Error creating the stdout pipe :", err)
+	}
+	_ = stdOutReader
+
+	stdErrReader, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatalln("Error creating the stderr pipe :", err)
+	}
+
+	go io.Copy(os.Stdout, stdOutReader)
+	go io.Copy(os.Stderr, stdErrReader)
+
+	go func() {
+		io.Copy(stdin, strings.NewReader("use my_db;\n"))
+		io.Copy(stdin, strings.NewReader("PRAGMA version;\n"))
+		io.Copy(stdin, strings.NewReader("select Count(1) from main.test1;\n"))
+		// io.Copy(stdin, strings.NewReader("select 2,,, as a;\n"))
+		io.Copy(stdin, strings.NewReader("PRAGMA version;\n"))
+		io.Copy(stdin, strings.NewReader(".quit\n"))
+		// io.Copy(stdin, strings.NewReader(".quit\n"))
+		// io.Copy(stdin, strings.NewReader("set -m\n"))
+		// io.Copy(stdin, strings.NewReader("/Users/fritz/duckdb/0.8.1/duckdb\n"))
+		// io.Copy(stdin, strings.NewReader("/usr/bin/python3\n"))
+		// io.Copy(stdin, strings.NewReader("print('hey')\n"))
+	}()
+
+	g.Info("start")
+	err = cmd.Run()
+	if err != nil {
+		log.Fatalln("Error while running :", err)
+	}
 }

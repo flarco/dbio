@@ -14,6 +14,7 @@ type Batch struct {
 	Rows       chan []any
 	Previous   *Batch
 	Count      int64
+	Limit      int64
 	ds         *Datastream
 	closed     bool
 	closeChan  chan struct{}
@@ -196,5 +197,9 @@ func (b *Batch) Push(row []any) {
 		b.ds.Count++
 		b.ds.bwRows <- newRow
 		b.ds.Sp.commitChecksum()
+
+		if b.Limit > 0 && b.Count == b.Limit {
+			b.Close()
+		}
 	}
 }

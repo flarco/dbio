@@ -321,13 +321,21 @@ func (c *Connection) setURL() (err error) {
 
 		if c.Type.IsDb() {
 			// set props from URL
-			setIfMissing("schema", U.PopParam("schema"))
-			setIfMissing("sslmode", U.PopParam("sslmode"))
-			setIfMissing("host", U.Hostname())
-			setIfMissing("username", U.Username())
-			setIfMissing("password", U.Password())
-			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+
 			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
+			setIfMissing("schema", U.PopParam("schema"))
+
+			if !g.In(c.Type, dbio.TypeDbMotherDuck, dbio.TypeDbDuckDb, dbio.TypeDbSQLite, dbio.TypeDbBigQuery) {
+				setIfMissing("host", U.Hostname())
+				setIfMissing("username", U.Username())
+				setIfMissing("password", U.Password())
+				setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+			}
+
+			if g.In(c.Type, dbio.TypeDbPostgres, dbio.TypeDbRedshift) {
+				setIfMissing("sslmode", U.PopParam("sslmode"))
+			}
+
 			if c.Type == dbio.TypeDbSnowflake {
 				setIfMissing("warehouse", U.PopParam("warehouse"))
 			} else if c.Type == dbio.TypeDbBigQuery {
@@ -459,7 +467,8 @@ func (c *Connection) setURL() (err error) {
 		template = "duckdb://{instance}"
 	case dbio.TypeDbMotherDuck:
 		setIfMissing("schema", "main")
-		template = "motherduck://{database}?motherduck_token={motherduck_token}"
+		setIfMissing("interactive", true)
+		template = "motherduck://{database}?interactive={interactive}&motherduck_token={motherduck_token}"
 	case dbio.TypeDbSQLServer, dbio.TypeDbAzure, dbio.TypeDbAzureDWH:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")

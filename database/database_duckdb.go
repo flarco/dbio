@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/flarco/dbio"
@@ -27,11 +29,18 @@ import (
 type DuckDbConn struct {
 	BaseConn
 	URL string
+
+	isInteractive     bool
+	cmdInteractive    *exec.Cmd      // For interactive mode
+	stdInInteractive  io.WriteCloser // For interactive mode
+	stdOutInteractive *bufio.Scanner // For interactive mode
+	stdErrInteractive *duckDbBuffer  // For interactive mode
 }
 
 var DuckDbVersion = "0.8.1"
 var DuckDbUseTempFile = false
 var DuckDbFileContext = map[string]*g.Context{} // so that collision happen
+var duckDbReadOnlyHint = "/* -readonly */"
 
 // Init initiates the object
 func (conn *DuckDbConn) Init() error {
@@ -45,6 +54,11 @@ func (conn *DuckDbConn) Init() error {
 	if _, ok := DuckDbFileContext[conn.URL]; !ok {
 		c := g.NewContext(conn.Context().Ctx)
 		DuckDbFileContext[conn.URL] = &c
+	}
+
+	conn.isInteractive = cast.ToBool(conn.GetProp("interactive"))
+	if conn.BaseConn.Type == dbio.TypeDbMotherDuck && conn.GetProp("interactive") == "" {
+		conn.isInteractive = true // default interactive true for motherduck
 	}
 
 	var instance Connection
@@ -191,7 +205,38 @@ type duckDbResult struct {
 	res       driver.Result
 }
 
-func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err error) {
+// ducbDbBuffer syncs reset/writes
+// from https://stackoverflow.com/a/59946981
+type duckDbBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *duckDbBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *duckDbBuffer) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf.Reset()
+}
+
+func (b *duckDbBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *duckDbBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Bytes()
+}
+
+func (conn *DuckDbConn) getCmd(sql string, readOnly bool) (cmd *exec.Cmd, sqlPath string, err error) {
 
 	bin, err := EnsureBinDuckDB(conn.GetProp("duckdb_version"))
 	if err != nil {
@@ -212,12 +257,48 @@ func (conn *DuckDbConn) getCmd(sql string) (cmd *exec.Cmd, sqlPath string, err e
 	dbPath := strings.ReplaceAll(conn.GetURL(), "?"+dbPathU.U.RawQuery, "")
 
 	cmd = exec.Command(bin)
-	cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
+	if readOnly {
+		cmd.Args = append(cmd.Args, "-readonly")
+	}
+
+	if conn.isInteractive {
+		cmd.Args = append(cmd.Args, "-csv", "-cmd", "PRAGMA threads=4", dbPath)
+		if conn.cmdInteractive == nil || (conn.cmdInteractive.ProcessState != nil && conn.cmdInteractive.ProcessState.Exited()) {
+			conn.stdInInteractive, err = cmd.StdinPipe()
+			if err != nil {
+				err = g.Error(err, "could not get conn.stdInInteractive")
+				return
+			}
+
+			stdOutInteractive, err := cmd.StdoutPipe()
+			if err != nil {
+				return cmd, sqlPath, g.Error(err, "could not get conn.stdOutInteractive")
+			}
+
+			conn.stdErrInteractive = &duckDbBuffer{}
+			cmd.Stderr = conn.stdErrInteractive
+
+			conn.stdOutInteractive = bufio.NewScanner(stdOutInteractive)
+			conn.stdOutInteractive.Split(bufio.ScanLines)
+
+			conn.cmdInteractive = cmd
+
+			go func() {
+				err := conn.cmdInteractive.Run()
+				if err != nil {
+					conn.Context().CaptureErr(g.Error(err, "error running duckdn interactive command"))
+				}
+			}()
+		}
+	} else {
+		cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
+	}
 
 	// set token in env
 	if motherduckToken := conn.GetProp("motherduck_token"); motherduckToken != "" {
 		cmd.Env = append(os.Environ(), "motherduck_token="+motherduckToken)
 	}
+
 	return cmd, sqlPath, nil
 }
 
@@ -227,6 +308,64 @@ func (r duckDbResult) LastInsertId() (int64, error) {
 
 func (r duckDbResult) RowsAffected() (int64, error) {
 	return cast.ToInt64(r.TotalRows), nil
+}
+
+func (conn *DuckDbConn) submitToCmdStdin(ctx context.Context, sql string) (stdOutReader io.ReadCloser, stderrBuf *bytes.Buffer, err error) {
+	// submit to stdin
+	sql = strings.TrimLeft(strings.TrimSpace(sql), ";")
+	_, err = io.Copy(conn.stdInInteractive, strings.NewReader(sql+";\n"))
+	if err != nil {
+		err = g.Error(err, "could not submit SQL via stdin to duckdb process")
+		return
+	}
+
+	// we use PRAGMA version; to signal to end of the result
+	_, err = io.Copy(conn.stdInInteractive, strings.NewReader("PRAGMA version;\n"))
+	if err != nil {
+		err = g.Error(err, "could not submit 'PRAGMA version' via stdin to duckdb process")
+		return
+	}
+
+	// scan stdout / stderr
+	// create new reader which is scanned and controlled
+	// detect and with 'PRAGMA version'
+	pragmaVersionHeaders := []byte("library_version,source_id")
+	var stdOutPipeW *io.PipeWriter
+
+	var linesCount int64
+	stdOutReader, stdOutPipeW = io.Pipe()
+	stderrBuf = bytes.NewBuffer([]byte{})
+	stderrBuf.Reset()
+	go func() {
+		defer stdOutPipeW.Close()
+
+		var pragmaVersionLine []byte
+		isPragmaVersionHeaders := false
+		for conn.stdOutInteractive.Scan() {
+			lineByte := append(conn.stdOutInteractive.Bytes(), '\n')
+			if isPragmaVersionHeaders && bytes.HasPrefix(lineByte, []byte{'v'}) {
+				stderrBuf.Write(conn.stdErrInteractive.Bytes())
+				conn.stdErrInteractive.Reset()
+				return // end reader since it matches 'PRAGMA version' output
+			} else if !isPragmaVersionHeaders && bytes.HasPrefix(lineByte, pragmaVersionHeaders) {
+				pragmaVersionLine = lineByte
+				isPragmaVersionHeaders = true
+			} else if len(bytes.TrimSpace(lineByte)) != 0 {
+				if isPragmaVersionHeaders {
+					// in case it is not the 'PRAGMA version' output
+					stdOutPipeW.Write(append(pragmaVersionLine, '\n'))
+					isPragmaVersionHeaders = false
+				}
+				stdOutPipeW.Write(lineByte)
+				linesCount++
+			}
+		}
+		if conn.stdOutInteractive.Err() != nil {
+			g.LogError(g.Error(conn.stdOutInteractive.Err()))
+		}
+	}()
+
+	return
 }
 
 func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...interface{}) (result sql.Result, err error) {
@@ -253,7 +392,11 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 		}
 	}
 
-	cmd, sqlPath, err := conn.getCmd(sql)
+	readOnly := cast.ToBool(conn.GetProp("read_only"))
+	if strings.Contains(sql, duckDbReadOnlyHint) {
+		readOnly = true
+	}
+	cmd, sqlPath, err := conn.getCmd(sql, readOnly)
 	if err != nil {
 		return result, g.Error(err, "could not get cmd duckdb")
 	}
@@ -264,28 +407,43 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 		g.DebugLow(CleanSQL(conn, sql), args...)
 	}
 
-	cmd.Stderr = &stderr
+	var out []byte
+	if conn.isInteractive {
+		stdOutReader, stderrBuf, err := conn.submitToCmdStdin(ctx, sql)
+		if err != nil {
+			return result, g.Error(err, "could not exec SQL for duckdb via stdin")
+		}
+		out, _ = io.ReadAll(stdOutReader)
+		outE := stderrBuf.Bytes()
+		stderr = *bytes.NewBuffer(outE)
 
-	fileContext := DuckDbFileContext[conn.URL]
-	fileContext.Mux.Lock()
-	out, err := cmd.Output()
-	time.Sleep(100 * time.Millisecond) // so that cmd releases process
-	fileContext.Mux.Unlock()
+	} else {
 
-	os.Remove(sqlPath) // delete sql temp file
+		cmd.Stderr = &stderr
 
-	if err != nil {
+		fileContext := DuckDbFileContext[conn.URL]
+		fileContext.Mux.Lock()
+		out, err = cmd.Output()
+		time.Sleep(100 * time.Millisecond) // so that cmd releases process
+		fileContext.Mux.Unlock()
+
+		os.Remove(sqlPath) // delete sql temp file
+	}
+
+	if err != nil || strings.Contains(stderr.String(), "Error: ") {
 		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
 		if strings.Contains(errText, "version number") {
 			errText = "Please set the DuckDB version with environment variable DUCKDB_VERSION. Example: DUCKDB_VERSION=0.6.0\n" + errText
+		} else if err == nil {
+			err = g.Error("DuckDB Error")
 		}
 		return result, g.Error(err, errText)
-	} else if exitCode := cmd.ProcessState.ExitCode(); exitCode != 0 {
+	} else if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
 		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
 		if strings.Contains(errText, "version number") {
 			errText = "Please set the DuckDB version with environment variable DUCKDB_VERSION. Example: DUCKDB_VERSION=0.6.0\n" + errText
 		}
-		err = g.Error("exit code is %d", exitCode)
+		err = g.Error("exit code is %d", cmd.ProcessState.ExitCode())
 		return result, g.Error(err, errText)
 
 	}
@@ -302,7 +460,11 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	// copySQL := g.F("COPY ( %s ) TO '/dev/stdout' ( FORMAT JSON )", sql) // works, but need to flatten, and becomes out of order
 	// copySQL := g.F("COPY ( %s ) TO '/dev/stdout' ( FORMAT PARQUET, compression uncompressed, FIELD_IDS 'auto' )", sql) // does not work, maybe use better parquet lib
 	copySQL := sql
-	cmd, sqlPath, err := conn.getCmd(copySQL)
+	readOnly := cast.ToBool(conn.GetProp("read_only"))
+	if strings.Contains(sql, duckDbReadOnlyHint) {
+		readOnly = true
+	}
+	cmd, sqlPath, err := conn.getCmd(copySQL, readOnly)
 	if err != nil {
 		return ds, g.Error(err, "could not get cmd duckdb")
 	}
@@ -319,20 +481,30 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	fileContext := DuckDbFileContext[conn.URL]
 	fileContext.Mux.Lock()
 
-	stdOutReader, err := cmd.StdoutPipe()
-	if err != nil {
-		return ds, g.Error(err, "could not get stdout for duckdb")
+	var stdOutReader, stdErrReader io.ReadCloser
+	var stderrBuf *bytes.Buffer
+	if conn.isInteractive {
+		stdOutReader, stderrBuf, err = conn.submitToCmdStdin(ctx, sql)
+		if err != nil {
+			return ds, g.Error(err, "could not exec SQL for duckdb via stdin")
+		}
+	} else {
+		stdOutReader, err = cmd.StdoutPipe()
+		if err != nil {
+			return ds, g.Error(err, "could not get stdout for duckdb")
+		}
+
+		stdErrReader, err = cmd.StderrPipe()
+		if err != nil {
+			return ds, g.Error(err, "could not get stderr for duckdb")
+		}
+
+		err = cmd.Start()
+		if err != nil {
+			return ds, g.Error(err, "could not exec SQL for duckdb")
+		}
 	}
 
-	stdErrReader, err := cmd.StderrPipe()
-	if err != nil {
-		return ds, g.Error(err, "could not get stderr for duckdb")
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return ds, g.Error(err, "could not exec SQL for duckdb")
-	}
 	ds = iop.NewDatastream(iop.Columns{})
 	ds.SetConfig(map[string]string{"delimiter": ",", "header": "true"})
 	ds.Defer(func() { fileContext.Mux.Unlock() })
@@ -346,10 +518,16 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 		return ds, g.Error(err, "could not read output stream")
 	}
 
-	errOut, err := io.ReadAll(stdErrReader)
+	var errOut []byte
+	if conn.isInteractive {
+		errOut = stderrBuf.Bytes()
+	} else {
+		errOut, err = io.ReadAll(stdErrReader)
+	}
+
 	if err != nil {
 		return ds, g.Error(err, "could not read error stream")
-	} else if errOutS := string(errOut); errOutS != "" {
+	} else if errOutS := string(errOut); strings.Contains(errOutS, "Error: ") {
 		return ds, g.Error(errOutS)
 	}
 
@@ -358,6 +536,9 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 
 // Close closes the connection
 func (conn *DuckDbConn) Close() error {
+	if conn.cmdInteractive != nil {
+		conn.cmdInteractive.Process.Kill()
+	}
 	return nil
 }
 
@@ -410,7 +591,13 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		cfgMap["datetime_format"] = "2006-01-02 15:04:05.000000-07:00"
 		ds.SetConfig(cfgMap)
 
-		if runtime.GOOS == "windows" || DuckDbUseTempFile {
+		if runtime.GOOS == "windows" || DuckDbUseTempFile || conn.isInteractive {
+			// set batch rows limit, so we don't run out of space for massive datasets
+			batch.Limit = 1000000
+			if val := cast.ToInt64(conn.GetProp("file_max_rows")); val > 0 {
+				batch.Limit = val
+			}
+
 			fs, err := filesys.NewFileSysClient(dbio.TypeFileLocal)
 			if err != nil {
 				err = g.Error(err, "could not obtain client for temp file")
@@ -432,17 +619,14 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		})
 
 		sqlLines := []string{
-			// g.F(".separator ,"),
-			// g.F(".import --csv %s %s", csvPath, table.Name),
 			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.Name, strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
 		}
 
+		var sqlPath string
+		var out []byte
+		var stdOutReader io.ReadCloser
+		stderrBuf := bytes.NewBuffer([]byte{})
 		sql := strings.Join(sqlLines, ";\n")
-		cmd, sqlPath, err := conn.getCmd(sql)
-		if err != nil {
-			os.Remove(csvPath)
-			return count, g.Error(err, "could not get cmd duckdb")
-		}
 
 		if strings.Contains(sql, noDebugKey) {
 			g.Trace(sql)
@@ -450,27 +634,44 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			g.DebugLow(sql)
 		}
 
-		if csvPath == "/dev/stdin" {
-			cmd.Stdin = ds.NewCsvReader(0, 0)
+		if conn.isInteractive {
+			stdOutReader, stderrBuf, err = conn.submitToCmdStdin(conn.Context().Ctx, sql)
+			if err != nil {
+				return count, g.Error(err, "could not exec import SQL for duckdb via stdin")
+			}
+
+			out, _ = io.ReadAll(stdOutReader)
+		} else {
+			var cmd *exec.Cmd
+			cmd, sqlPath, err = conn.getCmd(sql, cast.ToBool(conn.GetProp("read_only")))
+			if err != nil {
+				os.Remove(csvPath)
+				return count, g.Error(err, "could not get cmd duckdb")
+			}
+
+			if csvPath == "/dev/stdin" {
+				cmd.Stdin = ds.NewCsvReader(0, 0)
+			}
+
+			cmd.Stderr = stderrBuf
+
+			fileContext := DuckDbFileContext[conn.URL]
+			fileContext.Mux.Lock()
+			out, err = cmd.Output()
+			// time.Sleep(100 * time.Millisecond) // so that cmd releases process
+			fileContext.Mux.Unlock()
 		}
-
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-
-		fileContext := DuckDbFileContext[conn.URL]
-		fileContext.Mux.Lock()
-		out, err := cmd.Output()
-		time.Sleep(100 * time.Millisecond) // so that cmd releases process
-		fileContext.Mux.Unlock()
 
 		if csvPath != "/dev/stdin" {
 			os.Remove(csvPath) // delete csv file
 		}
 		os.Remove(sqlPath) // delete sql temp file
 
-		stderrVal := stderr.String()
+		stderrVal := stderrBuf.String()
 		if err != nil {
 			return count, g.Error(err, "could not ingest for duckdb: %s\n%s", string(out), stderrVal)
+		} else if strings.Contains(stderrVal, "Error: ") {
+			return count, g.Error("DuckDB Error: %s\n%s", string(out), stderrVal)
 		} else if strings.Contains(stderrVal, "expected") {
 			return count, g.Error("could not ingest for duckdb: %s\n%s", string(out), stderrVal)
 		}

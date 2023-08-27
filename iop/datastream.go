@@ -1087,7 +1087,7 @@ func (ds *Datastream) NewCsvBytesChnl(chunkRowSize int) (dataChn chan *[]byte) {
 // NewCsvBufferReader creates a Reader with limit. If limit == 0, then read all rows.
 func (ds *Datastream) NewCsvBufferReader(limit int, bytesLimit int64) *bytes.Reader {
 	reader := ds.NewCsvReader(limit, bytesLimit)
-	data, err := ioutil.ReadAll(reader) // puts data in memory
+	data, err := io.ReadAll(reader) // puts data in memory
 	if err != nil {
 		ds.Context.CaptureErr(g.Error(err, "Error ioutil.ReadAll(reader)"))
 	}
