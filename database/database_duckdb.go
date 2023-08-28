@@ -39,7 +39,7 @@ type DuckDbConn struct {
 
 var DuckDbVersion = "0.8.1"
 var DuckDbUseTempFile = false
-var DuckDbFileContext = map[string]*g.Context{} // so that collision happen
+var DuckDbFileContext = map[string]*g.Context{} // so that collision doesn't happen
 var duckDbReadOnlyHint = "/* -readonly */"
 
 // Init initiates the object
@@ -328,14 +328,13 @@ func (conn *DuckDbConn) submitToCmdStdin(ctx context.Context, sql string) (stdOu
 
 	// scan stdout / stderr
 	// create new reader which is scanned and controlled
-	// detect and with 'PRAGMA version'
+	// detect end with 'PRAGMA version'
 	pragmaVersionHeaders := []byte("library_version,source_id")
 	var stdOutPipeW *io.PipeWriter
 
-	var linesCount int64
 	stdOutReader, stdOutPipeW = io.Pipe()
 	stderrBuf = bytes.NewBuffer([]byte{})
-	stderrBuf.Reset()
+
 	go func() {
 		defer stdOutPipeW.Close()
 
@@ -357,7 +356,6 @@ func (conn *DuckDbConn) submitToCmdStdin(ctx context.Context, sql string) (stdOu
 					isPragmaVersionHeaders = false
 				}
 				stdOutPipeW.Write(lineByte)
-				linesCount++
 			}
 		}
 		if conn.stdOutInteractive.Err() != nil {
@@ -622,7 +620,6 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.Name, strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
 		}
 
-		var sqlPath string
 		var out []byte
 		var stdOutReader io.ReadCloser
 		stderrBuf := bytes.NewBuffer([]byte{})
@@ -634,6 +631,12 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			g.DebugLow(sql)
 		}
 
+		cmd, sqlPath, err := conn.getCmd(sql, cast.ToBool(conn.GetProp("read_only")))
+		if err != nil {
+			os.Remove(csvPath)
+			return count, g.Error(err, "could not get cmd duckdb")
+		}
+
 		if conn.isInteractive {
 			stdOutReader, stderrBuf, err = conn.submitToCmdStdin(conn.Context().Ctx, sql)
 			if err != nil {
@@ -642,12 +645,6 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 			out, _ = io.ReadAll(stdOutReader)
 		} else {
-			var cmd *exec.Cmd
-			cmd, sqlPath, err = conn.getCmd(sql, cast.ToBool(conn.GetProp("read_only")))
-			if err != nil {
-				os.Remove(csvPath)
-				return count, g.Error(err, "could not get cmd duckdb")
-			}
 
 			if csvPath == "/dev/stdin" {
 				cmd.Stdin = ds.NewCsvReader(0, 0)
@@ -658,7 +655,6 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			fileContext := DuckDbFileContext[conn.URL]
 			fileContext.Mux.Lock()
 			out, err = cmd.Output()
-			// time.Sleep(100 * time.Millisecond) // so that cmd releases process
 			fileContext.Mux.Unlock()
 		}
 
