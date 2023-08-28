@@ -8,6 +8,5 @@ The particularly useful struct used are:
 
 ## Projects using `dbio`:
 * https://slingdata.io
-* https://slingdata.io/en/cli
 * https://github.com/dbnet-io/dbnet
 * https://github.com/dbrest-io/dbREST
