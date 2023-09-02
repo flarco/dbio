@@ -285,10 +285,17 @@ func (conn *DuckDbConn) getCmd(sql string, readOnly bool) (cmd *exec.Cmd, sqlPat
 
 			go func() {
 				err := conn.cmdInteractive.Run()
+				conn.cmdInteractive = nil
 				if err != nil {
-					conn.Context().CaptureErr(g.Error(err, "error running duckdn interactive command"))
+					if stdErr := conn.stdErrInteractive.String(); stdErr != "" {
+						conn.Context().CaptureErr(g.Error(stdErr))
+					} else {
+						conn.Context().CaptureErr(g.Error(err, "error running duckdb interactive command"))
+					}
 				}
 			}()
+		} else {
+			cmd = conn.cmdInteractive
 		}
 	} else {
 		cmd.Args = append(cmd.Args, dbPath, g.F(`.read %s`, sqlPath))
@@ -313,14 +320,14 @@ func (r duckDbResult) RowsAffected() (int64, error) {
 func (conn *DuckDbConn) submitToCmdStdin(ctx context.Context, sql string) (stdOutReader io.ReadCloser, stderrBuf *bytes.Buffer, err error) {
 	// submit to stdin
 	sql = strings.TrimLeft(strings.TrimSpace(sql), ";")
-	_, err = io.Copy(conn.stdInInteractive, strings.NewReader(sql+";\n"))
+	_, err = io.Copy(conn.stdInInteractive, strings.NewReader(sql+" ;\n"))
 	if err != nil {
 		err = g.Error(err, "could not submit SQL via stdin to duckdb process")
 		return
 	}
 
 	// we use PRAGMA version; to signal to end of the result
-	_, err = io.Copy(conn.stdInInteractive, strings.NewReader("PRAGMA version;\n"))
+	_, err = io.Copy(conn.stdInInteractive, strings.NewReader("PRAGMA version ;\n"))
 	if err != nil {
 		err = g.Error(err, "could not submit 'PRAGMA version' via stdin to duckdb process")
 		return
@@ -406,6 +413,8 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 	}
 
 	var out []byte
+	fileContext := DuckDbFileContext[conn.URL]
+	fileContext.Mux.Lock()
 	if conn.isInteractive {
 		stdOutReader, stderrBuf, err := conn.submitToCmdStdin(ctx, sql)
 		if err != nil {
@@ -419,14 +428,12 @@ func (conn *DuckDbConn) ExecContext(ctx context.Context, sql string, args ...int
 
 		cmd.Stderr = &stderr
 
-		fileContext := DuckDbFileContext[conn.URL]
-		fileContext.Mux.Lock()
 		out, err = cmd.Output()
-		time.Sleep(100 * time.Millisecond) // so that cmd releases process
-		fileContext.Mux.Unlock()
 
 		os.Remove(sqlPath) // delete sql temp file
 	}
+	// time.Sleep(400 * time.Millisecond) // so that cmd releases process
+	fileContext.Mux.Unlock()
 
 	if err != nil || strings.Contains(stderr.String(), "Error: ") {
 		errText := g.F("could not exec SQL for duckdb: %s\n%s\n%s", string(out), stderr.String(), sql)
@@ -534,9 +541,35 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 
 // Close closes the connection
 func (conn *DuckDbConn) Close() error {
-	if conn.cmdInteractive != nil {
-		conn.cmdInteractive.Process.Kill()
+	fileContext := DuckDbFileContext[conn.URL]
+	fileContext.Lock()
+
+	// submit quit command
+	if conn.isInteractive && conn.cmdInteractive != nil {
+		conn.submitToCmdStdin(conn.context.Ctx, ".quit")
 	}
+
+	// kill timer
+	timer := time.NewTimer(5 * time.Second)
+	done := make(chan struct{})
+	go func() {
+		if conn.cmdInteractive != nil {
+			conn.cmdInteractive.Process.Wait()
+		}
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+	case <-timer.C:
+		if conn.cmdInteractive != nil {
+			conn.cmdInteractive.Process.Kill()
+		}
+	}
+	conn.cmdInteractive = nil
+
+	fileContext.Unlock()
+
 	return nil
 }
 
@@ -617,7 +650,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		})
 
 		sqlLines := []string{
-			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.Name, strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
+			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.FDQN(), strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
 		}
 
 		var out []byte
@@ -637,6 +670,8 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			return count, g.Error(err, "could not get cmd duckdb")
 		}
 
+		fileContext := DuckDbFileContext[conn.URL]
+		fileContext.Mux.Lock()
 		if conn.isInteractive {
 			stdOutReader, stderrBuf, err = conn.submitToCmdStdin(conn.Context().Ctx, sql)
 			if err != nil {
@@ -652,11 +687,9 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 			cmd.Stderr = stderrBuf
 
-			fileContext := DuckDbFileContext[conn.URL]
-			fileContext.Mux.Lock()
 			out, err = cmd.Output()
-			fileContext.Mux.Unlock()
 		}
+		fileContext.Mux.Unlock()
 
 		if csvPath != "/dev/stdin" {
 			os.Remove(csvPath) // delete csv file

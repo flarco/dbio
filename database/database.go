@@ -1084,7 +1084,7 @@ func (conn *BaseConn) Prepare(query string) (stmt *sql.Stmt, err error) {
 
 // Exec runs a sql query, returns `error`
 func (conn *BaseConn) Exec(sql string, args ...interface{}) (result sql.Result, err error) {
-	if conn.GetProp("connected") != "true" {
+	if !cast.ToBool(conn.GetProp("connected")) {
 		g.Debug("connection was closed, reconnecting")
 		err = conn.Self().Connect()
 		if err != nil {
