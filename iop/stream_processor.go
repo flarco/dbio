@@ -47,6 +47,7 @@ type streamConfig struct {
 	fieldsPerRec   int
 	jmespath       string
 	columns        map[string]ColumnType // map of column types
+	transforms     []transformFunc       // array of transform functions to apply
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -55,7 +56,12 @@ func NewStreamProcessor() *StreamProcessor {
 		stringTypeCache: map[int]string{},
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
-		config:          &streamConfig{emptyAsNull: true, maxDecimals: cast.ToFloat64(math.Pow10(9)), columns: map[string]ColumnType{}},
+		config: &streamConfig{
+			emptyAsNull: true,
+			maxDecimals: cast.ToFloat64(math.Pow10(9)),
+			columns:     map[string]ColumnType{},
+			transforms:  []transformFunc{},
+		},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -190,6 +196,16 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 		// lowercase keys
 		for k, v := range colMap {
 			sp.config.columns[strings.ToLower(k)] = v
+		}
+	}
+	if configMap["transforms"] != "" {
+		transformsNames := []string{}
+		g.Unmarshal(configMap["transforms"], &transformsNames)
+		sp.config.transforms = []transformFunc{}
+		for _, name := range transformsNames {
+			if f, ok := transforms[name]; ok {
+				sp.config.transforms = append(sp.config.transforms, f)
+			}
 		}
 	}
 	sp.config.compression = configMap["compression"]
@@ -389,6 +405,12 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if sVal == "" && val != nil {
 			sVal = cast.ToString(val)
 		}
+
+		// apply transforms
+		for _, t := range sp.config.transforms {
+			sVal, _ = t(sVal)
+		}
+
 		if len(sVal) > cs.MaxLen {
 			cs.MaxLen = len(sVal)
 		}
