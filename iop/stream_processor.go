@@ -33,21 +33,21 @@ type StreamProcessor struct {
 }
 
 type streamConfig struct {
-	trimSpace      bool
-	emptyAsNull    bool
-	header         bool
-	compression    string // AUTO | ZIP | GZIP | SNAPPY | NONE
-	nullIf         string
-	datetimeFormat string
-	skipBlankLines bool
-	delimiter      string
-	fileMaxRows    int64
-	maxDecimals    float64
-	flatten        bool
-	fieldsPerRec   int
-	jmespath       string
-	columns        map[string]ColumnType // map of column types
-	transforms     []transformFunc       // array of transform functions to apply
+	TrimSpace      bool            `json:"trim_space"`
+	EmptyAsNull    bool            `json:"empty_as_null"`
+	Header         bool            `json:"header"`
+	Compression    string          `json:"compression"` // AUTO | ZIP | GZIP | SNAPPY | NONE
+	NullIf         string          `json:"null_if"`
+	DatetimeFormat string          `json:"datetime_format"`
+	SkipBlankLines bool            `json:"skip_blank_lines"`
+	Delimiter      string          `json:"delimiter"`
+	FileMaxRows    int64           `json:"file_max_rows"`
+	MaxDecimals    float64         `json:"max_decimals"`
+	Flatten        bool            `json:"flatten"`
+	FieldsPerRec   int             `json:"fields_per_rec"`
+	Jmespath       string          `json:"jmespath"`
+	Columns        Columns         `json:"columns"` // list of column types. Can be partial list! likely is!
+	transforms     []transformFunc // array of transform functions to apply
 }
 
 // NewStreamProcessor returns a new StreamProcessor
@@ -57,14 +57,14 @@ func NewStreamProcessor() *StreamProcessor {
 		colStats:        map[int]*ColumnStats{},
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
 		config: &streamConfig{
-			emptyAsNull: true,
-			maxDecimals: cast.ToFloat64(math.Pow10(9)),
-			columns:     map[string]ColumnType{},
+			EmptyAsNull: true,
+			MaxDecimals: cast.ToFloat64(math.Pow10(9)),
+			Columns:     Columns{},
 			transforms:  []transformFunc{},
 		},
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
-		sp.config.maxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
+		sp.config.MaxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
 	}
 
 	// if val is '0400', '0401'. Such as codes.
@@ -153,50 +153,44 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 
 	if configMap["fields_per_rec"] != "" {
-		sp.config.fieldsPerRec = cast.ToInt(configMap["fields_per_rec"])
+		sp.config.FieldsPerRec = cast.ToInt(configMap["fields_per_rec"])
 	}
 
 	if configMap["delimiter"] != "" {
-		sp.config.delimiter = configMap["delimiter"]
+		sp.config.Delimiter = configMap["delimiter"]
 	}
 
 	if configMap["file_max_rows"] != "" {
-		sp.config.fileMaxRows = cast.ToInt64(configMap["file_max_rows"])
+		sp.config.FileMaxRows = cast.ToInt64(configMap["file_max_rows"])
 	}
 
 	if configMap["header"] != "" {
-		sp.config.header = cast.ToBool(configMap["header"])
+		sp.config.Header = cast.ToBool(configMap["header"])
 	} else {
-		sp.config.header = true
+		sp.config.Header = true
 	}
 
 	if configMap["flatten"] != "" {
-		sp.config.flatten = cast.ToBool(configMap["flatten"])
+		sp.config.Flatten = cast.ToBool(configMap["flatten"])
 	}
 
-	if configMap["empty_field_as_null"] != "" {
-		sp.config.emptyAsNull = cast.ToBool(configMap["empty_field_as_null"])
+	if configMap["empty_as_null"] != "" {
+		sp.config.EmptyAsNull = cast.ToBool(configMap["empty_as_null"])
 	}
 	if configMap["null_if"] != "" {
-		sp.config.nullIf = configMap["null_if"]
+		sp.config.NullIf = configMap["null_if"]
 	}
 	if configMap["trim_space"] != "" {
-		sp.config.trimSpace = cast.ToBool(configMap["trim_space"])
+		sp.config.TrimSpace = cast.ToBool(configMap["trim_space"])
 	}
 	if configMap["jmespath"] != "" {
-		sp.config.jmespath = cast.ToString(configMap["jmespath"])
+		sp.config.Jmespath = cast.ToString(configMap["jmespath"])
 	}
 	if configMap["skip_blank_lines"] != "" {
-		sp.config.skipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
+		sp.config.SkipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
 	}
 	if configMap["columns"] != "" {
-		colMap := map[string]ColumnType{}
-		g.Unmarshal(configMap["columns"], &colMap)
-
-		// lowercase keys
-		for k, v := range colMap {
-			sp.config.columns[strings.ToLower(k)] = v
-		}
+		g.Unmarshal(configMap["columns"], &sp.config.Columns)
 	}
 	if configMap["transforms"] != "" {
 		transformsNames := []string{}
@@ -208,13 +202,13 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 			}
 		}
 	}
-	sp.config.compression = configMap["compression"]
+	sp.config.Compression = configMap["compression"]
 
 	if configMap["datetime_format"] != "" {
-		sp.config.datetimeFormat = Iso8601ToGoLayout(configMap["datetime_format"])
+		sp.config.DatetimeFormat = Iso8601ToGoLayout(configMap["datetime_format"])
 		// put in first
 		sp.dateLayouts = append(
-			[]string{sp.config.datetimeFormat},
+			[]string{sp.config.DatetimeFormat},
 			sp.dateLayouts...)
 	}
 }
@@ -382,18 +376,18 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 
 		isString = true
-		if sp.config.trimSpace {
+		if sp.config.TrimSpace {
 			sVal = strings.TrimSpace(sVal)
 			val = sVal
 		}
 		if sVal == "" {
 			sp.rowBlankValCnt++
-			if sp.config.emptyAsNull || !sp.ds.Columns[i].IsString() {
+			if sp.config.EmptyAsNull || !sp.ds.Columns[i].IsString() {
 				cs.TotalCnt++
 				cs.NullCnt++
 				return nil
 			}
-		} else if sp.config.nullIf == sVal {
+		} else if sp.config.NullIf == sVal {
 			cs.TotalCnt++
 			cs.NullCnt++
 			return nil
@@ -530,8 +524,8 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			sp.rowChecksum[i] = uint64(fVal)
 		}
 		// max 9 decimals for bigquery compatibility
-		if sp.config.maxDecimals > -1 {
-			nVal = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
+		if sp.config.MaxDecimals > -1 {
+			nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
 		} else {
 			nVal = val // use string to keep accuracy
 		}
@@ -600,9 +594,9 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		if RemoveTrailingDecZeros {
 			// attempt to remove trailing zeros, but is 10 times slower
 			return sp.decReplRegex.ReplaceAllString(cast.ToString(val), "$1")
-		} else if sp.config.maxDecimals > -1 {
+		} else if sp.config.MaxDecimals > -1 {
 			fVal, _ := sp.toFloat64E(val)
-			val = math.Round(fVal*sp.config.maxDecimals) / sp.config.maxDecimals
+			val = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
 		}
 		return cast.ToString(val)
 		// return fmt.Sprintf("%v", val)
@@ -610,8 +604,8 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		tVal, _ := sp.CastToTime(val)
 		if tVal.IsZero() {
 			return ""
-		} else if sp.config.datetimeFormat != "" && strings.ToLower(sp.config.datetimeFormat) != "auto" {
-			return tVal.Format(sp.config.datetimeFormat)
+		} else if sp.config.DatetimeFormat != "" && strings.ToLower(sp.config.DatetimeFormat) != "auto" {
+			return tVal.Format(sp.config.DatetimeFormat)
 		}
 		return tVal.Format("2006-01-02 15:04:05.000000 -07")
 	default:

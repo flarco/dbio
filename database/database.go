@@ -191,8 +191,6 @@ var (
 	// UseBulkExportFlowCSV to use BulkExportFlowCSV
 	UseBulkExportFlowCSV = false
 
-	SampleSize = 900
-
 	ddlDefDecScale  = 6
 	ddlDefDecLength = 20
 
@@ -213,9 +211,6 @@ var (
 var templatesFolder embed.FS
 
 func init() {
-	if os.Getenv("SAMPLE_SIZE") != "" {
-		SampleSize = cast.ToInt(os.Getenv("SAMPLE_SIZE"))
-	}
 	if os.Getenv("FILEPATH_SLUG") != "" {
 		filePathStorageSlug = os.Getenv("FILEPATH_SLUG")
 	}

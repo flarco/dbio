@@ -1,6 +1,7 @@
 package iop
 
 import (
+	"strings"
 	"unicode"
 
 	"github.com/flarco/g"
@@ -13,6 +14,7 @@ type transformFunc func(string) (string, error)
 
 var transforms = map[string]transformFunc{
 	"replace_accents": func(val string) (string, error) { return ReplaceAccents(val) },
+	"trim_space":      func(val string) (string, error) { return strings.TrimSpace(val), nil },
 }
 
 var accentTransformer = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)

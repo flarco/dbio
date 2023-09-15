@@ -113,7 +113,7 @@ func IsDummy(columns []Column) bool {
 // NewColumnsFromFields creates Columns from fields
 func NewColumns(cols ...Column) Columns {
 	for i, col := range cols {
-		if string(col.Type) == "" {
+		if string(col.Type) == "" || !col.Type.IsValid() {
 			cols[i].Type = StringType
 		}
 		cols[i].Position = i + 1

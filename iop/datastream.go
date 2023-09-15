@@ -134,9 +134,9 @@ func NewDatastreamContext(ctx context.Context, columns Columns) (ds *Datastream)
 		Columns:       columns,
 		Context:       &context,
 		Sp:            NewStreamProcessor(),
-		config:        &streamConfig{emptyAsNull: true, header: true},
+		config:        &streamConfig{EmptyAsNull: true, Header: true},
 		deferFuncs:    []func(){},
-		bwCsv:         csv.NewWriter(ioutil.Discard),
+		bwCsv:         csv.NewWriter(io.Discard),
 		bwRows:        make(chan []any, 100),
 		readyChn:      make(chan struct{}),
 		schemaChgChan: make(chan schemaChg, 1000),
@@ -195,9 +195,9 @@ func (ds *Datastream) SetConfig(configMap map[string]string) {
 // GetConfig get config
 func (ds *Datastream) GetConfig() (configMap map[string]string) {
 	// lower the keys
-	configMap = map[string]string{}
-	g.JSONConvert(ds.Sp.config, configMap)
-	return configMap
+	configMapI := g.M()
+	g.JSONConvert(ds.Sp.config, &configMapI)
+	return g.ToMapString(configMapI)
 }
 
 // CastRowToString returns the row as string casted
@@ -560,7 +560,7 @@ loop:
 				} else {
 					row = ds.Sp.CastRow(ds.it.Row, ds.Columns)
 				}
-				if ds.config.skipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
+				if ds.config.SkipBlankLines && ds.Sp.rowBlankValCnt == len(row) {
 					goto loop
 				}
 
@@ -668,7 +668,7 @@ func (ds *Datastream) ConsumeJsonReader(reader io.Reader) (err error) {
 	}
 
 	decoder := json.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.Flatten, ds.Sp.config.Jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
@@ -688,7 +688,7 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 	}
 
 	decoder := xml.NewDecoder(reader2)
-	js := NewJSONStream(ds, decoder, ds.Sp.config.flatten, ds.Sp.config.jmespath)
+	js := NewJSONStream(ds, decoder, ds.Sp.config.Flatten, ds.Sp.config.Jmespath)
 	ds.it = ds.NewIterator(ds.Columns, js.nextFunc)
 
 	err = ds.Start()
@@ -700,9 +700,9 @@ func (ds *Datastream) ConsumeXmlReader(reader io.Reader) (err error) {
 
 // ConsumeCsvReader uses the provided reader to stream rows
 func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
-	c := CSV{Reader: reader, NoHeader: !ds.config.header, FieldsPerRecord: ds.config.fieldsPerRec}
+	c := CSV{Reader: reader, NoHeader: !ds.config.Header, FieldsPerRecord: ds.config.FieldsPerRec}
 
-	r, err := c.getReader(ds.config.delimiter)
+	r, err := c.getReader(ds.config.Delimiter)
 	if err != nil {
 		err = g.Error(err, "could not get reader")
 		ds.Context.CaptureErr(err)
@@ -710,7 +710,7 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	}
 
 	// set delimiter
-	ds.config.delimiter = string(c.Delimiter)
+	ds.config.Delimiter = string(c.Delimiter)
 
 	row0, err := r.Read()
 	if err == io.EOF {
@@ -1148,11 +1148,11 @@ func (ds *Datastream) NewCsvReaderChnl(rowLimit int, bytesLimit int64) (readerCh
 			pipeR, pipeW = io.Pipe()
 			w = csv.NewWriter(pipeW)
 			w.Comma = ','
-			if ds.config.delimiter != "" {
-				w.Comma = []rune(ds.config.delimiter)[0]
+			if ds.config.Delimiter != "" {
+				w.Comma = []rune(ds.config.Delimiter)[0]
 			}
 
-			if ds.config.header {
+			if ds.config.Header {
 				bw, err := w.Write(batch.Columns.Names(true, true))
 				tbw = tbw + cast.ToInt64(bw)
 				if err != nil {
@@ -1496,11 +1496,11 @@ func (ds *Datastream) NewCsvReader(rowLimit int, bytesLimit int64) *io.PipeReade
 		c := 0 // local counter
 		w := csv.NewWriter(pipeW)
 		w.Comma = ','
-		if ds.config.delimiter != "" {
-			w.Comma = []rune(ds.config.delimiter)[0]
+		if ds.config.Delimiter != "" {
+			w.Comma = []rune(ds.config.Delimiter)[0]
 		}
 
-		if ds.config.header {
+		if ds.config.Header {
 			bw, err := w.Write(batch.Columns.Names(true, true))
 			tbw = tbw + cast.ToInt64(bw)
 			if err != nil {

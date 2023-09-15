@@ -163,9 +163,22 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			return name
 		})
 
+		// set empty as null, since nulls are not ingested
+		updateNulls := func(tName string) string {
+			updateSQL := ""
+			if cast.ToBool(ds.GetConfig()["empty_as_null"]) {
+				updateCols := lo.Map(columnNames, func(c string, i int) string {
+					return g.F(`%s = nullif(%s, '')`, c, c)
+				})
+				updateSQL = g.F(`update %s set %s where 1=1 ;`, tName, strings.Join(updateCols, ", "))
+			}
+			return updateSQL
+		}
+
 		sqlLines := []string{
 			"PRAGMA journal_mode=WAL ;",
 			g.F(".import --csv %s %s", csvPath, tempTable),
+			updateNulls(tempTable),
 			g.F(`insert into %s (%s) select * from %s ;`, table.Name, strings.Join(columnNames, ", "), tempTable),
 			g.F("drop table %s ;", tempTable),
 		}
@@ -175,12 +188,14 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			sqlLines = []string{
 				"PRAGMA journal_mode=WAL ;",
 				g.F(".import --csv %s %s", csvPath, table.Name),
+				updateNulls(table.Name),
 			}
 		}
 
 		loadSQL := strings.Join(sqlLines, "\n")
+		g.Trace(loadSQL)
 
-		err = ioutil.WriteFile(sqlPath, []byte(loadSQL), 0777)
+		err = os.WriteFile(sqlPath, []byte(loadSQL), 0777)
 		if err != nil {
 			return 0, g.Error(err, "could not create load SQL for sqlite3")
 		}
