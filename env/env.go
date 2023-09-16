@@ -7,6 +7,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/flarco/g"
 	"github.com/samber/lo"
@@ -17,6 +18,7 @@ import (
 var (
 	Env      = &EnvFile{}
 	HomeDirs = map[string]string{}
+	envMux   = sync.Mutex{}
 )
 
 //go:embed *
@@ -37,7 +39,9 @@ func SetHomeDir(name string) string {
 		dir = path.Join(g.UserHomeDir(), "."+name)
 		os.Setenv(envKey, dir)
 	}
+	envMux.Lock()
 	HomeDirs[name] = dir
+	envMux.Unlock()
 	return dir
 }
 
@@ -167,6 +171,8 @@ func GetEnvFilePath(dir string) string {
 }
 
 func GetHomeDirConnsMap() (connsMap map[string]map[string]any, err error) {
+	defer envMux.Unlock()
+	envMux.Lock()
 	connsMap = map[string]map[string]any{}
 	for _, homeDir := range HomeDirs {
 		envFilePath := GetEnvFilePath(homeDir)
