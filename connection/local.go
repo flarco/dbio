@@ -142,7 +142,7 @@ func GetLocalConns(force ...bool) []ConnEntry {
 			Connection:  conn,
 		}
 		if exC, ok := connsMap[c.Name]; ok {
-			g.Warn(
+			g.Debug(
 				"conn credentials of %s from %s overwritten by env var %s",
 				exC.Name, exC.Source, c.Name,
 			)
