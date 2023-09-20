@@ -417,6 +417,7 @@ func (conn *BigQueryConn) StreamRowsContext(ctx context.Context, sql string, opt
 	ds.Inferred = !InferDBStream
 	if !ds.NoDebug {
 		ds.SetMetadata(conn.GetProp("METADATA"))
+		ds.SetConfig(conn.properties)
 	}
 
 	// add first row pulled to buffer

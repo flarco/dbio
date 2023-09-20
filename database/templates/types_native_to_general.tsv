@@ -263,6 +263,7 @@ sqlite	json	json	col_json json	TRUE	TRUE
 sqlite	bytea	binary	col_bytea bytea	TRUE	TRUE	
 sqlserver	bigint	bigint	col_bigint bigint	TRUE	TRUE	
 sqlserver	binary	binary	col_binary binary(100)	TRUE	FALSE	
+sqlserver	uniqueidentifier	binary	col_uniqueidentifier uniqueidentifier	TRUE	FALSE	
 sqlserver	bit	smallint	col_bit bit	FALSE	FALSE	
 sqlserver	char	string	col_char char(17)	TRUE	TRUE	
 sqlserver	date	date	col_date date	TRUE	TRUE	

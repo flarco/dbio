@@ -511,6 +511,7 @@ func (conn *DuckDbConn) StreamRowsContext(ctx context.Context, sql string, optio
 	}
 
 	ds = iop.NewDatastream(iop.Columns{})
+	ds.SetConfig(conn.properties)
 	ds.SetConfig(map[string]string{"delimiter": ",", "header": "true"})
 	ds.Defer(func() { fileContext.Mux.Unlock() })
 

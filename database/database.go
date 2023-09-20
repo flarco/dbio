@@ -958,6 +958,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	if !ds.NoDebug {
 		// don't set metadata for internal queries
 		ds.SetMetadata(conn.GetProp("METADATA"))
+		ds.SetConfig(conn.properties)
 	}
 
 	err = ds.Start()
