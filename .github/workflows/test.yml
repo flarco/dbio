@@ -36,13 +36,13 @@ jobs:
       uses: flarco/envkey-action@main
       with:
         envkey: ${{ secrets.ENVKEY }}
-        dotenv: true
+        dotenv_sh: true
 
     - name: Test
       run: |
-        sed -i "s/DEBUG='TRUE'/DEBUG=''/g" .env
+        sed -i "s/DEBUG='TRUE'/DEBUG=''/g" .env.sh
 
-        docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "source .env && go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && bash scripts/test.sh"
+        docker run --rm -v /__/docker-data/devbox/root/go:/root/go -v /__:/__ -v /tmp:/tmp -v $PWD:/work --workdir /work flarco/devbox:base bash -c "source ..env.sh && go mod edit -dropreplace='github.com/flarco/g' go.mod && go mod tidy && bash scripts/test.sh"
 
     
         

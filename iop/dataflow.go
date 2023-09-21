@@ -45,7 +45,7 @@ func NewDataflow(limit ...int) (df *Dataflow) {
 	ctx := g.NewContext(context.Background())
 
 	df = &Dataflow{
-		StreamCh:      make(chan *Datastream, ctx.Wg.Limit),
+		StreamCh:      make(chan *Datastream, 1),
 		Streams:       []*Datastream{},
 		Context:       &ctx,
 		Limit:         Limit,
