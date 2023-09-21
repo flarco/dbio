@@ -251,7 +251,7 @@ func (conn *DuckDbConn) getCmd(sql string, readOnly bool) (cmd *exec.Cmd, sqlPat
 	dbPathU, err := net.NewURL(conn.BaseConn.URL)
 	if err != nil {
 		os.Remove(sqlPath)
-		err = g.Error(err, "could not get sqlite file path")
+		err = g.Error(err, "could not get duckdb file path")
 		return
 	}
 	dbPath := strings.ReplaceAll(conn.GetURL(), "?"+dbPathU.U.RawQuery, "")
@@ -614,7 +614,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 		// write to temp CSV
 		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-		csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
+		csvPath := path.Join(tempDir, g.NewTsID("duckdb.temp")+".csv")
 
 		// set header false
 		cfgMap := ds.GetConfig()

@@ -301,7 +301,7 @@ func (c *Connection) setURL() (err error) {
 
 	// setIfMissing sets a default value if key is not present
 	setIfMissing := func(key string, val interface{}) {
-		if _, ok := c.Data[key]; !ok {
+		if v, ok := c.Data[key]; !ok || v == "" {
 			c.Data[key] = val
 		}
 	}
@@ -464,7 +464,8 @@ func (c *Connection) setURL() (err error) {
 				c.Data["instance"] = dbURL.Path()
 			}
 		}
-		template = "duckdb://{instance}"
+		setIfMissing("schema", "main")
+		template = "duckdb://{instance}?schema={schema}"
 	case dbio.TypeDbMotherDuck:
 		setIfMissing("schema", "main")
 		setIfMissing("interactive", true)
