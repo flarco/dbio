@@ -9,27 +9,32 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/flarco/g"
 	"github.com/godror/godror"
 	"github.com/spf13/cast"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // StreamProcessor processes rows and values
 type StreamProcessor struct {
-	N                uint64
-	dateLayoutCache  string
-	stringTypeCache  map[int]string
-	colStats         map[int]*ColumnStats
-	rowChecksum      []uint64
-	unrecognizedDate string
-	warn             bool
-	parseFuncs       map[string]func(s string) (interface{}, error)
-	decReplRegex     *regexp.Regexp
-	ds               *Datastream
-	dateLayouts      []string
-	config           *streamConfig
-	rowBlankValCnt   int
+	N                 uint64
+	dateLayoutCache   string
+	stringTypeCache   map[int]string
+	colStats          map[int]*ColumnStats
+	rowChecksum       []uint64
+	unrecognizedDate  string
+	warn              bool
+	parseFuncs        map[string]func(s string) (interface{}, error)
+	decReplRegex      *regexp.Regexp
+	ds                *Datastream
+	dateLayouts       []string
+	config            *streamConfig
+	rowBlankValCnt    int
+	accentTransformer transform.Transformer
 }
 
 type streamConfig struct {
@@ -62,6 +67,7 @@ func NewStreamProcessor() *StreamProcessor {
 			Columns:     Columns{},
 			transforms:  []transformFunc{},
 		},
+		accentTransformer: transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC),
 	}
 	if os.Getenv("MAX_DECIMALS") != "" {
 		sp.config.MaxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
@@ -402,7 +408,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 
 		// apply transforms
 		for _, t := range sp.config.transforms {
-			sVal, _ = t(sVal)
+			sVal, _ = t(sp, sVal)
 		}
 
 		if len(sVal) > cs.MaxLen {

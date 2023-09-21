@@ -917,6 +917,17 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 			return // done
 		}
 
+		// csvs with no header
+		if !cast.ToBool(fs.GetProp("header")) && (fileFormat == FileTypeCsv) {
+			ds, err := MergeReaders(fs, fileFormat, paths...)
+			if err != nil {
+				df.Context.CaptureErr(g.Error(err, "Unable to merge paths at %s", fs.GetProp("url")))
+				return
+			}
+			pushDatastream(ds)
+			return // done
+		}
+
 		for _, path := range paths {
 			if strings.HasSuffix(path, "/") {
 				g.DebugLow("skipping %s because is not file", path)
