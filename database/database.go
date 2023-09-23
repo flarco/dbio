@@ -183,8 +183,9 @@ type Template struct {
 
 // Pool is a pool of connections
 type Pool struct {
-	Dbs map[string]*sqlx.DB
-	Mux sync.Mutex
+	Dbs     map[string]*sqlx.DB
+	DuckDbs map[string]*DuckDbConn
+	Mux     sync.Mutex
 }
 
 var (
@@ -203,7 +204,7 @@ var (
 
 	noDebugKey = " /* nD */"
 
-	connPool = Pool{Dbs: map[string]*sqlx.DB{}}
+	connPool = Pool{Dbs: map[string]*sqlx.DB{}, DuckDbs: map[string]*DuckDbConn{}}
 	usePool  = os.Getenv("USE_POOL") == "TRUE"
 )
 
@@ -309,6 +310,7 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 
 	// Init
 	conn.SetProp("orig_url", OrigURL)
+	conn.SetProp("dbio_conn_id", g.NewTsID("conn_"))
 	err = conn.Init()
 
 	return conn, err
@@ -975,6 +977,10 @@ func (conn *BaseConn) NewTransaction(ctx context.Context, options ...*sql.TxOpti
 
 	if len(options) == 0 {
 		options = []*sql.TxOptions{&sql.TxOptions{}}
+	}
+
+	if conn.Db() == nil {
+		return &BlankTransaction{}, nil
 	}
 
 	tx, err := conn.Db().BeginTxx(context.Ctx, options[0])

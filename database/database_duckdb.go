@@ -88,6 +88,24 @@ func (conn *DuckDbConn) GetURL(newURL ...string) string {
 }
 
 func (conn *DuckDbConn) Connect(timeOut ...int) (err error) {
+	connURL := conn.GetURL()
+	connPool.Mux.Lock()
+	dbConn, poolOk := connPool.DuckDbs[connURL]
+	connPool.Mux.Unlock()
+
+	if poolOk {
+		conn.cmdInteractive = dbConn.cmdInteractive
+		conn.stdInInteractive = dbConn.stdInInteractive
+		conn.stdOutInteractive = dbConn.stdOutInteractive
+		conn.stdErrInteractive = dbConn.stdErrInteractive
+	}
+
+	usePool = os.Getenv("USE_POOL") == "TRUE"
+	if usePool && !poolOk {
+		connPool.Mux.Lock()
+		connPool.DuckDbs[connURL] = conn
+		connPool.Mux.Unlock()
+	}
 	conn.SetProp("connected", "true")
 	return nil
 }
