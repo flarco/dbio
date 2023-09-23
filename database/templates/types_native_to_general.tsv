@@ -261,6 +261,7 @@ sqlite	datetime	datetime	col_datetime datetime	TRUE	TRUE
 sqlite	text	text	col_text text	TRUE	TRUE	
 sqlite	json	json	col_json json	TRUE	TRUE	
 sqlite	bytea	binary	col_bytea bytea	TRUE	TRUE	
+sqlite	boolean	bool	col_boolean boolean	TRUE	TRUE	
 sqlserver	bigint	bigint	col_bigint bigint	TRUE	TRUE	
 sqlserver	binary	binary	col_binary binary(100)	TRUE	FALSE	
 sqlserver	uniqueidentifier	binary	col_uniqueidentifier uniqueidentifier	TRUE	FALSE	
