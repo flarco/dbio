@@ -135,7 +135,12 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		// set header. not needed if not creating a temp table
 		cfgMap := ds.GetConfig()
 		cfgMap["delimiter"] = ","
+		cfgMap["bool_at_int"] = "true"
 		cfgMap["header"] = lo.Ternary(sameCols, "false", "true")
+		cfgMap["datetime_format"] = conn.GetProp("datetime_format")
+		if strings.ToLower(cfgMap["datetime_format"]) == "auto" {
+			cfgMap["datetime_format"] = "2006-01-02 15:04:05.000Z"
+		}
 		ds.SetConfig(cfgMap)
 
 		if runtime.GOOS == "windows" {

@@ -51,6 +51,7 @@ type streamConfig struct {
 	Flatten        bool            `json:"flatten"`
 	FieldsPerRec   int             `json:"fields_per_rec"`
 	Jmespath       string          `json:"jmespath"`
+	BoolAsInt      bool            `json:"-"`
 	Columns        Columns         `json:"columns"` // list of column types. Can be partial list! likely is!
 	transforms     []transformFunc // array of transform functions to apply
 }
@@ -194,6 +195,9 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	}
 	if configMap["skip_blank_lines"] != "" {
 		sp.config.SkipBlankLines = cast.ToBool(configMap["skip_blank_lines"])
+	}
+	if configMap["bool_at_int"] != "" {
+		sp.config.BoolAsInt = cast.ToBool(configMap["bool_at_int"])
 	}
 	if configMap["columns"] != "" {
 		g.Unmarshal(configMap["columns"], &sp.config.Columns)
@@ -596,6 +600,12 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 	switch {
 	case val == nil:
 		return ""
+	case sp.config.BoolAsInt && typ.IsBool():
+		switch cast.ToString(val) {
+		case "true", "1", "TRUE":
+			return "1"
+		}
+		return "0"
 	case typ.IsDecimal():
 		if RemoveTrailingDecZeros {
 			// attempt to remove trailing zeros, but is 10 times slower
@@ -616,7 +626,6 @@ func (sp *StreamProcessor) CastToString(i int, val interface{}, valType ...Colum
 		return tVal.Format("2006-01-02 15:04:05.000000 -07")
 	default:
 		return cast.ToString(val)
-		// return fmt.Sprintf("%v", val)
 	}
 }
 
