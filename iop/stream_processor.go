@@ -53,8 +53,10 @@ type streamConfig struct {
 	Jmespath       string          `json:"jmespath"`
 	BoolAsInt      bool            `json:"-"`
 	Columns        Columns         `json:"columns"` // list of column types. Can be partial list! likely is!
-	transforms     []transformFunc // array of transform functions to apply
+	transforms     []TransformFunc // array of transform functions to apply
 }
+
+type TransformFunc func(*StreamProcessor, string) (string, error)
 
 // NewStreamProcessor returns a new StreamProcessor
 func NewStreamProcessor() *StreamProcessor {
@@ -66,7 +68,7 @@ func NewStreamProcessor() *StreamProcessor {
 			EmptyAsNull: true,
 			MaxDecimals: cast.ToFloat64(math.Pow10(9)),
 			Columns:     Columns{},
-			transforms:  []transformFunc{},
+			transforms:  []TransformFunc{},
 		},
 		accentTransformer: transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC),
 	}
@@ -205,9 +207,9 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 	if configMap["transforms"] != "" {
 		transformsNames := []string{}
 		g.Unmarshal(configMap["transforms"], &transformsNames)
-		sp.config.transforms = []transformFunc{}
+		sp.config.transforms = []TransformFunc{}
 		for _, name := range transformsNames {
-			if f, ok := transforms[name]; ok {
+			if f, ok := Transforms[name]; ok {
 				sp.config.transforms = append(sp.config.transforms, f)
 			}
 		}
