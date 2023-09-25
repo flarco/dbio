@@ -209,8 +209,11 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 		g.Unmarshal(configMap["transforms"], &transformsNames)
 		sp.config.transforms = []TransformFunc{}
 		for _, name := range transformsNames {
-			if f, ok := Transforms[name]; ok {
+			f, ok := Transforms[name]
+			if ok {
 				sp.config.transforms = append(sp.config.transforms, f)
+			} else {
+				g.Warn("did find find tranform named: '%s'", name)
 			}
 		}
 	}
