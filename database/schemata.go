@@ -550,6 +550,9 @@ func HasVariedCase(text string) bool {
 		if unicode.IsLower(c) {
 			hasLower = true
 		}
+		if hasUpper && hasLower {
+			break
+		}
 	}
 
 	return hasUpper && hasLower
