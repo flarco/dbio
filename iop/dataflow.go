@@ -493,7 +493,7 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 
 	pushCnt := 0
 
-	defer func() { g.DebugLow("pushed %d datastreams", pushCnt) }()
+	defer func() { g.Trace("pushed %d datastreams", pushCnt) }()
 
 	for ds := range dsCh {
 
@@ -554,7 +554,7 @@ func (df *Dataflow) PushStreamChan(dsCh chan *Datastream) {
 			}
 
 			pushCnt++
-			g.DebugLow("%d datastreams pushed [%s]", pushCnt, ds.ID)
+			g.Trace("%d datastreams pushed [%s]", pushCnt, ds.ID)
 			if df.Limit > 0 && df.Count() >= df.Limit {
 				g.Debug("reached dataflow limit of %d", df.Limit)
 				df.SetReady()

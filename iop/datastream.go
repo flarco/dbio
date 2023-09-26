@@ -629,7 +629,7 @@ loop:
 		ds.SetEmpty()
 
 		if !ds.NoDebug {
-			g.DebugLow("Pushed %d rows for %s", ds.it.Counter, ds.ID)
+			g.Trace("Pushed %d rows for %s", ds.it.Counter, ds.ID)
 		}
 	}()
 
@@ -925,7 +925,7 @@ func (ds *Datastream) Split(numStreams ...int) (dss []*Datastream) {
 
 func (ds *Datastream) Pause() {
 	if ds.Ready && !ds.closed {
-		g.DebugLow("pausing %s", ds.ID)
+		g.Trace("pausing %s", ds.ID)
 		ds.pauseChan <- struct{}{}
 		ds.paused = true
 	}
@@ -933,7 +933,7 @@ func (ds *Datastream) Pause() {
 
 func (ds *Datastream) TryPause() bool {
 	if ds.Ready && !ds.paused {
-		g.DebugLow("try pausing %s", ds.ID)
+		g.Trace("try pausing %s", ds.ID)
 		timer := time.NewTimer(10 * time.Millisecond)
 		select {
 		case ds.pauseChan <- struct{}{}:
@@ -950,7 +950,7 @@ func (ds *Datastream) TryPause() bool {
 // Unpause unpauses all streams
 func (ds *Datastream) Unpause() {
 	if ds.paused {
-		g.DebugLow("unpausing %s", ds.ID)
+		g.Trace("unpausing %s", ds.ID)
 		ds.unpauseChan <- struct{}{}
 		ds.paused = false
 	}
