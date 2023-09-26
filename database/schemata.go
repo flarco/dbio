@@ -2,6 +2,7 @@ package database
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
@@ -537,4 +538,19 @@ func GetSchemataAll(conn Connection) (schemata Schemata, err error) {
 	conn.Context().Wg.Read.Wait()
 
 	return schemata, nil
+}
+
+func HasVariedCase(text string) bool {
+	hasUpper := false
+	hasLower := false
+	for _, c := range text {
+		if unicode.IsUpper(c) {
+			hasUpper = true
+		}
+		if unicode.IsLower(c) {
+			hasLower = true
+		}
+	}
+
+	return hasUpper && hasLower
 }

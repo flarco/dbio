@@ -2110,11 +2110,13 @@ func (conn *BaseConn) Unquote(field string) string {
 
 // Quote adds quotes to the field name
 func (conn *BaseConn) Quote(field string) string {
-	// always normalize. Why would you quote and not normalize?
-	if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
-		field = strings.ToUpper(field)
-	} else {
-		field = strings.ToLower(field)
+	// always normalize if case is uniform. Why would you quote and not normalize?
+	if !HasVariedCase(field) {
+		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
+			field = strings.ToUpper(field)
+		} else {
+			field = strings.ToLower(field)
+		}
 	}
 	q := conn.template.Variable["quote_char"]
 	field = conn.Self().Unquote(field)
