@@ -468,6 +468,7 @@ func (data *Dataset) InferColumnTypes() {
 		if j, found := colMap[strings.ToLower(col.Name)]; found {
 			col = data.Sp.config.Columns[j]
 			if col.Type.IsValid() {
+				g.Debug("casting column '%s' as '%s'", col.Name, col.Type)
 				data.Columns[i].Type = col.Type
 			} else {
 				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, strings.ToLower(col.Name))

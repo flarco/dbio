@@ -232,11 +232,12 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 
 	_, indexTable := SplitTableFullName(tgtTable)
 
+	pkFieldsQ := lo.Map(pkFields, func(f string, i int) string { return conn.Quote(f) })
 	indexSQL := g.R(
 		conn.GetTemplateValue("core.create_unique_index"),
 		"index", strings.Join(pkFields, "_")+"_idx",
 		"table", indexTable,
-		"cols", strings.Join(pkFields, ", "),
+		"cols", strings.Join(pkFieldsQ, ", "),
 	)
 
 	_, err = conn.Exec(indexSQL)
@@ -469,4 +470,14 @@ func EnsureBinSQLite() (binPath string, err error) {
 	}
 
 	return binPath, nil
+}
+
+// GetSchemata obtain full schemata info for a schema and/or table in current database
+func (conn *SQLiteConn) GetSchemata(schemaName string, tableNames ...string) (Schemata, error) {
+	schemata := Schemata{
+		Databases: map[string]Database{},
+		conn:      conn,
+	}
+
+	return schemata, nil
 }

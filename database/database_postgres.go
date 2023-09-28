@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/flarco/dbio"
+	"github.com/samber/lo"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
@@ -230,11 +231,12 @@ func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 		return
 	}
 
+	pkFieldsQ := lo.Map(pkFields, func(f string, i int) string { return conn.Quote(f) })
 	indexSQL := g.R(
 		conn.GetTemplateValue("core.create_unique_index"),
 		"index", strings.Join(pkFields, "_")+"_idx",
 		"table", tgtTable,
-		"cols", strings.Join(pkFields, ", "),
+		"cols", strings.Join(pkFieldsQ, ", "),
 	)
 
 	// in order to use on conflict, the target table needs
@@ -256,7 +258,7 @@ func (conn *PostgresConn) GenerateUpsertSQL(srcTable string, tgtTable string, pk
 		conn.GetTemplateValue("core.create_unique_index"),
 		"index", tempTable+"_idx",
 		"table", tempTable,
-		"cols", strings.Join(pkFields, ", "),
+		"cols", strings.Join(pkFieldsQ, ", "),
 	)
 
 	sqlTempl = `
