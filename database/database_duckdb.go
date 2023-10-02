@@ -37,7 +37,7 @@ type DuckDbConn struct {
 	stdErrInteractive *duckDbBuffer  // For interactive mode
 }
 
-var DuckDbVersion = "0.8.1"
+var DuckDbVersion = "0.9.0"
 var DuckDbUseTempFile = false
 var DuckDbFileContext = map[string]*g.Context{} // so that collision doesn't happen
 var duckDbReadOnlyHint = "/* -readonly */"

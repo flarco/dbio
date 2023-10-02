@@ -255,7 +255,9 @@ sqlite	bigint	bigint	col_bigint bigint	TRUE	TRUE
 sqlite	integer	bigint	col_integer integer	TRUE	TRUE	
 sqlite	null	text	col_null null	TRUE	TRUE	
 sqlite	real	decimal	col_real real	TRUE	TRUE	
+sqlite	numeric	decimal	col_numeric numeric	TRUE	TRUE	
 sqlite	decimal	decimal	col_decimal decimal	TRUE	TRUE	
+sqlite	int	integer	col_int int	TRUE	TRUE	
 sqlite	date	datetime	col_date date	TRUE	TRUE	
 sqlite	datetime	datetime	col_datetime datetime	TRUE	TRUE	
 sqlite	text	text	col_text text	TRUE	TRUE	

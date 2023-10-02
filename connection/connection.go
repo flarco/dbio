@@ -455,7 +455,7 @@ func (c *Connection) setURL() (err error) {
 				c.Data["instance"] = dbURL.Path()
 			}
 		}
-		template = "sqlite://{instance}"
+		template = "sqlite://{instance}?cache=shared&mode=rwc&_journal_mode=WAL"
 	case dbio.TypeDbDuckDb:
 		if val, ok := c.Data["instance"]; ok {
 			dbURL, err := net.NewURL(cast.ToString(val))

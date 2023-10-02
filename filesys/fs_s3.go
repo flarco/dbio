@@ -111,15 +111,19 @@ func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 	fs.mux.Lock()
 	defer fs.mux.Unlock()
 	endpoint := fs.GetProp("ENDPOINT")
+	region := fs.GetProp("REGION")
+
 	if fs.bucket == "" {
 		return fs.session
+	} else if region != "" {
+		fs.RegionMap[fs.bucket] = region
 	} else if strings.HasSuffix(endpoint, ".digitaloceanspaces.com") {
 		region := strings.TrimSuffix(endpoint, ".digitaloceanspaces.com")
 		region = strings.TrimPrefix(region, "https://")
 		fs.RegionMap[fs.bucket] = region
 	} else if strings.HasSuffix(endpoint, ".cloudflarestorage.com") {
 		fs.RegionMap[fs.bucket] = "auto"
-	} else if fs.RegionMap[fs.bucket] == "" {
+	} else if endpoint == "" && fs.RegionMap[fs.bucket] == "" {
 		region, err := s3manager.GetBucketRegion(fs.Context().Ctx, fs.session, fs.bucket, defaultRegion)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "NotFound" {
@@ -132,7 +136,11 @@ func (fs *S3FileSysClient) getSession() (sess *session.Session) {
 			fs.RegionMap[fs.bucket] = region
 		}
 	}
+
 	fs.session.Config.Region = aws.String(fs.RegionMap[fs.bucket])
+	if fs.RegionMap[fs.bucket] == "" {
+		fs.session.Config.Region = g.String(defaultRegion)
+	}
 
 	return fs.session
 }
