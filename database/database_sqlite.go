@@ -2,6 +2,7 @@ package database
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -478,6 +479,132 @@ func (conn *SQLiteConn) GetSchemata(schemaName string, tableNames ...string) (Sc
 		Databases: map[string]Database{},
 		conn:      conn,
 	}
+
+	err := conn.Connect()
+	if err != nil {
+		return schemata, g.Error(err, "could not get connect to get schemata")
+	}
+
+	data, err := conn.GetSchemas()
+	if err != nil {
+		return schemata, g.Error(err, "could not get schemas")
+	}
+
+	schemaNames := data.ColValuesStr(0)
+	if schemaName != "" {
+		schemaNames = []string{schemaName}
+	}
+
+	schemas := map[string]Schema{}
+	ctx := g.NewContext(conn.context.Ctx, 5)
+	currDatabase := "main"
+
+	getOneSchemata := func(values map[string]interface{}) error {
+		defer ctx.Wg.Read.Done()
+
+		schemaData, err := conn.SumbitTemplate(
+			"single", conn.template.Metadata, "schemata",
+			values,
+		)
+		if err != nil {
+			g.LogError(err, "Could not GetSchemata for "+schemaName)
+			return g.Error(err, "Could not GetSchemata for "+schemaName)
+		}
+
+		defer ctx.Unlock()
+		ctx.Lock()
+
+		for _, rec := range schemaData.Records() {
+			schemaName = cast.ToString(rec["schema_name"])
+			tableName := cast.ToString(rec["table_name"])
+			columnName := cast.ToString(rec["column_name"])
+			dataType := strings.ToLower(cast.ToString(rec["data_type"]))
+
+			switch v := rec["is_view"].(type) {
+			case int64, float64:
+				if cast.ToInt64(rec["is_view"]) == 0 {
+					rec["is_view"] = false
+				} else {
+					rec["is_view"] = true
+				}
+			case string:
+				if cast.ToBool(rec["is_view"]) {
+					rec["is_view"] = true
+				} else {
+					rec["is_view"] = false
+				}
+
+			default:
+				_ = fmt.Sprint(v)
+				_ = rec["is_view"]
+			}
+
+			schema := Schema{
+				Name:   schemaName,
+				Tables: map[string]Table{},
+			}
+
+			table := Table{
+				Name:     tableName,
+				Schema:   schemaName,
+				Database: currDatabase,
+				IsView:   cast.ToBool(rec["is_view"]),
+				Columns:  iop.Columns{},
+			}
+
+			if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
+				schema = schemas[strings.ToLower(schema.Name)]
+			}
+
+			if _, ok := schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]; ok {
+				table = schemas[strings.ToLower(schema.Name)].Tables[strings.ToLower(tableName)]
+			}
+
+			column := iop.Column{
+				Name:     columnName,
+				Type:     iop.ColumnType(conn.template.NativeTypeMap[dataType]),
+				Table:    tableName,
+				Schema:   schemaName,
+				Database: currDatabase,
+				Position: cast.ToInt(schemaData.Sp.ProcessVal(rec["position"])),
+				DbType:   dataType,
+			}
+
+			table.Columns = append(table.Columns, column)
+
+			schema.Tables[strings.ToLower(tableName)] = table
+			schemas[strings.ToLower(schema.Name)] = schema
+		}
+
+		schemata.Databases[strings.ToLower(currDatabase)] = Database{
+			Name:    currDatabase,
+			Schemas: schemas,
+		}
+		return nil
+	}
+
+	for _, schemaName := range schemaNames {
+		g.Debug("getting schemata for %s", schemaName)
+		values := g.M("schema", schemaName)
+
+		if len(tableNames) > 0 && !(tableNames[0] == "" && len(tableNames) == 1) {
+			tablesQ := []string{}
+			for _, tableName := range tableNames {
+				if strings.TrimSpace(tableName) == "" {
+					continue
+				}
+				tablesQ = append(tablesQ, `'`+tableName+`'`)
+			}
+			if len(tablesQ) > 0 {
+				values["tables"] = strings.Join(tablesQ, ", ")
+			}
+		}
+
+		ctx.Wg.Read.Add()
+		go getOneSchemata(values)
+	}
+
+	ctx.Wg.Read.Wait()
 
 	return schemata, nil
 }
