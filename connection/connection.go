@@ -366,7 +366,7 @@ func (c *Connection) setURL() (err error) {
 		eG := g.ErrorGroup{}
 		for _, k := range keys {
 			if _, ok := c.Data[k]; !ok {
-				eG.Add(g.Error("Prop value not provided: %s", k))
+				eG.Add(g.Error("Property value not provided: %s", k))
 			}
 		}
 		if err = eG.Err(); err != nil {
@@ -430,6 +430,7 @@ func (c *Connection) setURL() (err error) {
 		// template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?schema={schema}&warehouse={warehouse}"
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("host", c.Data["account"])
+		setIfMissing("password", "") // make password optional, especially when using a private key
 		c.Data["host"] = strings.ReplaceAll(cast.ToString(c.Data["host"]), ".snowflakecomputing.com", "")
 		template = "snowflake://{username}:{password}@{host}.snowflakecomputing.com:443/{database}?"
 		if _, ok := c.Data["warehouse"]; ok {
