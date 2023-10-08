@@ -123,7 +123,7 @@ func (conn *RedshiftConn) Unload(tables ...Table) (s3Path string, err error) {
 // BulkExportStream reads in bulk
 func (conn *RedshiftConn) BulkExportStream(sql string) (ds *iop.Datastream, err error) {
 
-	df, err := conn.BulkExportFlow(Table{SQL: sql})
+	df, err := conn.BulkExportFlow(Table{SQL: sql, Dialect: dbio.TypeDbRedshift})
 	if err != nil {
 		return ds, g.Error(err, "Could not export: \n"+sql)
 	}

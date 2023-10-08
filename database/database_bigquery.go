@@ -1061,6 +1061,7 @@ func (conn *BigQueryConn) GetSchemata(schemaName string, tableNames ...string) (
 				Database: currDatabase,
 				IsView:   cast.ToBool(rec["is_view"]),
 				Columns:  iop.Columns{},
+				Dialect:  dbio.TypeDbBigQuery,
 			}
 
 			if _, ok := schemas[strings.ToLower(schema.Name)]; ok {
