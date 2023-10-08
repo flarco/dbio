@@ -286,9 +286,25 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 	words := []string{}
 	word := ""
 
-	addWord := func() {
+	addWord := func(caseAsIs bool) {
 		if word == "" {
 			return
+		}
+
+		var hasLower, hasUpper, hasSpecial bool
+
+		for _, r := range word {
+			if unicode.IsUpper(r) {
+				hasUpper = true
+			} else if unicode.IsLower(r) {
+				hasLower = true
+			}
+		}
+
+		defCaseAsIs := (hasLower && hasUpper) || hasSpecial
+		if caseAsIs || defCaseAsIs {
+		} else {
+			word = lo.Ternary(defCaseUpper, strings.ToUpper(word), strings.ToLower(word))
 		}
 		words = append(words, word)
 		word = ""
@@ -300,13 +316,13 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 		switch c {
 		case quote:
 			if inQuote {
-				addWord()
+				addWord(true)
 			}
 			inQuote = !inQuote
 			continue
 		case ".":
 			if !inQuote {
-				addWord()
+				addWord(false)
 				continue
 			}
 		case " ", "\n", "\t", "\r", "(", ")", "'":
@@ -316,17 +332,13 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 			}
 		}
 
-		if inQuote {
-			word = word + c
-		} else {
-			word = word + lo.Ternary(defCaseUpper, strings.ToUpper(c), c)
-		}
+		word = word + c
 	}
 
 	if inQuote {
 		return table, g.Error("unterminated qualifier quote")
 	} else if word != "" {
-		addWord()
+		addWord(false)
 	}
 
 	if len(words) == 0 {
@@ -358,9 +370,25 @@ func ParseColumnName(text string, dialect dbio.Type) (colName string, err error)
 	words := []string{}
 	word := ""
 
-	addWord := func() {
+	addWord := func(caseAsIs bool) {
 		if word == "" {
 			return
+		}
+
+		var hasLower, hasUpper, hasSpecial bool
+
+		for _, r := range word {
+			if unicode.IsUpper(r) {
+				hasUpper = true
+			} else if unicode.IsLower(r) {
+				hasLower = true
+			}
+		}
+
+		defCaseAsIs := (hasLower && hasUpper) || hasSpecial
+		if caseAsIs || defCaseAsIs {
+		} else {
+			word = lo.Ternary(defCaseUpper, strings.ToUpper(word), strings.ToLower(word))
 		}
 		words = append(words, word)
 		word = ""
@@ -372,39 +400,35 @@ func ParseColumnName(text string, dialect dbio.Type) (colName string, err error)
 		switch c {
 		case quote:
 			if inQuote {
-				addWord()
+				addWord(true)
 			}
 			inQuote = !inQuote
 			continue
 		case ".":
 			if !inQuote {
-				addWord()
+				addWord(false)
 				continue
 			}
-		case " ", "\n", "\t", "\r", "(", ")", "-", "'":
+		case " ", "\n", "\t", "\r", "(", ")", "'":
 			if !inQuote {
 				err = g.Error("invalid character: %#v", c)
 				return
 			}
 		}
 
-		if inQuote {
-			word = word + c
-		} else {
-			word = word + lo.Ternary(defCaseUpper, strings.ToUpper(c), c)
-		}
+		word = word + c
 	}
 
 	if inQuote {
 		return colName, g.Error("unterminated qualifier quote")
 	} else if word != "" {
-		addWord()
+		addWord(false)
 	}
 
 	if len(words) == 0 {
 		err = g.Error("invalid column name")
 	} else {
-		colName = strings.Join(words, ".")
+		colName = words[len(words)-1]
 	}
 
 	return

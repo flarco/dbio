@@ -52,6 +52,16 @@ func TestParseTableName(t *testing.T) {
 			output:  Table{Schema: "db-4", Name: "table"},
 		},
 		{
+			input:   "DB-4.table",
+			dialect: dbio.TypeDbMySQL,
+			output:  Table{Schema: "db-4", Name: "table"},
+		},
+		{
+			input:   "`DB-4`.table",
+			dialect: dbio.TypeDbMySQL,
+			output:  Table{Schema: "DB-4", Name: "table"},
+		},
+		{
 			input:   "schema.`Table Name`",
 			dialect: dbio.TypeDbMySQL,
 			output:  Table{Schema: "schema", Name: "Table Name"},
@@ -60,6 +70,11 @@ func TestParseTableName(t *testing.T) {
 			input:   `"ScheMa Name"."Table Name"`,
 			dialect: dbio.TypeDbSnowflake,
 			output:  Table{Schema: "ScheMa Name", Name: "Table Name"},
+		},
+		{
+			input:   `ScheMa-Name."Table Name"`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  Table{Schema: "ScheMa-Name", Name: "Table Name"},
 		},
 		{
 			input:   `select 1 from table `,
@@ -77,5 +92,98 @@ func TestParseTableName(t *testing.T) {
 		assert.Equal(t, c.output.Schema, table.Schema, c)
 		assert.Equal(t, c.output.Database, table.Database, c)
 		assert.Equal(t, c.output.SQL, table.SQL, c)
+	}
+}
+
+func TestParseColumnName(t *testing.T) {
+	type testCase struct {
+		input   string
+		dialect dbio.Type
+		output  string
+	}
+	cases := []testCase{
+		{
+			input:   `schema.table.col1`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "COL1",
+		},
+		{
+			input:   `schema.*`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "*",
+		},
+		{
+			input:   `*`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "*",
+		},
+		{
+			input:   `"ScheMa".table`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "TABLE",
+		},
+		{
+			input:   `table`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "TABLE",
+		},
+		{
+			input:   `table`,
+			dialect: dbio.TypeDbMySQL,
+			output:  "table",
+		},
+		{
+			input:   `TABLE`,
+			dialect: dbio.TypeDbMySQL,
+			output:  "table",
+		},
+		{
+			input:   `TaBLE`,
+			dialect: dbio.TypeDbMySQL,
+			output:  "TaBLE",
+		},
+		{
+			input:   `"ScheMa Name".table`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "TABLE",
+		},
+		{
+			input:   "`table-4`",
+			dialect: dbio.TypeDbMySQL,
+			output:  "table-4",
+		},
+		{
+			input:   "TABLE-4",
+			dialect: dbio.TypeDbMySQL,
+			output:  "table-4",
+		},
+		{
+			input:   "TABLe-4",
+			dialect: dbio.TypeDbMySQL,
+			output:  "TABLe-4",
+		},
+		{
+			input:   "schema.`Table Name`",
+			dialect: dbio.TypeDbMySQL,
+			output:  "Table Name",
+		},
+		{
+			input:   `"ScheMa Name"."Table Name"`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "Table Name",
+		},
+		{
+			input:   `ScheMa-Name.Table-Name`,
+			dialect: dbio.TypeDbSnowflake,
+			output:  "Table-Name",
+		},
+	}
+
+	for _, c := range cases {
+		column, err := ParseColumnName(c.input, c.dialect)
+		if !assert.NoError(t, err, c) {
+			return
+		}
+		assert.Equal(t, c.output, column, c)
 	}
 }
