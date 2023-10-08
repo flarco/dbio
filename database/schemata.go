@@ -272,6 +272,12 @@ type ColumnType struct {
 func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 	table.Dialect = dialect
 
+	textLower := strings.ToLower(text)
+	if strings.Contains(textLower, "select") && strings.Contains(textLower, "from") && (strings.Contains(text, " ") || strings.Contains(text, "\n")) {
+		table.SQL = strings.TrimSpace(text)
+		return
+	}
+
 	quote := GetQualifierQuote(dialect)
 
 	defCaseUpper := g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake)
@@ -303,7 +309,7 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 				addWord()
 				continue
 			}
-		case " ", "\n", "\t", "\r", "(", ")", "-", "'":
+		case " ", "\n", "\t", "\r", "(", ")", "'":
 			if !inQuote {
 				table.SQL = strings.TrimSpace(text)
 				return

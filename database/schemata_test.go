@@ -47,6 +47,11 @@ func TestParseTableName(t *testing.T) {
 			output:  Table{Schema: "ScheMa Name", Name: "TABLE"},
 		},
 		{
+			input:   "`db-4`.table",
+			dialect: dbio.TypeDbMySQL,
+			output:  Table{Schema: "db-4", Name: "table"},
+		},
+		{
 			input:   "schema.`Table Name`",
 			dialect: dbio.TypeDbMySQL,
 			output:  Table{Schema: "schema", Name: "Table Name"},
