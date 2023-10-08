@@ -591,7 +591,7 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 				g.M("name", connName, "data", data, "type", data["type"]),
 			)
 			if err != nil {
-				g.Debug("could not load dbt connection %s, connName: %s", err.Error())
+				g.Trace("could not load dbt connection %s, connName: %s", data["type"], connName, err.Error())
 				continue
 			}
 

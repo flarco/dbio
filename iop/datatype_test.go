@@ -313,3 +313,22 @@ func TestAddColumns(t *testing.T) {
 	assert.Equal(t, 3, len(df.Columns))
 	g.Debug("%#v", df.Columns.Names())
 }
+
+func TestCleanName(t *testing.T) {
+	names := []string{
+		"great-one!9",
+		"great-one!9",
+		"great-one,9",
+		"gag|hello",
+		"Seller(s)",
+		"1Seller(s) \n cool",
+	}
+	newNames := make([]string, len(names))
+
+	for i, name := range names {
+		newNames[i] = CleanName(name)
+	}
+	// g.P(newHeader)
+	assert.Equal(t, "great_one_9", newNames[2])
+	assert.Equal(t, "_1Seller_s_cool", newNames[5])
+}

@@ -56,7 +56,7 @@ func (p *Parquet) Columns() Columns {
 		}
 
 		c := Column{
-			Name:     col.Name(),
+			Name:     CleanName(col.Name()),
 			Type:     typeMap[*colType],
 			Position: len(cols) + 1,
 		}

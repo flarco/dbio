@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -26,8 +25,7 @@ import (
 )
 
 var (
-	jsoniter       = jit.ConfigCompatibleWithStandardLibrary
-	replacePattern = regexp.MustCompile("[^_0-9a-zA-Z]+") // to clea header fields
+	jsoniter = jit.ConfigCompatibleWithStandardLibrary
 )
 
 // Datastream is a stream of rows
@@ -347,7 +345,7 @@ func (ds *Datastream) GetFields(args ...bool) []string {
 			field = strings.ToLower(column.Name)
 		}
 		if cleanUp {
-			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+			field = CleanName(field) // clean up
 		}
 
 		fields[j] = field

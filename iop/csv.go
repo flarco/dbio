@@ -40,8 +40,6 @@ type CSV struct {
 func CleanHeaderRow(header []string) []string {
 	// replace any other chars than regex expression
 	regexAllow := *regexp.MustCompile(`[^a-zA-Z0-9_]`)
-	// any header with numbers first, add underscore
-	regexFirstDigit := *regexp.MustCompile(`^\d`)
 	fieldMap := map[string]string{}
 
 	transformer := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
@@ -55,6 +53,7 @@ func CleanHeaderRow(header []string) []string {
 		field = strings.TrimRight(strings.TrimLeft(field, "`"), "`")
 		field = strings.ReplaceAll(field, "`", "_")
 
+		// any header with numbers first, add underscore
 		if regexFirstDigit.Match([]byte(field)) {
 			field = "_" + field
 		}

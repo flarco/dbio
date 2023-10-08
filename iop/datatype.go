@@ -3,6 +3,7 @@ package iop
 import (
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ var (
 	// RemoveTrailingDecZeros removes the trailing zeros in CastToString
 	RemoveTrailingDecZeros = false
 	SampleSize             = 900
+	replacePattern         = regexp.MustCompile("[^_0-9a-zA-Z]+") // to clean header fields
+	regexFirstDigit        = *regexp.MustCompile(`^\d`)
 )
 
 // Column represents a schemata column
@@ -182,7 +185,7 @@ func (cols Columns) Names(args ...bool) []string {
 			field = strings.ToLower(column.Name)
 		}
 		if cleanUp {
-			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+			field = CleanName(field) // clean up
 		}
 
 		fields[j] = field
@@ -219,7 +222,7 @@ func (cols Columns) Types(args ...bool) []string {
 			field = strings.ToLower(column.Name)
 		}
 		if cleanUp {
-			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+			field = CleanName(field) // clean up
 		}
 
 		fields[j] = g.F("%s [%s]", field, column.Type)
@@ -328,7 +331,7 @@ func (cols Columns) DbTypes(args ...bool) []string {
 			field = strings.ToLower(column.Name)
 		}
 		if cleanUp {
-			field = string(replacePattern.ReplaceAll([]byte(field), []byte("_"))) // clean up
+			field = CleanName(field) // clean up
 		}
 
 		fields[j] = g.F("%s [%s]", field, column.DbType)
@@ -427,6 +430,15 @@ func (cols Columns) IsDifferent(newCols Columns) bool {
 		}
 	}
 	return false
+}
+
+func CleanName(name string) (newName string) {
+	newName = strings.TrimSpace(name)
+	newName = replacePattern.ReplaceAllString(newName, "_") // clean up
+	if regexFirstDigit.MatchString(newName) {
+		newName = "_" + newName
+	}
+	return
 }
 
 // CompareColumns compared two columns to see if there are similar
