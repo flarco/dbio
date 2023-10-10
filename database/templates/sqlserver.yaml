@@ -1,6 +1,6 @@
 core:
-  drop_table: drop table if exists {table}
-  drop_view: drop view if exists {view}
+  drop_table: IF OBJECT_ID(N'{table}', N'U') IS NOT NULL DROP TABLE {table}
+  drop_view: IF OBJECT_ID(N'{view}', N'V') IS NOT NULL DROP VIEW {view}
   create_temporary_table: 'create table #{table} ({col_types})'
   replace: insert into {table} ({fields}) values ({values}) on conflict ({pk_fields}) do update set {set_fields}
   replace_temp: |
