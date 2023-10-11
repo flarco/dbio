@@ -596,7 +596,7 @@ func (conn *BigTableConn) StreamRowsContext(ctx context.Context, table string, o
 	ds.NoDebug = strings.Contains(table, noDebugKey)
 	// ds.Inferred = !InferDBStream
 	ds.SetMetadata(conn.GetProp("METADATA"))
-	ds.SetConfig(conn.properties)
+	ds.SetConfig(conn.Props())
 
 	err = ds.Start()
 	if err != nil {

@@ -960,7 +960,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 	if !ds.NoDebug {
 		// don't set metadata for internal queries
 		ds.SetMetadata(conn.GetProp("METADATA"))
-		ds.SetConfig(conn.properties)
+		ds.SetConfig(conn.Props())
 	}
 
 	err = ds.Start()
@@ -3234,7 +3234,7 @@ func GenerateAlterDDL(conn Connection, table Table, newColumns iop.Columns) (boo
 }
 
 func Clone(conn Connection) (newConn Connection, err error) {
-	props := g.MapToKVArr(conn.Base().properties)
+	props := g.MapToKVArr(conn.Base().Props())
 	newConn, err = NewConn(conn.GetURL(), props...)
 	if err != nil {
 		err = g.Error(err, "could not clone database connection")
