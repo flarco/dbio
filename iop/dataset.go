@@ -332,8 +332,8 @@ func (data *Dataset) Records(lower ...bool) []map[string]interface{} {
 	return records
 }
 
-// Records return rows of maps or string values
-func (data *Dataset) StringRecords(lower ...bool) []map[string]interface{} {
+// RecordsString return rows of maps or string values
+func (data *Dataset) RecordsString(lower ...bool) []map[string]interface{} {
 	Lower := true
 	if len(lower) > 0 {
 		Lower = lower[0]
@@ -346,6 +346,27 @@ func (data *Dataset) StringRecords(lower ...bool) []map[string]interface{} {
 				rec[field] = nil
 			} else {
 				rec[field] = cast.ToString(row[j])
+			}
+		}
+		records[i] = rec
+	}
+	return records
+}
+
+// RecordsCasted return rows of maps or casted values
+func (data *Dataset) RecordsCasted(lower ...bool) []map[string]interface{} {
+	Lower := true
+	if len(lower) > 0 {
+		Lower = lower[0]
+	}
+	records := make([]map[string]interface{}, len(data.Rows))
+	for i, row := range data.Rows {
+		rec := map[string]interface{}{}
+		for j, field := range data.GetFields(Lower) {
+			if row[j] == nil {
+				rec[field] = nil
+			} else {
+				rec[field] = data.Sp.ParseString(cast.ToString(row[j]))
 			}
 		}
 		records[i] = rec
