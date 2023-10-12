@@ -366,7 +366,7 @@ func (data *Dataset) RecordsCasted(lower ...bool) []map[string]interface{} {
 			if row[j] == nil {
 				rec[field] = nil
 			} else {
-				rec[field] = data.Sp.ParseString(cast.ToString(row[j]))
+				rec[field] = data.Sp.ParseString(cast.ToString(row[j]), j)
 			}
 		}
 		records[i] = rec
