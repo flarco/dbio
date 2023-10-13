@@ -73,12 +73,12 @@ var DBs = map[string]*testDB{
 		name:        "postgres",
 		URL:         os.Getenv("POSTGRES_URL"),
 		schema:      "public",
-		transactDDL: `CREATE TABLE transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
-		personDDL:   `CREATE TABLE person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
+		transactDDL: `CREATE TABLE public.transact (date_time date, description varchar(255), original_description varchar(255), amount decimal(10,5), transaction_type varchar(255), category varchar(255), account_name varchar(255), labels varchar(255), notes varchar(255) )`,
+		personDDL:   `CREATE TABLE public.person (first_name varchar(255), last_name varchar(255), email varchar(255), CONSTRAINT person_first_name PRIMARY KEY (first_name) )`,
 		placeDDL:    "CREATE TABLE public.place\n(\n    \"country\" text NULL,\n    \"city\" text NULL,\n    \"telcode\" bigint NULL\n)",
 		placeIndex: `CREATE INDEX idx_country_city
 		ON place(country, city)`,
-		placeVwDDL:    `create or replace view place_vw as select * from place where telcode = 65`,
+		placeVwDDL:    `create or replace view public.place_vw as select * from place where telcode = 65`,
 		placeVwSelect: "SELECT place.country,\n    place.city,\n    place.telcode\n   FROM place\n  WHERE (place.telcode = 65);",
 	},
 
@@ -399,7 +399,7 @@ func DBTest(t *testing.T, db *testDB, conn Connection) {
 
 	g.Info("Testing " + conn.GetType().String())
 
-	err := conn.DropTable(db.schema+".person", db.schema+".place", db.schema+".transact")
+	err := conn.DropTable(db.schema+".person", db.schema+".place", db.schema+".transact", "person", "place", "transact")
 	g.AssertNoError(t, err)
 
 	err = conn.DropView(db.schema + ".place_vw")
