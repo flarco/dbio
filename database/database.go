@@ -2037,6 +2037,7 @@ func (conn *BaseConn) ValidateColumnNames(tgtColNames []string, colNames []strin
 	}
 
 	g.Trace("insert target fields: " + strings.Join(newColNames, ", "))
+	g.LogError(err)
 
 	return
 }

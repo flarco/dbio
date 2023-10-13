@@ -280,8 +280,6 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 
 	quote := GetQualifierQuote(dialect)
 
-	defCaseUpper := g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake)
-
 	inQuote := false
 	words := []string{}
 	word := ""
@@ -304,7 +302,7 @@ func ParseTableName(text string, dialect dbio.Type) (table Table, err error) {
 		defCaseAsIs := (hasLower && hasUpper) || hasSpecial
 		if caseAsIs || defCaseAsIs {
 		} else {
-			word = lo.Ternary(defCaseUpper, strings.ToUpper(word), strings.ToLower(word))
+			word = lo.Ternary(dialect.DBNameUpperCase(), strings.ToUpper(word), strings.ToLower(word))
 		}
 		words = append(words, word)
 		word = ""
@@ -364,8 +362,6 @@ func ParseColumnName(text string, dialect dbio.Type) (colName string, err error)
 
 	quote := GetQualifierQuote(dialect)
 
-	defCaseUpper := g.In(dialect, dbio.TypeDbOracle, dbio.TypeDbSnowflake)
-
 	inQuote := false
 	words := []string{}
 	word := ""
@@ -388,7 +384,7 @@ func ParseColumnName(text string, dialect dbio.Type) (colName string, err error)
 		defCaseAsIs := (hasLower && hasUpper) || hasSpecial
 		if caseAsIs || defCaseAsIs {
 		} else {
-			word = lo.Ternary(defCaseUpper, strings.ToUpper(word), strings.ToLower(word))
+			word = lo.Ternary(dialect.DBNameUpperCase(), strings.ToUpper(word), strings.ToLower(word))
 		}
 		words = append(words, word)
 		word = ""

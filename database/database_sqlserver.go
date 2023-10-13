@@ -204,7 +204,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			ds.Context.Lock()
-			columns, err := conn.GetColumns(tableFName, batch.Columns.Names(true, false)...)
+			columns, err := conn.GetColumns(tableFName, batch.Columns.Names()...)
 			if err != nil {
 				return count, g.Error(err, "could not get matching list of columns from table")
 			}
@@ -521,7 +521,7 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 	if err != nil {
 		return cnt, err
 	}
-	fields := batch.Columns.Names(true, true)
+	fields := batch.Columns.Names()
 
 	_, err = file.Write([]byte(strings.Join(fields, ",") + "\n"))
 	if err != nil {

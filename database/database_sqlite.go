@@ -113,7 +113,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 
 	for batch := range ds.BatchChan {
 		if batch.ColumnsChanged() || batch.IsFirst() {
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names()...)
 			if err != nil {
 				return count, g.Error(err, "could not get list of columns from table")
 			}
@@ -164,7 +164,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		}
 
 		tempTable := g.RandSuffix("temp_", 4)
-		columnNames := lo.Map(columns.Names(true, true), func(col string, i int) string {
+		columnNames := lo.Map(columns.Names(), func(col string, i int) string {
 			name, _ := ParseColumnName(col, conn.Type)
 			return name
 		})

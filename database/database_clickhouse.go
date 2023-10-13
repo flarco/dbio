@@ -97,7 +97,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 
 	for batch := range ds.BatchChan {
 		if batch.ColumnsChanged() || batch.IsFirst() {
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names()...)
 			if err != nil {
 				return count, g.Error(err, "could not get matching list of columns from table")
 			}
@@ -119,7 +119,7 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 				defer conn.Rollback()
 			}
 
-			insFields, err := conn.ValidateColumnNames(columns.Names(), batch.Columns.Names(true, true), true)
+			insFields, err := conn.ValidateColumnNames(columns.Names(), batch.Columns.Names(), true)
 			if err != nil {
 				return g.Error(err, "columns mismatch")
 			}

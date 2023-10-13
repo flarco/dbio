@@ -245,7 +245,7 @@ func InsertStream(conn Connection, tx *BaseTransaction, tableFName string, ds *i
 		err = g.Error(err, "could not get column list")
 		return
 	}
-	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.GetFields(true, true), true)
+	insFields, err := conn.ValidateColumnNames(columns.Names(), ds.Columns.Names(), true)
 	if err != nil {
 		err = g.Error(err, "columns mismatch")
 		return
@@ -302,7 +302,7 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		mux.Lock()
 		defer mux.Unlock()
 
-		insFields, err := conn.ValidateColumnNames(columns.Names(), bColumns.Names(true, true), true)
+		insFields, err := conn.ValidateColumnNames(columns.Names(), bColumns.Names(), true)
 		if err != nil {
 			return g.Error(err, "columns mismatch")
 		}
@@ -376,7 +376,7 @@ func InsertBatchStream(conn Connection, tx Transaction, tableFName string, ds *i
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			// make sure fields match
 			mux.Lock()
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, true)...)
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names()...)
 			if err != nil {
 				err = g.Error(err, "could not get column list")
 				return

@@ -138,7 +138,7 @@ func (conn *PostgresConn) BulkImportStream(tableFName string, ds *iop.Datastream
 	for batch := range ds.BatchChan {
 		if batch.ColumnsChanged() || batch.IsFirst() {
 			mux.Lock()
-			columns, err = conn.GetColumns(tableFName, batch.Columns.Names(true, false)...)
+			columns, err = conn.GetColumns(tableFName, batch.Columns.Names()...)
 			mux.Unlock()
 			if err != nil {
 				return count, g.Error(err, "could not get matching list of columns from table")

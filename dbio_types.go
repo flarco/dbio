@@ -2,6 +2,7 @@ package dbio
 
 import (
 	"github.com/flarco/dbio/saas/airbyte"
+	"github.com/flarco/g"
 )
 
 // Kind is the connection kind
@@ -105,6 +106,11 @@ func (t Type) DefPort() int {
 		TypeFileSftp:     22,
 	}
 	return connTypesDefPort[t]
+}
+
+// DBNameUpperCase returns true is upper case is default
+func (t Type) DBNameUpperCase() bool {
+	return g.In(t, TypeDbOracle, TypeDbSnowflake)
 }
 
 // Kind returns the kind of connection
