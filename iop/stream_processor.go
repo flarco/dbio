@@ -453,7 +453,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			nVal = sVal
 		}
 	case col.Type == SmallIntType:
-		iVal, err := cast.ToIntE(val)
+		iVal, err := cast.ToInt32E(val)
 		if err != nil {
 			fVal, err := sp.toFloat64E(val)
 			if err != nil || sp.ds == nil {

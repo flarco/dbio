@@ -88,6 +88,47 @@ func TestFileSysLocalFormat(t *testing.T) {
 	// clean up existing
 	os.RemoveAll("test/test_write")
 
+	columns := iop.NewColumns(
+		iop.Columns{
+			{Name: "col_big_int", Type: iop.BigIntType},
+			{Name: "col_binary_type", Type: iop.BinaryType},
+			{Name: "col_bool_type", Type: iop.BoolType},
+			{Name: "col_date_type", Type: iop.DateType},
+			{Name: "col_datetime_type", Type: iop.DatetimeType},
+			{Name: "col_decimal_type", Type: iop.DecimalType},
+			{Name: "col_integer_type", Type: iop.IntegerType},
+			{Name: "col_json_type", Type: iop.JsonType},
+			{Name: "col_small_int_type", Type: iop.SmallIntType},
+			{Name: "col_string_type", Type: iop.StringType},
+			{Name: "col_text_type", Type: iop.TextType},
+			{Name: "col_timestamp_type", Type: iop.TimestampType},
+			{Name: "col_timestampz_type", Type: iop.TimestampzType},
+			{Name: "col_float_type", Type: iop.FloatType},
+			{Name: "col_time_type", Type: iop.TimeType},
+			{Name: "col_timez_type", Type: iop.TimezType},
+		}...,
+	)
+	data := iop.NewDataset(columns)
+	data.Inferred = true
+	data.Append([]any{
+		int64(9876554321),         // big_int_type
+		[]byte("col_binary_type"), // binary_type
+		true,                      // bool_type
+		time.Date(2023, 1, 1, 0, 0, 0, 0, time.Now().Location()), // date_type
+		time.Date(2023, 2, 2, 2, 2, 2, 2, time.Now().Location()), // datetime_type
+		123.45,           // decimal_type
+		int64(898471313), // integer_type
+		`{"message": "hello", "number": 123, "array": [1,2,3]}`, // json_type
+		int32(1234),       // small_int_type
+		"col_string_type", // string_type
+		"col_text_type",   // text_type
+		time.Now(),        // timestamp_type
+		time.Date(2023, 3, 3, 3, 3, 3, 3, time.Now().Location()), // timestampz_type
+		123.45,     // float_type
+		"10:00:00", // time_type
+		"10:00:00", // timez_type
+	})
+
 	for _, format := range []FileType{FileTypeJson, FileTypeJsonLines, FileTypeCsv, FileTypeParquet} {
 		if t.Failed() {
 			break
@@ -121,6 +162,19 @@ func TestFileSysLocalFormat(t *testing.T) {
 		_, err = df3.Collect()
 		assert.NoError(t, err, formatS)
 		assert.Equal(t, cast.ToInt(df2.Count()), cast.ToInt(df3.Count()))
+
+		// all data types
+		fs3, err := NewFileSysClient(dbio.TypeFileLocal, "FORMAT="+formatS)
+		assert.NoError(t, err, formatS)
+		df4, err := iop.MakeDataFlow(data.Stream())
+		assert.NoError(t, err, formatS)
+		_, err = fs3.WriteDataflow(df4, g.F("test/test_write/%s.type.test", formatS))
+		assert.NoError(t, err, formatS)
+		df5, err := fs2.ReadDataflow(g.F("test/test_write/%s.type.test", formatS))
+		assert.NoError(t, err, formatS)
+		_, err = df5.Collect()
+		assert.NoError(t, err, formatS)
+		assert.Equal(t, len(data.Rows), cast.ToInt(df5.Count()))
 
 	}
 

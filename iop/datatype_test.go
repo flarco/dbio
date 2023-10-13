@@ -332,3 +332,9 @@ func TestCleanName(t *testing.T) {
 	assert.Equal(t, "great_one_9", newNames[2])
 	assert.Equal(t, "_1Seller_s_cool", newNames[5])
 }
+
+func TestParseString(t *testing.T) {
+	sp := NewStreamProcessor()
+	val := sp.ParseString("1697104406")
+	assert.Equal(t, int64(1697104406), val)
+}

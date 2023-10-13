@@ -200,7 +200,7 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 		lt := ""
 		t := ""
 		switch col.Type {
-		case StringType, TextType, BinaryType:
+		case StringType, TextType, BinaryType, TimeType, TimezType:
 			lt = "(STRING)"
 			t = "binary"
 		case JsonType:
@@ -209,7 +209,10 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 		case DateType, DatetimeType, TimestampType, TimestampzType:
 			lt = "(TIMESTAMP(MICROS, true))"
 			t = "int64"
-		case SmallIntType, IntegerType, BigIntType:
+		case SmallIntType:
+			lt = ""
+			t = "int32"
+		case IntegerType, BigIntType:
 			lt = ""
 			t = "int64"
 		case DecimalType, FloatType:
