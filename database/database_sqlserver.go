@@ -3,7 +3,6 @@ package database
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/flarco/dbio"
+	"github.com/samber/lo"
 
 	"github.com/flarco/dbio/filesys"
 
@@ -222,7 +222,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 		ds.Unpause()
 
 		// Write the ds to a temp file
-		file, err := ioutil.TempFile(os.TempDir(), g.F("sqlserver.%s.%d.csv", tableFName, len(ds.Batches)))
+		file, err := os.CreateTemp(os.TempDir(), g.F("sqlserver.%d.csv", len(ds.Batches)))
 		if err != nil {
 			return 0, g.Error(err, "Error opening temp file")
 		}
@@ -311,6 +311,19 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 		return
 	}
 
+	// get version
+	version := 14
+	versionOut, err := exec.Command("bcp", "-v").Output()
+	if err != nil {
+		return 0, g.Error(err, "could not get bcp version")
+	}
+	regex := *regexp.MustCompile(`Version: (\d+)`)
+	verRes := regex.FindStringSubmatch(string(versionOut))
+	if len(verRes) == 2 {
+		version = cast.ToInt(verRes[1])
+	}
+	g.Debug("bcp version is %d", version)
+
 	// Import to Database
 	batchSize := 50000
 	password, _ := url.User.Password()
@@ -320,17 +333,18 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	user := url.User.Username()
 	hostPort := fmt.Sprintf("tcp:%s,%s", host, port)
 	errPath := "/dev/stderr"
-	if runtime.GOOS == "windows" {
-		errFile, err = os.CreateTemp(os.TempDir(), "sqlserver."+tableFName+".error")
+	if runtime.GOOS == "windows" || true {
+		errFile, err = os.CreateTemp(os.TempDir(), "sqlserver.error")
 		if err != nil {
 			return 0, g.Error(err, "Error opening temp file")
 		}
 		errPath = errFile.Name()
+		defer os.Remove(errPath)
 	}
 
 	proc := exec.Command(
 		"bcp",
-		tableFName,
+		strings.ReplaceAll(tableFName, `"`, ""),
 		"in", filePath,
 		"-S", hostPort,
 		"-d", database,
@@ -347,13 +361,29 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	proc.Stderr = &stderr
 	proc.Stdout = &stdout
 
-	// run and wait for finish
-	cmdStr := strings.ReplaceAll(strings.ReplaceAll(strings.Join(proc.Args, " "), password, "****"), hostPort, "****")
+	if version <= 15 {
+		g.Warn("bcp version %d is old. This may give issues with sling, consider upgrading.", version)
+	} else if version >= 18 {
+		// add u for version 18
+		proc.Args = append(proc.Args, "-u")
+	}
+
+	// build cmdStr
+	args := lo.Map(proc.Args, func(v string, i int) string {
+		if !g.In(v, "in", "-S", "-d", "-U", "-P", "-t", "-u", "-m", "-c", "-q", "-b", "-F", "-e", "bcp") {
+			// v = strings.ReplaceAll(v, password, "****")
+			return `'` + strings.ReplaceAll(v, `'`, `''`) + `'`
+		}
+		return v
+	})
+	cmdStr := strings.Join(args, ` `)
 	g.Debug(cmdStr)
+
+	// run and wait for finish
 	err = proc.Run()
 
 	// get count
-	regex := *regexp.MustCompile(`(?s)(\d+) rows copied.`)
+	regex = *regexp.MustCompile(`(?s)(\d+) rows copied.`)
 	res := regex.FindStringSubmatch(stdout.String())
 	if len(res) == 2 {
 		count = cast.ToUint64(res[1])
@@ -361,7 +391,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 
 	if err != nil {
 		errOut := stderr.String()
-		if runtime.GOOS == "windows" {
+		if errFile != nil {
 			errFile.Close()
 			errOutB, _ := os.ReadFile(errPath)
 			errOut = string(errOutB)
