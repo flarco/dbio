@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/flarco/dbio"
@@ -303,6 +304,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 // Limitation: if comma or delimite is in field, it will error.
 // need to use delimiter not in field, or do some other transformation
 func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count uint64, err error) {
+	var errFile *os.File
 	var stderr, stdout bytes.Buffer
 	url, err := dburl.Parse(conn.URL)
 	if err != nil {
@@ -317,6 +319,14 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	database := strings.ReplaceAll(url.Path, "/", "")
 	user := url.User.Username()
 	hostPort := fmt.Sprintf("tcp:%s,%s", host, port)
+	errPath := "/dev/stderr"
+	if runtime.GOOS == "windows" {
+		errFile, err = os.CreateTemp(os.TempDir(), "sqlserver."+tableFName+".error")
+		if err != nil {
+			return 0, g.Error(err, "Error opening temp file")
+		}
+		errPath = errFile.Name()
+	}
 
 	proc := exec.Command(
 		"bcp",
@@ -332,14 +342,14 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 		"-q",
 		"-b", cast.ToString(batchSize),
 		"-F", "2",
-		"-e", "/dev/stderr",
+		"-e", errPath,
 	)
 	proc.Stderr = &stderr
 	proc.Stdout = &stdout
 
 	// run and wait for finish
 	cmdStr := strings.ReplaceAll(strings.ReplaceAll(strings.Join(proc.Args, " "), password, "****"), hostPort, "****")
-	g.Trace(cmdStr)
+	g.Debug(cmdStr)
 	err = proc.Run()
 
 	// get count
@@ -350,11 +360,18 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	}
 
 	if err != nil {
+		errOut := stderr.String()
+		if runtime.GOOS == "windows" {
+			errFile.Close()
+			errOutB, _ := os.ReadFile(errPath)
+			errOut = string(errOutB)
+		}
+
 		err = g.Error(
 			err,
 			fmt.Sprintf(
 				"SQL Server BCP Import Command -> %s\nSQL Server BCP Import Error  -> %s\n%s",
-				cmdStr, stderr.String(), stdout.String(),
+				cmdStr, errOut, stdout.String(),
 			),
 		)
 		return

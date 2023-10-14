@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"runtime"
@@ -126,7 +125,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		return
 	}
 
-	file, err := ioutil.TempFile(os.TempDir(), "oracle."+tableFName+".*.sqlldr.ctl")
+	file, err := os.CreateTemp(os.TempDir(), "oracle."+tableFName+".*.sqlldr.ctl")
 	if err != nil {
 		err = g.Error(err, "Error opening temp file")
 		return
@@ -140,7 +139,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		"table", tableFName,
 		"columns", conn.getColumnsString(ds),
 	)
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		ctlPath,
 		[]byte(ctlStr),
 		0755,
@@ -176,7 +175,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 
 	// run and wait for finish
 	cmdStr := strings.ReplaceAll(strings.Join(proc.Args, " "), credHost, "****")
-	g.Trace(cmdStr)
+	g.Debug(cmdStr)
 	err = proc.Run()
 
 	// Delete ctrl file
