@@ -371,7 +371,8 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	// build cmdStr
 	args := lo.Map(proc.Args, func(v string, i int) string {
 		if !g.In(v, "in", "-S", "-d", "-U", "-P", "-t", "-u", "-m", "-c", "-q", "-b", "-F", "-e", "bcp") {
-			// v = strings.ReplaceAll(v, password, "****")
+			v = strings.ReplaceAll(v, hostPort, "****")
+			v = strings.ReplaceAll(v, password, "****")
 			return `'` + strings.ReplaceAll(v, `'`, `''`) + `'`
 		}
 		return v
@@ -570,7 +571,12 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 	}
 	fields := batch.Columns.Names()
 
-	_, err = file.Write([]byte(strings.Join(fields, ",") + "\n"))
+	newLine := "\n"
+	if runtime.GOOS == "windows" {
+		newLine = "\r\n"
+	}
+
+	_, err = file.Write([]byte(strings.Join(fields, ",") + newLine))
 	if err != nil {
 		return cnt, g.Error(err, "could not write header to file")
 	}
@@ -583,7 +589,7 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 		for i, val := range row0 {
 			row[i] = Sp.CastToString(i, val, batch.Columns[i].Type)
 		}
-		_, err = file.Write([]byte(strings.Join(row, ",") + "\n"))
+		_, err = file.Write([]byte(strings.Join(row, ",") + newLine))
 		if err != nil {
 			return cnt, g.Error(err, "could not write row to file")
 		}
