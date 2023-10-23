@@ -564,6 +564,25 @@ func (col *Column) Key() string {
 	return strings.ToLower(strings.Join(parts, "."))
 }
 
+func (col *Column) GoType() reflect.Type {
+	if col.goType != nil {
+		return col.goType
+	}
+
+	switch {
+	case col.IsBool():
+		return reflect.TypeOf(true)
+	case col.IsInteger():
+		return reflect.TypeOf(int64(0))
+	case col.IsDatetime():
+		return reflect.TypeOf(time.Now())
+	case col.IsDecimal():
+		return reflect.TypeOf(float64(6.6))
+	}
+
+	return reflect.TypeOf("string")
+}
+
 func (col *Column) IsUnique() bool {
 	if col.Stats.TotalCnt <= 0 {
 		return false
