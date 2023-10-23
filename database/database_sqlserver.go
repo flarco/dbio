@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"runtime"
 	"strings"
@@ -222,12 +223,8 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 		ds.Unpause()
 
 		// Write the ds to a temp file
-		file, err := os.CreateTemp(os.TempDir(), g.F("sqlserver.%d.csv", len(ds.Batches)))
-		if err != nil {
-			return 0, g.Error(err, "Error opening temp file")
-		}
-		filePath := file.Name()
 
+		filePath := path.Join(os.TempDir(), g.NewTsID("sqlserver")+g.F("%d.csv", len(ds.Batches)))
 		csvRowCnt, err := writeCsvWithoutQuotes(filePath, batch, fileRowLimit)
 		if err != nil {
 			os.Remove(filePath)
@@ -304,7 +301,6 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 // Limitation: if comma or delimite is in field, it will error.
 // need to use delimiter not in field, or do some other transformation
 func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count uint64, err error) {
-	var errFile *os.File
 	var stderr, stdout bytes.Buffer
 	url, err := dburl.Parse(conn.URL)
 	if err != nil {
@@ -334,11 +330,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	hostPort := fmt.Sprintf("tcp:%s,%s", host, port)
 	errPath := "/dev/stderr"
 	if runtime.GOOS == "windows" || true {
-		errFile, err = os.CreateTemp(os.TempDir(), "sqlserver.error")
-		if err != nil {
-			return 0, g.Error(err, "Error opening temp file")
-		}
-		errPath = errFile.Name()
+		errPath = path.Join(os.TempDir(), g.NewTsID("sqlserver")+".error")
 		defer os.Remove(errPath)
 	}
 
@@ -361,7 +353,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	proc.Stderr = &stderr
 	proc.Stdout = &stdout
 
-	if version <= 15 {
+	if version <= 14 {
 		g.Warn("bcp version %d is old. This may give issues with sling, consider upgrading.", version)
 	} else if version >= 18 {
 		// add u for version 18
@@ -392,8 +384,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 
 	if err != nil {
 		errOut := stderr.String()
-		if errFile != nil {
-			errFile.Close()
+		if errPath != "/dev/stderr" {
 			errOutB, _ := os.ReadFile(errPath)
 			errOut = string(errOutB)
 		}
