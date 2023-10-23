@@ -365,36 +365,31 @@ func (conn *SnowflakeConn) BulkImportFlow(tableFName string, df *iop.Dataflow) (
 
 	settingMppBulkImportFlow(conn, iop.ZStandardCompressorType)
 
-	switch conn.CopyMethod {
-	case "AWS":
-		return conn.CopyViaAWS(tableFName, df)
-	case "AZURE":
-		return conn.CopyViaAzure(tableFName, df)
-	default:
+	if conn.GetProp("use_bulk") != "false" {
+		switch conn.CopyMethod {
+		case "AWS":
+			return conn.CopyViaAWS(tableFName, df)
+		case "AZURE":
+			return conn.CopyViaAzure(tableFName, df)
+		default:
+		}
+
+		table, err := ParseTableName(tableFName, conn.Type)
+		if err != nil {
+			return 0, g.Error(err, "could not parse table name: "+tableFName)
+		}
+
+		stage := conn.getOrCreateStage(table.Schema)
+		if stage != "" {
+			return conn.CopyViaStage(tableFName, df)
+		}
+
+		if err == nil && stage == "" {
+			err = g.Error("Need to permit internal staging, or provide AWS/Azure creds")
+			return 0, err
+		}
 	}
 
-	table, err := ParseTableName(tableFName, conn.Type)
-	if err != nil {
-		return 0, g.Error(err, "could not parse table name: "+tableFName)
-	}
-
-	stage := conn.getOrCreateStage(table.Schema)
-	if stage != "" {
-		return conn.CopyViaStage(tableFName, df)
-	}
-
-	// if conn.BaseConn.credsProvided("AWS") {
-	// 	return conn.CopyViaAWS(tableFName, df)
-	// } else if conn.BaseConn.credsProvided("AZURE") {
-	// 	return conn.CopyViaAzure(tableFName, df)
-	// }
-
-	if err == nil && stage == "" {
-		err = g.Error("Need to permit internal staging, or provide AWS/Azure creds")
-		return 0, err
-	}
-
-	g.Debug("AWS/Azure creds not provided. Using cursor")
 	for ds := range df.StreamCh {
 		c, err := conn.BaseConn.InsertBatchStream(tableFName, ds)
 		if err != nil {
