@@ -542,6 +542,7 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 		"azure_sas_token", azToken,
 		"date_format", "ymd",
 	)
+
 	conn.SetProp("azToken", azToken) // to not log it in debug logging
 
 	g.Info("copying into azure DWH")
