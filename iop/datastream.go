@@ -1354,7 +1354,7 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 
 // NewParquetReaderChnl provides a channel of readers as the limit is reached
 // each channel flows as fast as the consumer consumes
-func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *BatchReader) {
+func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compression CompressorType) (readerChn chan *BatchReader) {
 	readerChn = make(chan *BatchReader, 100)
 
 	pipeR, pipeW := io.Pipe()
@@ -1382,15 +1382,28 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (read
 			if err != nil {
 				return g.Error(err, "could not generate parquet schema definition")
 			}
-			// schemaDef := parquetschema.SchemaDefinitionFromColumnDefinition(
-			// 	getParquetColumns(batch.Columns),
-			// )
+
+			codec := parquet.CompressionCodec_SNAPPY // is default
+
+			switch compression {
+			case NoneCompressorType:
+				codec = parquet.CompressionCodec_UNCOMPRESSED
+			case SnappyCompressorType:
+				codec = parquet.CompressionCodec_SNAPPY
+			case GzipCompressorType:
+				codec = parquet.CompressionCodec_GZIP
+			case ZStandardCompressorType:
+				codec = parquet.CompressionCodec_ZSTD
+			}
 
 			fw = goparquet.NewFileWriter(pipeW,
-				goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+				goparquet.WithCompressionCodec(codec),
 				goparquet.WithSchemaDefinition(schemaDef),
 				goparquet.WithCreator("flarco/dbio"),
 			)
+
+			// flush row groups only once
+			fw.FlushRowGroup()
 
 			br = &BatchReader{batch, batch.Columns, pipeR, 0}
 			readerChn <- br
@@ -1438,7 +1451,6 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (read
 					return
 				}
 
-				fw.FlushRowGroup()
 				br.Counter++
 
 				if (rowLimit > 0 && br.Counter >= rowLimit) || (bytesLimit > 0 && tbw >= bytesLimit) {

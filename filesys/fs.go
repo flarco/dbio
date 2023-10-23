@@ -695,7 +695,12 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 			}
 
 			compressor := iop.NewCompressor(compression)
-			subPartURL = subPartURL + compressor.Suffix()
+			if fileFormat == FileTypeParquet {
+				compressor = iop.NewCompressor("NONE") // compression is done internally
+			} else {
+				subPartURL = subPartURL + compressor.Suffix()
+			}
+
 			g.Trace("writing stream to " + subPartURL)
 			go writePart(compressor.Compress(batchR.Reader), batchR, subPartURL)
 			localCtx.Wg.Read.Add()
@@ -720,7 +725,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 				}
 			}
 		case FileTypeParquet:
-			for reader := range ds.NewParquetReaderChnl(fileRowLimit, fileBytesLimit) {
+			for reader := range ds.NewParquetReaderChnl(fileRowLimit, fileBytesLimit, compression) {
 				err := processReader(reader)
 				if err != nil {
 					break

@@ -28,7 +28,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.15.11
+	github.com/klauspost/compress v1.16.7
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/nqd/flat v0.1.1
@@ -181,7 +181,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/paulmach/orb v0.7.1 // indirect
 	github.com/pegasus-kv/thrift v0.13.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.16 // indirect
+	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -222,13 +222,13 @@ require (
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/net v0.0.0-20221002022538-bcab6841153b // indirect
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220812140447-cec7f5303424 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
 	gopkg.in/myesui/uuid.v1 v1.0.0 // indirect
