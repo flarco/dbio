@@ -188,6 +188,11 @@ func (ds *Datastream) SetConfig(configMap map[string]string) {
 	}
 	ds.Sp.SetConfig(configMap)
 	ds.config = ds.Sp.config
+
+	// set metadata
+	if metadata, ok := configMap["metadata"]; ok {
+		ds.SetMetadata(metadata)
+	}
 }
 
 // GetConfig get config
