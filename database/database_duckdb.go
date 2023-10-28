@@ -663,9 +663,8 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			csvPath = "/dev/stdin"
 		}
 
-		columnNames := lo.Map(columns.Names(true, true), func(col string, i int) string {
-			name, _ := ParseColumnName(col, conn.Type)
-			return name
+		columnNames := lo.Map(columns.Names(), func(col string, i int) string {
+			return `"` + col + `"`
 		})
 
 		sqlLines := []string{
