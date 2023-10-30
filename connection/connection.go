@@ -96,11 +96,15 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 	)
 
 	if c.Type == "" {
-		U, err := net.NewURL(c.URL())
-		if err != nil {
-			return c, g.Error(err, "invalid url")
+		if strings.HasPrefix(c.URL(), "file://") {
+			c.Type = dbio.TypeFileLocal
+		} else {
+			U, err := net.NewURL(c.URL())
+			if err != nil {
+				return c, g.Error(err, "invalid url")
+			}
+			c.Type, _ = dbio.ValidateType(U.U.Scheme)
 		}
-		c.Type, _ = dbio.ValidateType(U.U.Scheme)
 	}
 
 	return
@@ -307,7 +311,10 @@ func (c *Connection) setURL() (err error) {
 	}
 
 	// if URL is provided, extract properties from it
-	if c.URL() != "" {
+	if strings.HasPrefix(c.URL(), "file://") {
+		c.Type = dbio.TypeFileLocal
+		setIfMissing("type", c.Type)
+	} else if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
 			// this does not return the full error since that can leak passwords

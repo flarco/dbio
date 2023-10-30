@@ -809,12 +809,17 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 // with some safeguards so to not accidentally delete some root path
 func Delete(fs FileSysClient, path string) (err error) {
 
+	if strings.HasPrefix(path, "file://") {
+		// to handle windows path style
+		path = strings.ReplaceAll(strings.ToLower(path), `c:\`, `/`)
+	}
+
 	u, err := net.NewURL(path)
 	if err != nil {
 		return g.Error(err, "could not parse url for deletion")
 	}
 
-	// add some safefguards
+	// add some safeguards
 	p := strings.TrimPrefix(strings.TrimSuffix(u.Path(), "/"), "/")
 	pArr := strings.Split(p, "/")
 
