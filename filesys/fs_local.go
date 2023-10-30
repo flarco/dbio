@@ -39,7 +39,7 @@ func (fs *LocalFileSysClient) delete(path string) (err error) {
 	path = cleanLocalFilePath(path)
 	file, err := os.Stat(path)
 	if err != nil {
-		if strings.Contains(err.Error(), "no such file or directory") {
+		if strings.Contains(err.Error(), "no such file or directory") || strings.Contains(err.Error(), "cannot find") {
 			// path is already deleted
 			return nil
 		}
