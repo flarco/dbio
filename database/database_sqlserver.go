@@ -66,6 +66,7 @@ func (conn *MsSQLServerConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
 		connURL = newURL[0]
 	}
+
 	url, err := dburl.Parse(connURL)
 	if err != nil {
 		g.LogError(err, "could not parse SQL Server URL")
@@ -75,13 +76,21 @@ func (conn *MsSQLServerConn) GetURL(newURL ...string) string {
 	user := url.User.Username()
 	password, _ := url.User.Password()
 	port := url.Port()
-	host := strings.ReplaceAll(url.Host, ":"+port, "")
+	server := strings.ReplaceAll(url.Host, ":"+port, "")
 	database := strings.ReplaceAll(url.Path, "/", "")
-
-	return fmt.Sprintf(
+	instance := conn.GetProp("instance")
+	if instance != "" {
+		server = g.F("%s\\\\%s", server, instance)
+	}
+	adoConnStr := fmt.Sprintf(
 		"server=%s;user id=%s;password=%s;port=%s;database=%s;",
-		host, user, password, port, database,
+		server, user, password, port, database,
 	)
+	_ = adoConnStr
+
+	// return adoConnStr
+
+	return url.String()
 }
 
 func getVersion(URL string) (version string) {

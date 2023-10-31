@@ -1,6 +1,8 @@
 package dbio
 
 import (
+	"strings"
+
 	"github.com/flarco/dbio/saas/airbyte"
 	"github.com/flarco/g"
 )
@@ -63,7 +65,7 @@ func init() {
 
 // ValidateType returns true is type is valid
 func ValidateType(tStr string) (Type, bool) {
-	t := Type(tStr)
+	t := Type(strings.ToLower(tStr))
 
 	tMap := map[string]Type{
 		"postgresql": TypeDbPostgres,

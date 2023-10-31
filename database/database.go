@@ -405,6 +405,10 @@ func (conn *BaseConn) Init() (err error) {
 		}
 	}
 
+	if string(conn.Type) == "" {
+		return g.Error("Could not determine database type.")
+	}
+
 	err = conn.LoadTemplates()
 	if err != nil {
 		return err
