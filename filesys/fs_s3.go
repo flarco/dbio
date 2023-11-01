@@ -63,12 +63,8 @@ func (fw fakeWriterAt) WriteAt(p []byte, offset int64) (n int, err error) {
 }
 
 func cleanKey(key string) string {
-	if strings.HasPrefix(key, "/") {
-		key = key[1:]
-	}
-	if strings.HasSuffix(key, "/") {
-		key = key[:len(key)]
-	}
+	key = strings.TrimPrefix(key, "/")
+	key = strings.TrimSuffix(key, "/")
 	return key
 }
 

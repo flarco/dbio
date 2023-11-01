@@ -230,10 +230,11 @@ func (ec *EnvConns) List() string {
 }
 
 type DiscoverOptions struct {
-	Filter   string
-	Schema   string
-	Folder   string
-	discover bool
+	Filter    string
+	Schema    string
+	Folder    string
+	Recursive bool
+	discover  bool
 }
 
 func (ec *EnvConns) Discover(name string, opt DiscoverOptions) (streamNames []string, err error) {
@@ -262,6 +263,7 @@ func (ec *EnvConns) testDiscover(name string, opt DiscoverOptions) (ok bool, str
 	schema := opt.Schema
 	folder := opt.Folder
 	filter := opt.Filter
+	recursive := opt.Recursive
 
 	conn, ok1 := ec.GetConnEntry(name)
 	if !ok1 || name == "" {
@@ -307,7 +309,11 @@ func (ec *EnvConns) testDiscover(name string, opt DiscoverOptions) (ok bool, str
 			url = folder
 		}
 
-		streamNames, err = fileClient.List(url)
+		if recursive {
+			streamNames, err = fileClient.ListRecursive(url)
+		} else {
+			streamNames, err = fileClient.List(url)
+		}
 		if err != nil {
 			return ok, streamNames, g.Error(err, "could not connect to %s", name)
 		}
