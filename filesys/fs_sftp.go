@@ -80,7 +80,8 @@ func (fs *SftpFileSysClient) Connect() (err error) {
 		Port:       cast.ToInt(fs.GetProp("PORT")),
 		User:       fs.GetProp("USER"),
 		Password:   fs.GetProp("PASSWORD"),
-		PrivateKey: fs.GetProp("PRIVATE_KEY"), // path to ssh key file
+		PrivateKey: fs.GetProp("PRIVATE_KEY"), // raw value or path to ssh key file
+		Passphrase: fs.GetProp("PASSPHRASE"),
 	}
 
 	err = fs.sshClient.Connect()

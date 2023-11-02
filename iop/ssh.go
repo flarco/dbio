@@ -3,7 +3,6 @@ package iop
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -27,6 +26,7 @@ type SSHClient struct {
 	TgtHost       string
 	TgtPort       int
 	PrivateKey    string
+	Passphrase    string
 	Err           error
 	allConns      []net.Conn
 	localListener net.Listener
@@ -50,13 +50,19 @@ func (s *SSHClient) Connect() (err error) {
 	if s.PrivateKey != "" {
 		_, err := os.Stat(s.PrivateKey)
 		if err == nil {
-			prvKeyBytes, err := ioutil.ReadFile(s.PrivateKey)
+			prvKeyBytes, err := os.ReadFile(s.PrivateKey)
 			if err != nil {
 				return g.Error(err, "Could not read private key: "+s.PrivateKey)
 			}
 			s.PrivateKey = string(prvKeyBytes)
 		}
-		signer, err := ssh.ParsePrivateKey([]byte(s.PrivateKey))
+
+		var signer ssh.Signer
+		if s.Passphrase != "" {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(s.PrivateKey), []byte(s.Passphrase))
+		} else {
+			signer, err = ssh.ParsePrivateKey([]byte(s.PrivateKey))
+		}
 		if err != nil {
 			return g.Error(err, "unable to parse private key")
 		}

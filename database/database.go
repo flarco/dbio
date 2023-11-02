@@ -571,6 +571,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 			TgtHost:    connHost,
 			TgtPort:    connPort,
 			PrivateKey: conn.GetProp("SSH_PRIVATE_KEY"),
+			Passphrase: conn.GetProp("SSH_PASSPHRASE"),
 		}
 
 		localPort, err := conn.sshClient.OpenPortForward()
