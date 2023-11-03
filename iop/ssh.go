@@ -81,10 +81,21 @@ func (s *SSHClient) Connect() (err error) {
 	}
 	hostKeyCallback = ssh.InsecureIgnoreHostKey()
 
+	var config ssh.Config
+	config.SetDefaults()
+
+	// from ssh common.go (supportedCiphers)
+	// allow all supported cyphers
+	config.Ciphers = append(
+		config.Ciphers,
+		[]string{"arcfour256", "arcfour128", "arcfour", "aes128-cbc", "3des-cbc"}...,
+	)
+
 	s.config = &ssh.ClientConfig{
 		User:            s.User,
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
+		Config:          config,
 	}
 
 	// Connect to the remote server and perform the SSH handshake.
