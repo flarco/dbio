@@ -328,8 +328,7 @@ func (c *Connection) setURL() (err error) {
 
 		if c.Type.IsDb() {
 			// set props from URL
-
-			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
+			pathValue := strings.ReplaceAll(U.Path(), "/", "")
 			setIfMissing("schema", U.PopParam("schema"))
 
 			if !g.In(c.Type, dbio.TypeDbMotherDuck, dbio.TypeDbDuckDb, dbio.TypeDbSQLite, dbio.TypeDbBigQuery) {
@@ -350,13 +349,19 @@ func (c *Connection) setURL() (err error) {
 				setIfMissing("project", U.Hostname())
 			} else if c.Type == dbio.TypeDbBigTable {
 				setIfMissing("project", U.Hostname())
-				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
+				setIfMissing("instance", pathValue)
 			} else if c.Type == dbio.TypeDbSQLite || c.Type == dbio.TypeDbDuckDb {
 				setIfMissing("instance", U.Path())
 				setIfMissing("schema", "main")
 			} else if c.Type == dbio.TypeDbMotherDuck {
 				setIfMissing("schema", "main")
+			} else if c.Type == dbio.TypeDbSQLServer {
+				setIfMissing("instance", pathValue)
+				setIfMissing("database", U.PopParam("database"))
 			}
+
+			// set database
+			setIfMissing("database", pathValue)
 		}
 		if c.Type == dbio.TypeFileSftp {
 			setIfMissing("user", U.Username())

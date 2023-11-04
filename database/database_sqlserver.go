@@ -334,9 +334,13 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	password, _ := url.User.Password()
 	port := url.Port()
 	host := strings.ReplaceAll(url.Host, ":"+port, "")
-	database := strings.ReplaceAll(url.Path, "/", "")
+	instance := strings.ReplaceAll(url.Path, "/", "")
+	database := url.Query().Get("database")
 	user := url.User.Username()
 	hostPort := fmt.Sprintf("tcp:%s,%s", host, port)
+	if instance != "" {
+		hostPort = g.F("%s\\%s", hostPort, instance)
+	}
 	errPath := "/dev/stderr"
 	if runtime.GOOS == "windows" || true {
 		errPath = path.Join(os.TempDir(), g.NewTsID("sqlserver")+".error")
