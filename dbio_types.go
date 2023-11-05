@@ -121,7 +121,7 @@ func (t Type) Kind() Kind {
 	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbBigTable,
 		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse, TypeDbDuckDb, TypeDbMotherDuck:
 		return KindDatabase
-	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP:
+	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP, Type("https"):
 		return KindFile
 	case TypeAPIGit:
 		return KindAPI
@@ -172,6 +172,7 @@ func (t Type) NameLong() string {
 		TypeFileGoogle:   "FileSys - Google",
 		TypeFileSftp:     "FileSys - Sftp",
 		TypeFileHTTP:     "FileSys - HTTP",
+		Type("https"):    "FileSys - HTTP",
 		TypeDbPostgres:   "DB - PostgreSQL",
 		TypeDbRedshift:   "DB - Redshift",
 		TypeDbMySQL:      "DB - MySQL",
@@ -208,6 +209,7 @@ func (t Type) Name() string {
 		TypeFileGoogle:   "Google",
 		TypeFileSftp:     "Sftp",
 		TypeFileHTTP:     "HTTP",
+		Type("https"):    "HTTP",
 		TypeDbPostgres:   "PostgreSQL",
 		TypeDbRedshift:   "Redshift",
 		TypeDbMySQL:      "MySQL",
