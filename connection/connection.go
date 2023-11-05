@@ -223,7 +223,7 @@ func (c *Connection) URL() string {
 		case dbio.TypeFileGoogle:
 			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileAzure:
-			url = g.F("%s://%s.blob.core.windows.net/%s", c.Type.String(), c.Data["account"], c.Data["container"])
+			url = g.F("https://%s.blob.core.windows.net/%s", c.Data["account"], c.Data["container"])
 		}
 	}
 	return url
@@ -368,6 +368,13 @@ func (c *Connection) setURL() (err error) {
 			setIfMissing("host", U.Hostname())
 			setIfMissing("password", U.Password())
 			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+		}
+		if c.Type == dbio.TypeFileS3 || c.Type == dbio.TypeFileGoogle {
+			setIfMissing("bucket", U.U.Host)
+		}
+		if c.Type == dbio.TypeFileAzure {
+			setIfMissing("account", strings.ReplaceAll(U.U.Host, ".blob.core.windows.net", ""))
+			setIfMissing("container", strings.ReplaceAll(U.U.Path, "/", ""))
 		}
 	}
 
