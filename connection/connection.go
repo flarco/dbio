@@ -96,15 +96,7 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 	)
 
 	if c.Type == "" {
-		if strings.HasPrefix(c.URL(), "file://") {
-			c.Type = dbio.TypeFileLocal
-		} else {
-			U, err := net.NewURL(c.URL())
-			if err != nil {
-				return c, g.Error(err, "invalid url")
-			}
-			c.Type, _ = dbio.ValidateType(U.U.Scheme)
-		}
+		c.Type = SchemeType(c.URL())
 	}
 
 	return
@@ -323,7 +315,7 @@ func (c *Connection) setURL() (err error) {
 			return g.Error("could not parse provided credentials / url")
 		}
 
-		c.Type, _ = dbio.ValidateType(U.U.Scheme)
+		c.Type = SchemeType(c.URL())
 		setIfMissing("type", c.Type)
 
 		if c.Type.IsDb() {
@@ -673,7 +665,7 @@ func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection
 					continue
 				}
 
-				if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+				if connType := SchemeType(U.String()); !connType.IsUnknown() {
 					connName := k
 					data := v
 					conn, err := NewConnectionFromMap(
@@ -698,7 +690,7 @@ func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection
 				continue
 			}
 
-			if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+			if connType := SchemeType(U.String()); !connType.IsUnknown() {
 				connName := k
 				data := v
 				conn, err := NewConnectionFromMap(
@@ -779,4 +771,23 @@ func ReadConnections(env map[string]interface{}) (conns map[string]Connection, e
 
 func (i *Info) IsURL() bool {
 	return strings.Contains(i.Name, "://")
+}
+
+// SchemeType returns the correct scheme of the url
+func SchemeType(url string) dbio.Type {
+	if !strings.Contains(url, "://") {
+		return dbio.TypeUnknown
+	}
+
+	if strings.HasPrefix(url, "file://") {
+		return dbio.TypeFileLocal
+	}
+
+	if strings.HasPrefix(url, "https") && strings.Contains(url, ".core.windows.") {
+		return dbio.TypeFileAzure
+	}
+
+	scheme := strings.Split(url, "://")[0]
+	t, _ := dbio.ValidateType(scheme)
+	return t
 }
