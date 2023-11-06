@@ -172,7 +172,7 @@ func (fs *LocalFileSysClient) Write(filePath string, reader io.Reader) (bw int64
 	if !g.PathExists(folderPath) {
 		err = os.MkdirAll(folderPath, 0777)
 		if err != nil {
-			go io.Copy(ioutil.Discard, reader)
+			go io.Copy(io.Discard, reader)
 			err = g.Error(err, "Unable to create folder "+folderPath)
 			return
 		}
@@ -180,10 +180,12 @@ func (fs *LocalFileSysClient) Write(filePath string, reader io.Reader) (bw int64
 
 	file, err := os.Create(filePath)
 	if err != nil {
-		go io.Copy(ioutil.Discard, reader)
+		go io.Copy(io.Discard, reader)
 		err = g.Error(err, "Unable to open "+filePath)
 		return
 	}
+	defer file.Close()
+
 	bw, err = io.Copy(io.Writer(file), reader)
 	if err != nil {
 		err = g.Error(err, "Error writing from reader")
