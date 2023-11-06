@@ -418,9 +418,9 @@ func EnsureBinSQLite() (binPath string, err error) {
 		switch runtime.GOOS + "/" + runtime.GOARCH {
 
 		case "windows/386":
-			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win32-x86-3410000.zip"
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-win-x64-3440000.zip" // there is no preompiled x86?
 		case "windows/amd64":
-			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win64-x64-3410000.zip"
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-win-x64-3440000.zip"
 
 		case "darwin/386":
 			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-osx-x86-3410000.zip"
