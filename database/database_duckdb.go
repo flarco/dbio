@@ -631,7 +631,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		}
 
 		// write to temp CSV
-		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+		tempDir := strings.ReplaceAll(strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\"), `\`, `/`) // windows path errors
 		csvPath := path.Join(tempDir, g.NewTsID("duckdb.temp")+".csv")
 
 		// set header false

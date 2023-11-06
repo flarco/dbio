@@ -3,7 +3,6 @@ package database
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -274,10 +273,10 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 }
 
 func writeTempSQL(sql string, filePrefix ...string) (sqlPath string, err error) {
-	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	tempDir := strings.ReplaceAll(strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\"), `\`, `/`) // windows path errors
 	sqlPath = path.Join(tempDir, g.NewTsID(filePrefix...)+".sql")
 
-	err = ioutil.WriteFile(sqlPath, []byte(sql), 0777)
+	err = os.WriteFile(sqlPath, []byte(sql), 0777)
 	if err != nil {
 		return "", g.Error(err, "could not create temp sql")
 	}
