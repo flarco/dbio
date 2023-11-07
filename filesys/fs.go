@@ -811,7 +811,7 @@ func Delete(fs FileSysClient, path string) (err error) {
 
 	if strings.HasPrefix(path, "file://") {
 		// to handle windows path style
-		path = strings.ReplaceAll(strings.ToLower(path), `c:\`, `/`)
+		path = strings.ReplaceAll(strings.ToLower(path), `\`, `/`)
 	}
 
 	u, err := net.NewURL(path)

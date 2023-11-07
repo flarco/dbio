@@ -128,9 +128,8 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		sameCols := g.Marshal(ds.Columns.Names(true, true)) == g.Marshal(columns.Names(true, true))
 
 		// write to temp CSV
-		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-		csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
-		sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
+		csvPath := path.Join(getTempFolder(), g.NewTsID("sqlite.temp")+".csv")
+		sqlPath := path.Join(getTempFolder(), g.NewTsID("sqlite.temp")+".sql")
 
 		// set header. not needed if not creating a temp table
 		cfgMap := ds.GetConfig()
@@ -273,8 +272,7 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 }
 
 func writeTempSQL(sql string, filePrefix ...string) (sqlPath string, err error) {
-	tempDir := strings.ReplaceAll(strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\"), `\`, `/`) // windows path errors
-	sqlPath = path.Join(tempDir, g.NewTsID(filePrefix...)+".sql")
+	sqlPath = path.Join(getTempFolder(), g.NewTsID(filePrefix...)+".sql")
 
 	err = os.WriteFile(sqlPath, []byte(sql), 0777)
 	if err != nil {
@@ -607,4 +605,12 @@ func (conn *SQLiteConn) GetSchemata(schemaName string, tableNames ...string) (Sc
 	ctx.Wg.Read.Wait()
 
 	return schemata, nil
+}
+
+func getTempFolder() string {
+	return cleanWindowsPath(strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\"))
+}
+
+func cleanWindowsPath(path string) string {
+	return strings.ReplaceAll(path, `\`, `/`)
 }

@@ -4,8 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -33,7 +32,7 @@ type SnowflakeConn struct {
 // Init initiates the object
 func (conn *SnowflakeConn) Init() error {
 	var sfLog = gosnowflake.GetLogger()
-	sfLog.SetOutput(ioutil.Discard)
+	sfLog.SetOutput(io.Discard)
 
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbSnowflake
@@ -138,31 +137,6 @@ func getEncodedPrivateKey(keyPath, passphrase string) (epk string, err error) {
 	if err != nil {
 		return "", g.Error(err, "could not marshal key")
 	}
-
-	// key, params, err := pkcs8.ParsePrivateKey(pemBytes, []byte(passphrase))
-	// if err != nil {
-	// 	return "", g.Error(err, "could not parse key")
-	// }
-
-	// block, _ := pem.Decode(pemBytes)
-	// g.P(block)
-	// if passphrase != "" {
-	// 	out, err := x509.DecryptPEMBlock(block, []byte(passphrase))
-	// 	if err != nil {
-	// 		return "", g.Error(err, "could not decrypt private key pem block")
-	// 	}
-	// 	block, _ = pem.Decode(out)
-	// }
-
-	// parseResult, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	// if err != nil {
-	// 	return "", g.Error(err)
-	// }
-	// key := parseResult.(*rsa.PrivateKey)
-	// keyValue, err := key.Decrypt(nil, []byte(passphrase), crypto.BLAKE2b_256)
-	// if err != nil {
-	// 	return "", g.Error(err)
-	// }
 
 	return base64.URLEncoding.EncodeToString(privKeyPem), nil
 }
@@ -554,7 +528,7 @@ func (conn *SnowflakeConn) UnloadViaStage(sqls ...string) (filePath string, err 
 	)
 
 	// Write the each stage file to temp file, read to ds
-	folderPath := path.Join(os.TempDir(), "snowflake", "get", g.NowFileStr())
+	folderPath := path.Join(getTempFolder(), "snowflake", "get", g.NowFileStr())
 	unload := func(sql string, stagePartPath string) {
 
 		defer conn.Context().Wg.Write.Done()
@@ -637,9 +611,9 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 	}
 
 	// Write the ds to a temp file
-	folderPath := path.Join(os.TempDir(), "snowflake", "put", g.NowFileStr())
+	folderPath := path.Join(getTempFolder(), "snowflake", "put", g.NowFileStr())
 	if err != nil {
-		log.Fatal(err)
+		return 0, g.Error(err, "could not get temp dir")
 	}
 
 	// delete folder when done

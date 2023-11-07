@@ -125,7 +125,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		return
 	}
 
-	file, err := os.CreateTemp(os.TempDir(), "oracle."+tableFName+".*.sqlldr.ctl")
+	file, err := os.CreateTemp(getTempFolder(), "oracle."+tableFName+".*.sqlldr.ctl")
 	if err != nil {
 		err = g.Error(err, "Error opening temp file")
 		return

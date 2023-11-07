@@ -514,7 +514,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 		return
 	}
 
-	localPath := path.Join(os.TempDir(), "bigquery", tableFName, g.NowFileStr())
+	localPath := path.Join(getTempFolder(), "bigquery", tableFName, g.NowFileStr())
 	err = filesys.Delete(fs, localPath)
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+localPath)
