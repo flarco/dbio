@@ -612,9 +612,6 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 
 	// Write the ds to a temp file
 	folderPath := path.Join(getTempFolder(), "snowflake", "put", g.NowFileStr())
-	if err != nil {
-		return 0, g.Error(err, "could not get temp dir")
-	}
 
 	// delete folder when done
 	df.Defer(func() { os.RemoveAll(folderPath) })
