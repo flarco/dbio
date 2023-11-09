@@ -67,9 +67,13 @@ func (s *SSHClient) Connect() (err error) {
 			return g.Error(err, "unable to parse private key")
 		}
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
-	} else if s.Password != "" {
+	}
+
+	if s.Password != "" {
 		authMethods = append(authMethods, ssh.Password(s.Password))
-	} else if s.Password == "" {
+	}
+
+	if len(authMethods) == 0 {
 		return g.Error("need to provide password, public key or private key")
 	}
 
