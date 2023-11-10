@@ -160,7 +160,7 @@ func (c *Connection) Hash() string {
 	keys := lo.Keys(c.Data)
 	sort.Strings(keys)
 	for _, key := range keys {
-		value := g.F("%s=%s", key, cast.ToString(c.Data[key]))
+		value := g.F("%s=%s", key, g.Marshal(c.Data[key]))
 		parts = append(parts, value)
 	}
 
