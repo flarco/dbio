@@ -380,9 +380,9 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = urlStr
 	ds.SetConfig(fs.Props())
-	g.Debug("%s, reading datastream from %s", ds.ID, urlStr)
 
 	if strings.Contains(strings.ToLower(urlStr), ".xlsx") {
+		g.Debug("%s, reading datastream from %s", ds.ID, urlStr)
 		reader, err := fs.Self().GetReader(urlStr)
 		if err != nil {
 			err = g.Error(err, "Error getting Excel reader")
@@ -418,6 +418,12 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 		defer fs.Context().Wg.Read.Done()
 		fs.Context().Wg.Read.Add()
 
+		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
+		if string(fileFormat) == "" {
+			fileFormat = InferFileFormat(urlStr)
+		}
+
+		g.Debug("%s, reading datastream from %s [format=%s]", ds.ID, urlStr, fileFormat)
 		reader, err := fs.Self().GetReader(urlStr)
 		if err != nil {
 			fs.Context().CaptureErr(g.Error(err, "Error getting reader"))
@@ -438,19 +444,6 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 				return
 			}
 			time.Sleep(50 * time.Millisecond)
-		}
-
-		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
-		if string(fileFormat) == "" {
-			if strings.Contains(strings.ToLower(urlStr), FileTypeJson.Ext()) {
-				fileFormat = FileTypeJson
-			} else if strings.HasSuffix(strings.ToLower(urlStr), FileTypeXml.Ext()) {
-				fileFormat = FileTypeXml
-			} else if strings.HasSuffix(strings.ToLower(urlStr), FileTypeParquet.Ext()) {
-				fileFormat = FileTypeParquet
-			} else {
-				fileFormat = FileTypeCsv
-			}
 		}
 
 		switch fileFormat {
@@ -627,18 +620,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	}
 
 	if fileFormat == "" {
-		switch {
-		case strings.Contains(strings.ToLower(url), FileTypeJsonLines.Ext()):
-			fileFormat = FileTypeJsonLines
-		case strings.HasSuffix(strings.ToLower(url), FileTypeJson.Ext()):
-			fileFormat = FileTypeJson
-		case strings.HasSuffix(strings.ToLower(url), FileTypeXml.Ext()):
-			fileFormat = FileTypeXml
-		case strings.HasSuffix(strings.ToLower(url), FileTypeParquet.Ext()):
-			fileFormat = FileTypeParquet
-		default:
-			fileFormat = FileTypeCsv
-		}
+		fileFormat = InferFileFormat(url)
 	}
 
 	url = strings.TrimSuffix(url, "/")
@@ -1112,7 +1094,7 @@ func MergeReaders(fs FileSysClient, fileType FileType, paths ...string) (ds *iop
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = url
 	ds.SetConfig(fs.Client().Props())
-	g.Debug("%s, reading datastream from %s", ds.ID, url)
+	g.Debug("%s, reading datastream from %s [format=%s]", ds.ID, url, fileType)
 
 	setError := func(err error) {
 		ds.Context.CaptureErr(err)
@@ -1235,10 +1217,10 @@ func InferFileFormat(path string) FileType {
 
 	path = strings.TrimSpace(strings.ToLower(path))
 
-	for _, fileType := range []FileType{FileTypeJson, FileTypeXml, FileTypeParquet} {
+	for _, fileType := range []FileType{FileTypeJsonLines, FileTypeJson, FileTypeXml, FileTypeParquet} {
 		ext := fileType.Ext()
 		if strings.HasSuffix(path, ext) || strings.Contains(path, wrapDot(ext)) {
-			return FileTypeJson
+			return fileType
 		}
 	}
 

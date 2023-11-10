@@ -89,9 +89,9 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = path
 	ds.SetConfig(fs.Props())
-	g.Debug("%s, reading datastream from %s", ds.ID, path)
 
 	if strings.Contains(strings.ToLower(path), ".xlsx") {
+		g.Debug("%s, reading datastream from %s", ds.ID, path)
 		eDs, err := getExcelStream(fs.Self(), bufio.NewReader(file))
 		if err != nil {
 			err = g.Error(err, "Error consuming Excel reader")
@@ -109,6 +109,8 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 		if string(fileFormat) == "" {
 			fileFormat = InferFileFormat(path)
 		}
+
+		g.Debug("%s, reading datastream from %s [format=%s]", ds.ID, path, fileFormat)
 
 		switch fileFormat {
 		case FileTypeJson, FileTypeJsonLines:
