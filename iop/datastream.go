@@ -460,6 +460,8 @@ loop:
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
 		ds.Inferred = true
+	} else if len(ds.Sp.config.Columns) > 0 {
+		ds.Columns = ds.Columns.Coerce(ds.Sp.config.Columns, true)
 	}
 
 	// set to have it loop process

@@ -474,29 +474,7 @@ func (data *Dataset) InferColumnTypes() {
 	data.Columns = InferFromStats(columns, data.SafeInference, data.NoDebug)
 
 	// overwrite if found in config.columns
-	colMap := data.Sp.config.Columns.FieldMap(true)
-	for i, col := range data.Columns {
-		if !data.Sp.config.Header && len(data.Sp.config.Columns) == len(data.Columns) {
-			// assume same order since same number of columns and no header
-			data.Columns[i].Name = data.Sp.config.Columns[i].Name
-			data.Columns[i].Type = data.Sp.config.Columns[i].Type
-			if !data.Columns[i].Type.IsValid() {
-				data.Columns[i].Type = StringType
-			}
-			continue
-		}
-
-		if j, found := colMap[strings.ToLower(col.Name)]; found {
-			col = data.Sp.config.Columns[j]
-			if col.Type.IsValid() {
-				g.Debug("casting column '%s' as '%s'", col.Name, col.Type)
-				data.Columns[i].Type = col.Type
-			} else {
-				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, strings.ToLower(col.Name))
-				data.Columns[i].Type = StringType
-			}
-		}
-	}
+	data.Columns = data.Columns.Coerce(data.Sp.config.Columns, data.Sp.config.Header)
 
 	data.Inferred = true
 }

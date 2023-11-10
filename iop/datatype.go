@@ -360,6 +360,36 @@ func (cols Columns) Dataset() Dataset {
 	return d
 }
 
+// Coerce casts columns into specified types
+func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
+	newCols = cols
+	colMap := castCols.FieldMap(true)
+	for i, col := range newCols {
+		if !hasHeader && len(castCols) == len(newCols) {
+			// assume same order since same number of columns and no header
+			newCols[i].Name = castCols[i].Name
+			newCols[i].Type = castCols[i].Type
+			if !newCols[i].Type.IsValid() {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", newCols[i].Type, newCols[i].Name)
+				newCols[i].Type = StringType
+			}
+			continue
+		}
+
+		if j, found := colMap[strings.ToLower(col.Name)]; found {
+			col = castCols[j]
+			if col.Type.IsValid() {
+				g.Debug("casting column '%s' as '%s'", col.Name, col.Type)
+				newCols[i].Type = col.Type
+			} else {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, col.Name)
+				newCols[i].Type = StringType
+			}
+		}
+	}
+	return newCols
+}
+
 // GetColumn returns the matched Col
 func (cols Columns) GetColumn(name string) Column {
 	colsMap := map[string]Column{}
