@@ -658,8 +658,12 @@ func (ds *Datastream) Rows() chan []any {
 
 func (ds *Datastream) SetMetadata(jsonStr string) {
 	if jsonStr != "" {
+		streamValue := ds.Metadata.StreamURL.Value
 		g.Unmarshal(jsonStr, &ds.Metadata)
 		ds.Metadata.LoadedAt.Value = cast.ToInt64(ds.Metadata.LoadedAt.Value)
+		if ds.Metadata.StreamURL.Value == nil {
+			ds.Metadata.StreamURL.Value = streamValue
+		}
 	}
 }
 
