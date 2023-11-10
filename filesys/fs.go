@@ -1211,15 +1211,11 @@ func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err erro
 }
 
 func InferFileFormat(path string) FileType {
-	wrapDot := func(ext string) string {
-		return g.F(".%s.", ext)
-	}
-
 	path = strings.TrimSpace(strings.ToLower(path))
 
 	for _, fileType := range []FileType{FileTypeJsonLines, FileTypeJson, FileTypeXml, FileTypeParquet} {
 		ext := fileType.Ext()
-		if strings.HasSuffix(path, ext) || strings.Contains(path, wrapDot(ext)) {
+		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+".") {
 			return fileType
 		}
 	}
