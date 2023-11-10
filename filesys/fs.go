@@ -950,6 +950,11 @@ func GetDataflow(fs FileSysClient, paths []string, cfg FileStreamConfig) (df *io
 				return
 			}
 			pushDatastream(ds)
+
+			// when pulling from local disk, process one file at a time
+			if fs.FsType() == dbio.TypeFileLocal {
+				ds.WaitClosed()
+			}
 		}
 
 	}()
@@ -1094,6 +1099,11 @@ func MergeReaders(fs FileSysClient, fileType FileType, paths ...string) (ds *iop
 		return
 	}
 
+	// infer if missing
+	if string(fileType) == "" {
+		fileType = InferFileFormat(paths[0])
+	}
+
 	pipeR, pipeW := io.Pipe()
 
 	url := fs.GetProp("url")
@@ -1216,4 +1226,22 @@ func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err erro
 	}
 
 	return nDs, nil
+}
+
+func InferFileFormat(path string) FileType {
+	wrapDot := func(ext string) string {
+		return g.F(".%s.", ext)
+	}
+
+	path = strings.TrimSpace(strings.ToLower(path))
+
+	for _, fileType := range []FileType{FileTypeJson, FileTypeXml, FileTypeParquet} {
+		ext := fileType.Ext()
+		if strings.HasSuffix(path, ext) || strings.Contains(path, wrapDot(ext)) {
+			return FileTypeJson
+		}
+	}
+
+	// default is csv
+	return FileTypeCsv
 }

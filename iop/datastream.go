@@ -1602,3 +1602,14 @@ func (it *Iterator) next() bool {
 		return next
 	}
 }
+
+// WaitClosed waits until dataflow is closed
+// hack to make sure all streams are pushed
+func (ds *Datastream) WaitClosed() {
+	for {
+		if ds.closed {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}

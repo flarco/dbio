@@ -107,15 +107,7 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
 		if string(fileFormat) == "" {
-			if strings.Contains(strings.ToLower(path), FileTypeJson.Ext()) {
-				fileFormat = FileTypeJson
-			} else if strings.HasSuffix(strings.ToLower(path), FileTypeXml.Ext()) {
-				fileFormat = FileTypeXml
-			} else if strings.HasSuffix(strings.ToLower(path), FileTypeParquet.Ext()) {
-				fileFormat = FileTypeParquet
-			} else {
-				fileFormat = FileTypeCsv
-			}
+			fileFormat = InferFileFormat(path)
 		}
 
 		switch fileFormat {
