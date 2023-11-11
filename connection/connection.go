@@ -499,6 +499,16 @@ func (c *Connection) setURL() (err error) {
 			// disable, false, true
 			template = template + "&encrypt={encrypt}"
 		}
+		if _, ok := c.Data["TrustServerCertificate"]; ok {
+			// false, true
+			template = template + "&TrustServerCertificate={TrustServerCertificate}"
+		}
+		if _, ok := c.Data["hostNameInCertificate"]; ok {
+			template = template + "&hostNameInCertificate={hostNameInCertificate}"
+		}
+		if _, ok := c.Data["certificate"]; ok {
+			template = template + "&certificate={certificate}"
+		}
 		if _, ok := c.Data["user id"]; ok {
 			template = template + "&user id={user id}"
 		}
