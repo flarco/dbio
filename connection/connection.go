@@ -218,6 +218,13 @@ func (c *Connection) URL() string {
 			url = g.F("https://%s.blob.core.windows.net/%s", c.Data["account"], c.Data["container"])
 		}
 	}
+
+	switch c.Type {
+	case dbio.TypeDbDuckDb:
+		// fix windows path
+		url = strings.ReplaceAll(url, `\`, `/`)
+	}
+
 	return url
 }
 
