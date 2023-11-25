@@ -393,7 +393,7 @@ func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
 				g.Debug("casting column '%s' as '%s'", newCols[i].Name, col.Type)
 				newCols[i].Type = col.Type
 			} else {
-				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, col.Name)
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, newCols[i].Name)
 				newCols[i].Type = StringType
 			}
 
