@@ -386,6 +386,18 @@ func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
 				newCols[i].Type = StringType
 			}
 		}
+
+		if len(castCols) == 1 && castCols[0].Name == "*" {
+			col = castCols[0]
+			if col.Type.IsValid() {
+				g.Debug("casting column '%s' as '%s'", newCols[i].Name, col.Type)
+				newCols[i].Type = col.Type
+			} else {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, col.Name)
+				newCols[i].Type = StringType
+			}
+
+		}
 	}
 	return newCols
 }
