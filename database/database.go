@@ -119,7 +119,7 @@ type Connection interface {
 	PropsArr() []string
 	Query(sql string, options ...map[string]interface{}) (iop.Dataset, error)
 	QueryContext(ctx context.Context, sql string, options ...map[string]interface{}) (iop.Dataset, error)
-	Quote(field string) string
+	Quote(field string, normalize ...bool) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
@@ -2116,9 +2116,14 @@ func (conn *BaseConn) Unquote(field string) string {
 }
 
 // Quote adds quotes to the field name
-func (conn *BaseConn) Quote(field string) string {
+func (conn *BaseConn) Quote(field string, normalize ...bool) string {
+	Normalize := true
+	if len(normalize) > 0 {
+		Normalize = normalize[0]
+	}
+
 	// always normalize if case is uniform. Why would you quote and not normalize?
-	if !HasVariedCase(field) {
+	if !HasVariedCase(field) && Normalize {
 		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
 			field = strings.ToUpper(field)
 		} else {
