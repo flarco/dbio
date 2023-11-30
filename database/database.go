@@ -2830,6 +2830,8 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 				// datalength can return higher counts since it counts bytes
 			} else if refCol.IsDatetime() && conn.GetType() == dbio.TypeDbSQLite && checksum1/1000 == checksum2 {
 				// sqlite can only handle timestamps up to milliseconds
+			} else if checksum1 > 1500000000000 && ((checksum2-checksum1) == 1 || (checksum1-checksum2) == 1) {
+				// something micro seconds are off by 1 msec
 			} else {
 				eg.Add(g.Error("checksum failure for %s (sling-side vs db-side): %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
 			}
