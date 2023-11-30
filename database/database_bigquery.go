@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path"
@@ -90,6 +89,7 @@ func (conn *BigQueryConn) Init() error {
 func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client, err error) {
 	var authOption option.ClientOption
 	var credJsonBody string
+	var useDefault bool
 
 	to := 15
 	if len(timeOut) > 0 {
@@ -101,7 +101,7 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_KEY_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
@@ -110,14 +110,13 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
 		credJsonBody = string(b)
 	} else {
-		err = g.Error("no Google credentials provided")
-		return
+		useDefault = true
 	}
 
 	if conn.ProjectID == "" && credJsonBody != "" {
@@ -128,6 +127,11 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 
 	ctx, cancel := context.WithTimeout(conn.BaseConn.Context().Ctx, time.Duration(to)*time.Second)
 	defer cancel()
+
+	if useDefault {
+		g.Debug("no BigQuery Google credentials provided, using Application Default Credentials")
+		return bigquery.NewClient(ctx, conn.ProjectID)
+	}
 	return bigquery.NewClient(ctx, conn.ProjectID, authOption)
 }
 
