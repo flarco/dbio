@@ -195,6 +195,7 @@ func (pn PathNodes) List() (paths []string) {
 
 type FileType string
 
+const FileTypeNone FileType = ""
 const FileTypeCsv FileType = "csv"
 const FileTypeXml FileType = "xml"
 const FileTypeJson FileType = "json"
@@ -619,7 +620,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		concurrency = 7
 	}
 
-	if fileFormat == "" {
+	if fileFormat == FileTypeNone {
 		fileFormat = InferFileFormat(url)
 	}
 
