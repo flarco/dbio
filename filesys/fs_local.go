@@ -119,6 +119,8 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 			err = ds.ConsumeXmlReader(bufio.NewReader(file))
 		case FileTypeParquet:
 			err = ds.ConsumeParquetReaderSeeker(file)
+		case FileTypeAvro:
+			err = ds.ConsumeAvroReaderSeeker(file)
 		case FileTypeCsv:
 			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		default:

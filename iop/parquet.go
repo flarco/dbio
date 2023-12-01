@@ -26,7 +26,7 @@ type Parquet struct {
 func NewParquetStream(reader io.ReadSeeker, columns Columns) (p *Parquet, err error) {
 	fr, err := goparquet.NewFileReader(reader, columns.Names()...)
 	if err != nil {
-		err = g.Error(err, "could not reader parquet reader")
+		err = g.Error(err, "could not read parquet reader")
 		return
 	}
 	p = &Parquet{Reader: fr}
