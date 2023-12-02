@@ -826,7 +826,7 @@ func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
 func (ds *Datastream) ConsumeAvroReaderSeeker(reader io.ReadSeeker) (err error) {
 	a, err := NewAvroStream(reader, Columns{})
 	if err != nil {
-		return g.Error(err, "could create parquet stream")
+		return g.Error(err, "could create avro stream")
 	}
 
 	ds.Columns = a.Columns()
