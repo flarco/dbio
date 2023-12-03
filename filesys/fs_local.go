@@ -121,10 +121,13 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 			err = ds.ConsumeParquetReaderSeeker(file)
 		case FileTypeAvro:
 			err = ds.ConsumeAvroReaderSeeker(file)
+		case FileTypeSAS:
+			err = ds.ConsumeSASReaderSeeker(file)
 		case FileTypeCsv:
 			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		default:
-			g.Warn("LocalFileSysClient | File Format not recognized: %s", fileFormat)
+			g.Warn("LocalFileSysClient | File Format not recognized: %s. Using CSV parsing", fileFormat)
+			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		}
 
 		if err != nil {

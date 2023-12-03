@@ -201,6 +201,7 @@ const FileTypeXml FileType = "xml"
 const FileTypeJson FileType = "json"
 const FileTypeParquet FileType = "parquet"
 const FileTypeAvro FileType = "avro"
+const FileTypeSAS FileType = "sas7bdat"
 const FileTypeJsonLines FileType = "jsonlines"
 
 func (ft FileType) Ext() string {
@@ -457,7 +458,10 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			err = ds.ConsumeParquetReader(reader)
 		case FileTypeAvro:
 			err = ds.ConsumeAvroReader(reader)
+		case FileTypeSAS:
+			err = ds.ConsumeSASReader(reader)
 		default:
+			g.Warn("GetDatastream | File Format not recognized: %s. Using CSV parsing", fileFormat)
 			err = ds.ConsumeCsvReader(reader)
 		}
 
@@ -1161,6 +1165,8 @@ func MergeReaders(fs FileSysClient, fileType FileType, paths ...string) (ds *iop
 		err = ds.ConsumeParquetReader(pipeR)
 	case FileTypeAvro:
 		err = ds.ConsumeAvroReader(pipeR)
+	case FileTypeSAS:
+		err = ds.ConsumeSASReader(pipeR)
 	case FileTypeCsv:
 		err = ds.ConsumeCsvReader(pipeR)
 	default:
@@ -1219,7 +1225,7 @@ func ProcessStreamViaTempFile(ds *iop.Datastream) (nDs *iop.Datastream, err erro
 func InferFileFormat(path string) FileType {
 	path = strings.TrimSpace(strings.ToLower(path))
 
-	for _, fileType := range []FileType{FileTypeJsonLines, FileTypeJson, FileTypeXml, FileTypeParquet, FileTypeAvro} {
+	for _, fileType := range []FileType{FileTypeJsonLines, FileTypeJson, FileTypeXml, FileTypeParquet, FileTypeAvro, FileTypeSAS} {
 		ext := fileType.Ext()
 		if strings.HasSuffix(path, ext) || strings.Contains(path, ext+".") {
 			return fileType

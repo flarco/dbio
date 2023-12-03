@@ -244,6 +244,25 @@ func TestFileSysLocalParquet(t *testing.T) {
 
 }
 
+func TestFileSysLocalSAS(t *testing.T) {
+	t.Parallel()
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	// https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/sas/ed2021_sas.zip
+	df1, err := fs.ReadDataflow("test/test1/sas7bdat/ed2021_sas.sas7bdat")
+	assert.NoError(t, err)
+
+	data1, err := df1.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 16207, len(data1.Rows))
+	assert.EqualValues(t, 912, len(data1.Columns))
+
+	// g.Info(g.Marshal(data1.Columns.Types()))
+	// g.Info(g.Marshal(data1.Rows[0]))
+	// g.P(data1.Rows[0])
+}
+
 func TestFileSysLocalAvro(t *testing.T) {
 	t.Parallel()
 

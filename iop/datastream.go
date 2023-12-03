@@ -867,6 +867,51 @@ func (ds *Datastream) ConsumeAvroReader(reader io.Reader) (err error) {
 	return ds.ConsumeAvroReaderSeeker(file)
 }
 
+// ConsumeSASReaderSeeker uses the provided reader to stream rows
+func (ds *Datastream) ConsumeSASReaderSeeker(reader io.ReadSeeker) (err error) {
+	s, err := NewSASStream(reader, Columns{})
+	if err != nil {
+		return g.Error(err, "could create SAS stream")
+	}
+
+	ds.Columns = s.Columns()
+	ds.Inferred = false
+	ds.it = ds.NewIterator(ds.Columns, s.nextFunc)
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
+// ConsumeSASReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeSASReader(reader io.Reader) (err error) {
+	// need to write to temp file prior
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	sasPath := path.Join(tempDir, g.NewTsID("sas.temp")+".sas7bdat")
+	ds.Defer(func() { os.Remove(sasPath) })
+
+	file, err := os.Create(sasPath)
+	if err != nil {
+		return g.Error(err, "Unable to create temp file: "+sasPath)
+	}
+
+	bw, err := io.Copy(file, reader)
+	if err != nil {
+		return g.Error(err, "Unable to write to temp file: "+sasPath)
+	}
+	g.DebugLow("wrote %d bytes to %s", bw, sasPath)
+
+	_, err = file.Seek(0, 0) // reset to beginning
+	if err != nil {
+		return g.Error(err, "Unable to seek to beginning of temp file: "+sasPath)
+	}
+
+	return ds.ConsumeSASReaderSeeker(file)
+}
+
 // AddBytes add bytes as processed
 func (ds *Datastream) AddBytes(b int64) {
 	ds.Bytes = ds.Bytes + cast.ToUint64(b)

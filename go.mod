@@ -18,7 +18,7 @@ require (
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.65
+	github.com/flarco/g v0.1.66
 	github.com/fraugster/parquet-go v0.12.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
@@ -168,6 +168,7 @@ require (
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/fs v0.1.0 // indirect
+	github.com/kshedden/datareader v0.0.0-20210325133423-816b6ffdd011 // indirect
 	github.com/linkedin/goavro/v2 v2.12.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
