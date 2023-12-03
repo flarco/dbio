@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/flarco/g"
+	"github.com/jmespath/go-jmespath"
 	"github.com/linkedin/goavro/v2"
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 )
 
 // Avro is a avro` object
@@ -72,6 +74,16 @@ func (a *Avro) Columns() Columns {
 		key = strings.TrimPrefix(key, `"`)
 		key = strings.TrimSuffix(key, `"`)
 
+		if strings.HasPrefix(key, "{") {
+			keyI, err := jmespath.Search("type", field.Type)
+			if err == nil {
+				key = cast.ToString(keyI)
+			}
+		} else if strings.HasPrefix(key, "[") {
+			key = "map"
+		}
+
+		cols[i].Type = StringType
 		if typ, ok := typeMap[key]; ok {
 			cols[i].Type = typ
 		}
@@ -112,6 +124,9 @@ func (a *Avro) nextFunc(it *Iterator) bool {
 	for k, v := range rec {
 		col := it.ds.Columns[a.colMap[strings.ToLower(k)]]
 		i := col.Position - 1
+		if col.Type == JsonType {
+			v = g.Marshal(v)
+		}
 		it.Row[i] = v
 	}
 

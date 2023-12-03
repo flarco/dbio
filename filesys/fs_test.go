@@ -250,7 +250,7 @@ func TestFileSysLocalAvro(t *testing.T) {
 	fs, err := NewFileSysClient(dbio.TypeFileLocal)
 	assert.NoError(t, err)
 
-	df1, err := fs.ReadDataflow("test/test1/avro")
+	df1, err := fs.ReadDataflow("test/test1/avro/twitter.avro")
 	assert.NoError(t, err)
 
 	data1, err := df1.Collect()
