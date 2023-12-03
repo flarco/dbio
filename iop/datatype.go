@@ -32,9 +32,10 @@ type Column struct {
 	Stats       ColumnStats  `json:"stats,omitempty"`
 	goType      reflect.Type `json:"-"`
 
-	Table    string `json:"table,omitempty"`
-	Schema   string `json:"schema,omitempty"`
-	Database string `json:"database,omitempty"`
+	Table       string `json:"table,omitempty"`
+	Schema      string `json:"schema,omitempty"`
+	Database    string `json:"database,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // Columns represent many columns
