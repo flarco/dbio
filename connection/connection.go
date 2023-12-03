@@ -472,6 +472,8 @@ func (c *Connection) setURL() (err error) {
 			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
 				setIfMissing("http_url", dbURL.String())
 				c.Data["instance"] = dbURL.Path()
+			} else {
+				c.Data["instance"] = strings.ReplaceAll(cast.ToString(val), `\`, `/`) // windows path fix
 			}
 		}
 		template = "sqlite://{instance}?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL"
@@ -481,6 +483,8 @@ func (c *Connection) setURL() (err error) {
 			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
 				setIfMissing("http_url", dbURL.String())
 				c.Data["instance"] = dbURL.Path()
+			} else {
+				c.Data["instance"] = strings.ReplaceAll(cast.ToString(val), `\`, `/`) // windows path fix
 			}
 		}
 		setIfMissing("schema", "main")
