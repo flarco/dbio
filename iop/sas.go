@@ -36,6 +36,11 @@ func NewSASStream(reader io.ReadSeeker, columns Columns) (s *SAS, err error) {
 		dataIndex:   -1,
 		seriesCache: []*datareader.Series{},
 	}
+
+	if bs := cast.ToInt(os.Getenv("SLING_SAS7BDAT_BATCH_SIZE")); bs > 0 {
+		s.batchSize = bs
+	}
+
 	s.colMap = s.Columns().FieldMap(true)
 
 	return
@@ -53,7 +58,7 @@ func (s *SAS) Columns() Columns {
 	}
 
 	names := s.Reader.ColumnNames()
-	if cast.ToBool(os.Getenv("SLING_SAS_USE_COLUMN_LABELS")) {
+	if cast.ToBool(os.Getenv("SLING_SAS7BDAT_USE_COLUMN_LABELS")) {
 		names = s.Reader.ColumnLabels()
 	}
 
