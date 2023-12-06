@@ -6,14 +6,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"time"
 
 	"github.com/flarco/g"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // SSHClient is a client to connect to a ssh server
@@ -77,13 +75,13 @@ func (s *SSHClient) Connect() (err error) {
 		return g.Error("need to provide password, public key or private key")
 	}
 
-	homeDir := g.UserHomeDir()
-	hostKeyCallback, err := knownhosts.New(path.Join(homeDir, ".ssh", "known_hosts"))
-	if err != nil {
-		g.Info("could not create hostkeycallback function, using InsecureIgnoreHostKey")
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
-	}
-	hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	// homeDir := g.UserHomeDir()
+	// hostKeyCallback, err := knownhosts.New(path.Join(homeDir, ".ssh", "known_hosts"))
+	// if err != nil {
+	// 	g.Debug("could not create hostkeycallback function, using InsecureIgnoreHostKey")
+	// 	hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	// }
+	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 
 	var config ssh.Config
 	config.SetDefaults()

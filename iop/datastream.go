@@ -808,11 +808,12 @@ func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
 		return g.Error(err, "Unable to create temp file: "+parquetPath)
 	}
 
+	g.Debug("downloading to temp file on disk: %s", parquetPath)
 	bw, err := io.Copy(file, reader)
 	if err != nil {
 		return g.Error(err, "Unable to write to temp file: "+parquetPath)
 	}
-	g.DebugLow("wrote %d bytes to %s", bw, parquetPath)
+	g.Debug("wrote %d bytes to %s", bw, parquetPath)
 
 	_, err = file.Seek(0, 0) // reset to beginning
 	if err != nil {
@@ -853,11 +854,12 @@ func (ds *Datastream) ConsumeAvroReader(reader io.Reader) (err error) {
 		return g.Error(err, "Unable to create temp file: "+avroPath)
 	}
 
+	g.Debug("downloading to temp file on disk: %s", avroPath)
 	bw, err := io.Copy(file, reader)
 	if err != nil {
 		return g.Error(err, "Unable to write to temp file: "+avroPath)
 	}
-	g.DebugLow("wrote %d bytes to %s", bw, avroPath)
+	g.Debug("wrote %d bytes to %s", bw, avroPath)
 
 	_, err = file.Seek(0, 0) // reset to beginning
 	if err != nil {
@@ -898,11 +900,12 @@ func (ds *Datastream) ConsumeSASReader(reader io.Reader) (err error) {
 		return g.Error(err, "Unable to create temp file: "+sasPath)
 	}
 
+	g.Debug("downloading to temp file on disk: %s", sasPath)
 	bw, err := io.Copy(file, reader)
 	if err != nil {
 		return g.Error(err, "Unable to write to temp file: "+sasPath)
 	}
-	g.DebugLow("wrote %d bytes to %s", bw, sasPath)
+	g.Debug("wrote %d bytes to %s", bw, sasPath)
 
 	_, err = file.Seek(0, 0) // reset to beginning
 	if err != nil {

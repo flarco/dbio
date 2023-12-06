@@ -48,7 +48,7 @@ type FileSysClient interface {
 	ReadDataflow(url string, cfg ...FileStreamConfig) (df *iop.Dataflow, err error)
 	WriteDataflow(df *iop.Dataflow, url string) (bw int64, err error)
 	WriteDataflowReady(df *iop.Dataflow, url string, fileReadyChn chan FileReady) (bw int64, err error)
-	GetProp(key string) (val string)
+	GetProp(key string, keys ...string) (val string)
 	SetProp(key string, val string)
 	MkdirAll(path string) (err error)
 }
@@ -336,9 +336,15 @@ func (fs *BaseFileSysClient) Buckets() (paths []string, err error) {
 }
 
 // GetProp returns the value of a property
-func (fs *BaseFileSysClient) GetProp(key string) string {
+func (fs *BaseFileSysClient) GetProp(key string, keys ...string) string {
 	fs.context.Mux.Lock()
 	val := fs.properties[strings.ToLower(key)]
+	for _, key := range keys {
+		if val != "" {
+			break
+		}
+		val = fs.properties[strings.ToLower(key)]
+	}
 	fs.context.Mux.Unlock()
 	return val
 }
@@ -525,6 +531,7 @@ func (fs *BaseFileSysClient) ReadDataflow(url string, cfg ...FileStreamConfig) (
 		return df, nil
 	}
 
+	g.DebugLow("listing path: %s", url)
 	paths, err := fs.Self().ListRecursive(url)
 	if err != nil {
 		err = g.Error(err, "Error getting paths")
