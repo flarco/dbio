@@ -708,7 +708,7 @@ func (conn *SnowflakeConn) CopyViaStage(tableFName string, df *iop.Dataflow) (co
 // GetFile Copies from a staging location to a local file or folder
 func (conn *SnowflakeConn) GetFile(internalStagePath, fPath string) (err error) {
 	query := g.F(
-		"GET file://%s %s auto_compress=false overwrite=true",
+		"GET 'file://%s' %s auto_compress=false overwrite=true",
 		fPath, internalStagePath,
 	)
 
@@ -724,7 +724,7 @@ func (conn *SnowflakeConn) GetFile(internalStagePath, fPath string) (err error) 
 // PutFile Copies a local file or folder into a staging location
 func (conn *SnowflakeConn) PutFile(fPath string, internalStagePath string) (err error) {
 	query := g.F(
-		"PUT file://%s %s PARALLEL=1 AUTO_COMPRESS=FALSE",
+		"PUT 'file://%s' %s PARALLEL=1 AUTO_COMPRESS=FALSE",
 		fPath, internalStagePath,
 	)
 
