@@ -19,10 +19,10 @@ import (
 )
 
 type ConnEntry struct {
-	Name        string
-	Description string
-	Source      string
-	Connection  Connection
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Source      string     `json:"source"`
+	Connection  Connection `json:"connection"`
 }
 
 var (

@@ -210,6 +210,8 @@ func (c *Connection) URL() string {
 		switch c.Type {
 		case dbio.TypeFileLocal:
 			url = "file://"
+		case dbio.TypeFileSftp:
+			url = g.F("%s://%s", c.Type.String(), c.Data["host"])
 		case dbio.TypeFileS3:
 			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileGoogle:
