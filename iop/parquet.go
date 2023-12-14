@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/flarco/g"
+	"github.com/samber/lo"
 
 	// "github.com/xitongsys/parquet-go/reader"
 	goparquet "github.com/fraugster/parquet-go"
@@ -207,7 +208,7 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 			lt = "(JSON)"
 			t = "binary"
 		case DateType, DatetimeType, TimestampType, TimestampzType:
-			lt = "(TIMESTAMP(MICROS, true))"
+			lt = "(TIMESTAMP(NANOS, true))"
 			t = "int64"
 		case SmallIntType:
 			lt = ""
@@ -216,7 +217,13 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 			lt = ""
 			t = "int64"
 		case DecimalType, FloatType:
-			lt = "(DECIMAL(19,6))"
+			precision := lo.Ternary(col.DbPrecision > 32, col.DbPrecision, 32)
+			precision = lo.Ternary(precision > 64, 64, precision)
+
+			scale := lo.Ternary(col.DbScale > 9, col.DbScale, 9)
+			scale = lo.Ternary(scale > 32, 32, scale)
+
+			lt = g.F("(DECIMAL(%d,%d))", precision, scale)
 			t = "binary"
 		case BoolType:
 			lt = ""

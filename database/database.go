@@ -195,10 +195,11 @@ var (
 	ddlDefDecScale  = 6
 	ddlDefDecLength = 20
 
-	ddlMaxDecLength = 30
-	ddlMaxDecScale  = 9
+	ddlMinDecLength = 32
+	ddlMaxDecScale  = 32
 
-	ddlMinDecScale = 6
+	ddlMaxDecLength = 64
+	ddlMinDecScale  = 9
 
 	filePathStorageSlug = "temp"
 
@@ -899,12 +900,10 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 		}
 
 		colTypes = lo.Map(dbColTypes, func(ct *sql.ColumnType, i int) ColumnType {
-			var precision, scale, length int64
 			nullable, _ := ct.Nullable()
-			length, ok := ct.Length()
-			if !ok {
-				precision, scale, ok = ct.DecimalSize()
-			}
+			length, ok1 := ct.Length()
+			precision, scale, ok2 := ct.DecimalSize()
+
 			if length == math.MaxInt64 {
 				length = math.MaxInt32
 			}
@@ -916,7 +915,7 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 				Precision:        cast.ToInt(precision),
 				Scale:            cast.ToInt(scale),
 				Nullable:         nullable,
-				Sourced:          ok,
+				Sourced:          lo.Ternary(ok1, ok1, ok2),
 			}
 		})
 	}
@@ -1340,16 +1339,20 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 
 	for i, colType := range colTypes {
 		col := iop.Column{
-			Name:     colType.Name,
-			Position: i + 1,
-			Type:     NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
-			DbType:   colType.DatabaseTypeName,
+			Name:        colType.Name,
+			Position:    i + 1,
+			Type:        NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
+			DbType:      colType.DatabaseTypeName,
+			DbPrecision: colType.Precision,
+			DbScale:     colType.Scale,
 		}
 
 		col.Stats.MaxLen = colType.Length
-		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, 9, colType.Scale)
-		col.Sourced = colType.Sourced
-		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
+		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, colType.Scale, 9)
+		if colType.Sourced && g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbMySQL, dbio.TypeDbPostgres) {
+			// TODO: cannot use sourced length/scale, unreliable.
+			col.Sourced = colType.Sourced
+		}
 
 		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
 
@@ -2260,36 +2263,17 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 			)
 		}
 	} else if strings.HasSuffix(nativeType, "(,)") {
-		length := col.Stats.MaxLen
-		scale := col.Stats.MaxDecLen
+		precision := lo.Ternary(col.DbPrecision > ddlMinDecLength, col.DbPrecision, ddlMinDecLength)
+		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
 
-		if !col.Sourced {
-			length = ddlMaxDecLength // max out
-			scale = ddlMaxDecScale   // max out
-
-			if col.IsNumber() {
-				if length < ddlMaxDecScale {
-					length = ddlMaxDecScale
-				} else if length > ddlMaxDecLength {
-					length = ddlMaxDecLength
-				}
-
-				if scale < ddlMinDecScale {
-					scale = ddlMinDecScale
-				} else if scale > ddlMaxDecScale {
-					scale = ddlMaxDecScale
-				}
-
-				if length-scale < ddlDefDecLength {
-					length = scale + ddlDefDecLength
-				}
-			}
-		}
+		scale := lo.Ternary(col.DbScale > ddlMinDecScale, col.DbScale, ddlMinDecScale)
+		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
+		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
 
 		nativeType = strings.ReplaceAll(
 			nativeType,
 			"(,)",
-			fmt.Sprintf("(%d,%d)", length, scale),
+			fmt.Sprintf("(%d,%d)", precision, scale),
 		)
 	}
 
