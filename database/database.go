@@ -1347,7 +1347,7 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 		}
 
 		col.Stats.MaxLen = colType.Length
-		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, colType.Scale, 9)
+		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > ddlMinDecScale, colType.Scale, ddlMinDecScale)
 		if colType.Sourced {
 			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbPostgres) {
 				col.Sourced = colType.Sourced
@@ -1357,6 +1357,7 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 				// TODO: cannot use sourced length/scale, unreliable.
 				col.DbPrecision = 0
 				col.DbScale = 0
+				col.Stats.MaxDecLen = 0
 			}
 		}
 
