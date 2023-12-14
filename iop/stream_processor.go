@@ -66,13 +66,13 @@ func NewStreamProcessor() *StreamProcessor {
 		decReplRegex:    regexp.MustCompile(`^(\d*[\d.]*?)\.?0*$`),
 		config: &streamConfig{
 			EmptyAsNull: true,
-			MaxDecimals: cast.ToFloat64(math.Pow10(9)),
+			MaxDecimals: -1,
 			Columns:     Columns{},
 			transforms:  []TransformFunc{},
 		},
 		accentTransformer: transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC),
 	}
-	if os.Getenv("MAX_DECIMALS") != "" {
+	if val := os.Getenv("MAX_DECIMALS"); val != "" && val != "-1" {
 		sp.config.MaxDecimals = cast.ToFloat64(math.Pow10(cast.ToInt(os.Getenv("MAX_DECIMALS"))))
 	}
 
@@ -181,6 +181,14 @@ func (sp *StreamProcessor) SetConfig(configMap map[string]string) {
 
 	if configMap["flatten"] != "" {
 		sp.config.Flatten = cast.ToBool(configMap["flatten"])
+	}
+
+	if configMap["max_decimals"] != "" && configMap["max_decimals"] != "-1" {
+		var err error
+		sp.config.MaxDecimals, err = cast.ToFloat64E(math.Pow10(cast.ToInt(configMap["max_decimals"])))
+		if err != nil {
+			sp.config.MaxDecimals = -1
+		}
 	}
 
 	if configMap["empty_as_null"] != "" {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -71,7 +70,7 @@ func (conn *BigTableConn) Init() error {
 	}
 
 	// set MAX_DECIMALS to fix bigquery import for numeric types
-	os.Setenv("MAX_DECIMALS", "9")
+	conn.SetProp("MAX_DECIMALS", "9")
 
 	return nil
 }
@@ -90,7 +89,7 @@ func (conn *BigTableConn) getNewClient(timeOut ...int) (client *bigtable.Client,
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_KEY_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
@@ -99,7 +98,7 @@ func (conn *BigTableConn) getNewClient(timeOut ...int) (client *bigtable.Client,
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
@@ -134,7 +133,7 @@ func (conn *BigTableConn) getNewAdminClient(timeOut ...int) (client *bigtable.Ad
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_KEY_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
@@ -143,7 +142,7 @@ func (conn *BigTableConn) getNewAdminClient(timeOut ...int) (client *bigtable.Ad
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}

@@ -81,7 +81,7 @@ func (conn *BigQueryConn) Init() error {
 	}
 
 	// set MAX_DECIMALS to fix bigquery import for numeric types
-	os.Setenv("MAX_DECIMALS", "9")
+	conn.SetProp("MAX_DECIMALS", "9")
 
 	return nil
 }
