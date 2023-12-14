@@ -194,10 +194,10 @@ var (
 
 	ddlDefDecLength = 20
 
-	ddlMinDecLength = 30
-	ddlMaxDecScale  = 30
+	ddlMinDecLength = 24
+	ddlMaxDecScale  = 24
 
-	ddlMaxDecLength = 60
+	ddlMaxDecLength = 38
 	ddlMinDecScale  = 9
 
 	filePathStorageSlug = "temp"
@@ -1338,19 +1338,21 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 
 	for i, colType := range colTypes {
 		col := iop.Column{
-			Name:        colType.Name,
-			Position:    i + 1,
-			Type:        NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
-			DbType:      colType.DatabaseTypeName,
-			DbPrecision: colType.Precision,
-			DbScale:     colType.Scale,
+			Name:     colType.Name,
+			Position: i + 1,
+			Type:     NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
+			DbType:   colType.DatabaseTypeName,
 		}
 
 		col.Stats.MaxLen = colType.Length
-		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > ddlMinDecScale, colType.Scale, ddlMinDecScale)
+		col.Stats.MaxDecLen = 0
+
 		if colType.Sourced {
-			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbPostgres) {
+			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake) {
 				col.Sourced = colType.Sourced
+				col.DbPrecision = colType.Precision
+				col.DbScale = colType.Scale
+				col.Stats.MaxDecLen = lo.Ternary(colType.Scale > ddlMinDecScale, colType.Scale, ddlMinDecScale)
 			}
 
 			if g.In(conn.GetType(), dbio.TypeDbMySQL) {
