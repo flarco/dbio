@@ -2263,12 +2263,14 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 			)
 		}
 	} else if strings.HasSuffix(nativeType, "(,)") {
-		precision := lo.Ternary(col.DbPrecision > ddlMinDecLength, col.DbPrecision, ddlMinDecLength)
-		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
 
 		scale := lo.Ternary(col.DbScale > ddlMinDecScale, col.DbScale, ddlMinDecScale)
 		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
 		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
+
+		precision := lo.Ternary(col.DbPrecision > ddlMinDecLength, col.DbPrecision, ddlMinDecLength)
+		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
+		precision = lo.Ternary(precision < (scale*2), scale*2, precision)
 
 		nativeType = strings.ReplaceAll(
 			nativeType,

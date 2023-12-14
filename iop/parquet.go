@@ -217,11 +217,14 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 			lt = ""
 			t = "int64"
 		case DecimalType, FloatType:
-			precision := lo.Ternary(col.DbPrecision > 32, col.DbPrecision, 32)
-			precision = lo.Ternary(precision > 64, 64, precision)
 
 			scale := lo.Ternary(col.DbScale > 9, col.DbScale, 9)
 			scale = lo.Ternary(scale > 32, 32, scale)
+			scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
+
+			precision := lo.Ternary(col.DbPrecision > 32, col.DbPrecision, 32)
+			precision = lo.Ternary(precision > 64, 64, precision)
+			precision = lo.Ternary(precision < (scale*2), scale*2, precision)
 
 			lt = g.F("(DECIMAL(%d,%d))", precision, scale)
 			t = "binary"
