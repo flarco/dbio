@@ -760,7 +760,6 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 		df.AddInBytes(ds.Bytes) // add in bytes
 	}
 
-	g.Debug("writing to %s", url)
 	err = Delete(fsClient, url)
 	if err != nil {
 		err = g.Error(err, "Could not delete url")

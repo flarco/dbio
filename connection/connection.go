@@ -169,7 +169,15 @@ func (c *Connection) Hash() string {
 
 // ToMap transforms DataConn to a Map
 func (c *Connection) ToMap() map[string]interface{} {
-	return g.M("name", c.Name, "type", c.Type, "data", c.Data)
+	data := g.M()
+	g.JSONConvert(c.Data, &data) // so that pointers are not modified downstream
+	return g.M("name", c.Name, "type", c.Type, "data", data)
+}
+
+// ToMap transforms DataConn to a Map
+func (c *Connection) Copy() *Connection {
+	nc, _ := NewConnectionFromMap(c.ToMap())
+	return &nc
 }
 
 // Set sets key/values from a map
