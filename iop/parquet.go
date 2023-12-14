@@ -220,11 +220,11 @@ func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) 
 
 			scale := lo.Ternary(col.DbScale < 9, 9, col.DbScale)
 			scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
-			scale = lo.Ternary(scale > 32, 32, scale)
+			scale = lo.Ternary(scale > 30, 30, scale)
 
-			precision := lo.Ternary(col.DbPrecision < 32, 32, col.DbPrecision)
+			precision := lo.Ternary(col.DbPrecision < 30, 30, col.DbPrecision)
 			precision = lo.Ternary(precision < (scale*2), scale*2, precision)
-			precision = lo.Ternary(precision > 64, 64, precision)
+			precision = lo.Ternary(precision > 60, 60, precision)
 
 			lt = g.F("(DECIMAL(%d,%d))", precision, scale)
 			t = "binary"

@@ -194,10 +194,10 @@ var (
 
 	ddlDefDecLength = 20
 
-	ddlMinDecLength = 32
-	ddlMaxDecScale  = 32
+	ddlMinDecLength = 30
+	ddlMaxDecScale  = 30
 
-	ddlMaxDecLength = 64
+	ddlMaxDecLength = 60
 	ddlMinDecScale  = 9
 
 	filePathStorageSlug = "temp"
