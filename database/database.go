@@ -192,7 +192,6 @@ var (
 	// UseBulkExportFlowCSV to use BulkExportFlowCSV
 	UseBulkExportFlowCSV = false
 
-	ddlDefDecScale  = 6
 	ddlDefDecLength = 20
 
 	ddlMinDecLength = 32
@@ -1349,9 +1348,16 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 
 		col.Stats.MaxLen = colType.Length
 		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, colType.Scale, 9)
-		if colType.Sourced && g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbMySQL, dbio.TypeDbPostgres) {
-			// TODO: cannot use sourced length/scale, unreliable.
-			col.Sourced = colType.Sourced
+		if colType.Sourced {
+			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbPostgres) {
+				col.Sourced = colType.Sourced
+			}
+
+			if g.In(conn.GetType(), dbio.TypeDbMySQL) {
+				// TODO: cannot use sourced length/scale, unreliable.
+				col.DbPrecision = 0
+				col.DbScale = 0
+			}
 		}
 
 		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
@@ -2264,13 +2270,13 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 		}
 	} else if strings.HasSuffix(nativeType, "(,)") {
 
-		scale := lo.Ternary(col.DbScale > ddlMinDecScale, col.DbScale, ddlMinDecScale)
-		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
+		scale := lo.Ternary(col.DbScale < ddlMinDecScale, ddlMinDecScale, col.DbScale)
 		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
+		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
 
-		precision := lo.Ternary(col.DbPrecision > ddlMinDecLength, col.DbPrecision, ddlMinDecLength)
-		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
+		precision := lo.Ternary(col.DbPrecision < ddlMinDecLength, ddlMinDecLength, col.DbPrecision)
 		precision = lo.Ternary(precision < (scale*2), scale*2, precision)
+		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
 
 		nativeType = strings.ReplaceAll(
 			nativeType,
@@ -2621,7 +2627,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 		}
 
 		if column.Stats.MaxDecLen == 0 {
-			column.Stats.MaxDecLen = ddlDefDecScale
+			column.Stats.MaxDecLen = ddlMinDecScale
 		}
 		columns = append(columns, column)
 	}
