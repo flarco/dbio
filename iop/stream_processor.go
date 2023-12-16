@@ -524,7 +524,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		nVal = iVal
 	case col.Type.IsNumber():
 		fVal, err := sp.toFloat64E(val)
-		if err != nil {
+		if err != nil || math.IsNaN(fVal) {
 			// is string
 			sp.ds.ChangeColumn(i, StringType)
 			cs.StringCnt++

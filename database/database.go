@@ -2284,6 +2284,9 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 		scale := lo.Ternary(col.DbScale < ddlMinDecScale, ddlMinDecScale, col.DbScale)
 		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
 		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
+		if maxDecimals := cast.ToInt(os.Getenv("MAX_DECIMALS")); maxDecimals > scale {
+			scale = maxDecimals
+		}
 
 		precision := lo.Ternary(col.DbPrecision < ddlMinDecLength, ddlMinDecLength, col.DbPrecision)
 		precision = lo.Ternary(precision < (scale*2), scale*2, precision)
