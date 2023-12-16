@@ -907,9 +907,17 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 				length = math.MaxInt32
 			}
 
+			dataType := ct.DatabaseTypeName()
+
+			if conn.Type == dbio.TypeDbSnowflake {
+				if dataType == "FIXED" && scale == 0 {
+					dataType = "BIGINT"
+				}
+			}
+
 			return ColumnType{
 				Name:             ct.Name(),
-				DatabaseTypeName: ct.DatabaseTypeName(),
+				DatabaseTypeName: dataType,
 				Length:           cast.ToInt(length),
 				Precision:        cast.ToInt(precision),
 				Scale:            cast.ToInt(scale),

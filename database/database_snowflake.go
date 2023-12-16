@@ -845,6 +845,9 @@ func parseSnowflakeDataType(rec map[string]any) (dataType string, precision, sca
 		dataType = cast.ToString(typeJSON["type"])
 		precision = cast.ToInt(typeJSON["precision"])
 		scale = cast.ToInt(typeJSON["scale"])
+		if dataType == "FIXED" && scale == 0 {
+			dataType = "BIGINT"
+		}
 	}
 	return
 }
