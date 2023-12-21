@@ -914,8 +914,12 @@ func (conn *BigQueryConn) CastColumnForSelect(srcCol iop.Column, tgtCol iop.Colu
 	switch {
 	case srcCol.IsString() && !srcCol.Type.IsJSON() && tgtCol.Type.IsJSON():
 		selectStr = g.F("to_json(%s) as %s", qName, qName)
-	case srcCol.IsString() && tgtCol.IsNumber():
+	case !srcCol.IsDecimal() && tgtCol.IsDecimal():
 		selectStr = g.F("cast(%s as numeric) as %s", qName, qName)
+	case !srcCol.IsInteger() && tgtCol.IsInteger():
+		selectStr = g.F("cast(%s as int64) as %s", qName, qName)
+	case !srcCol.IsString() && tgtCol.IsString():
+		selectStr = g.F("cast(%s as string) as %s", qName, qName)
 	case srcCol.IsString() && tgtCol.IsDatetime():
 		selectStr = g.F("cast(%s as timestamp) as %s", qName, qName)
 	default:
