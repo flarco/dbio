@@ -272,11 +272,15 @@ func getExcelStream(fs FileSysClient, reader io.Reader) (ds *iop.Datastream, err
 	xls.Props = fs.Client().properties
 
 	sheetName := fs.GetProp("sheet")
+	sheetRange := ""
+
 	if sheetName == "" {
 		sheetName = xls.Sheets[0]
+	} else if sheetNameArr := strings.Split(sheetName, "!"); len(sheetName) == 2 {
+		sheetName = sheetNameArr[0]
+		sheetRange = sheetNameArr[1]
 	}
 
-	sheetRange := fs.GetProp("range")
 	if sheetRange != "" {
 		data, err := xls.GetDatasetFromRange(sheetName, sheetRange)
 		if err != nil {
