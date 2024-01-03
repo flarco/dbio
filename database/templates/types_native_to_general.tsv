@@ -106,7 +106,7 @@ postgres	bit varying	string	col_bit_varying bit varying	FALSE	FALSE	variable-len
 postgres	bool	bool	col_bool bool	TRUE	FALSE	logical Boolean (true/false)
 postgres	boolean	bool	col_boolean boolean	TRUE	FALSE	logical Boolean (true/false)
 postgres	box	string	col_box box	FALSE	FALSE	rectangular box on a plane
-postgres	bytea	binary	col_bytea bytea	TRUE	FALSE	binary data ("byte array")
+postgres	bytea	binary	col_bytea bytea	TRUE	FALSE	binary data (byte array)
 postgres	char	string	col_char char(17)	TRUE	TRUE	fixed-length character string
 postgres	bpchar	string	col_bpchar bpchar(17)	FALSE	TRUE	
 postgres	character	string	col_character character(17)	TRUE	TRUE	fixed-length character string
