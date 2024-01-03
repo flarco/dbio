@@ -47,7 +47,7 @@ bigquery	time	time	col_time time	FALSE	FALSE
 bigquery	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	
 mysql	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
 mysql	binary	binary	col_binary binary(100)	TRUE	TRUE	A fixed-length binary string
-mysql	bit	smallint	col_bit bit	FALSE	FALSE	A bit field
+mysql	bit	binary	col_bit bit	FALSE	FALSE	A bit field
 mysql	blob	text	col_blob blob	TRUE	TRUE	A small BLOB
 mysql	char	string	col_char char(17)	TRUE	TRUE	A fixed-length nonbinary (character) string
 mysql	date	date	col_date date	TRUE	TRUE	A date value in CCYY-MM-DD format
