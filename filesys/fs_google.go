@@ -85,13 +85,19 @@ func (fs *GoogleFileSysClient) Connect() (err error) {
 	return nil
 }
 
+func cleanKeyGoogle(key string) string {
+	key = strings.TrimPrefix(key, "/")
+	key = strings.TrimSuffix(key, "/")
+	return key
+}
+
 func (fs *GoogleFileSysClient) Write(path string, reader io.Reader) (bw int64, err error) {
 	bucket, key, err := ParseURL(path)
 	if err != nil || bucket == "" {
 		err = g.Error(err, "Error Parsing url: "+path)
 		return
 	}
-	key = cleanKey(key)
+	key = cleanKeyGoogle(key)
 
 	obj := fs.client.Bucket(bucket).Object(key)
 	wc := obj.NewWriter(fs.Context().Ctx)
@@ -115,7 +121,7 @@ func (fs *GoogleFileSysClient) GetReader(path string) (reader io.Reader, err err
 		err = g.Error(err, "Error Parsing url: "+path)
 		return
 	}
-	key = cleanKey(key)
+	key = cleanKeyGoogle(key)
 	reader, err = fs.client.Bucket(bucket).Object(key).NewReader(fs.Context().Ctx)
 	if err != nil {
 		err = g.Error(err, "Could not get reader for "+path)
@@ -149,7 +155,7 @@ func (fs *GoogleFileSysClient) List(path string) (paths []string, err error) {
 		err = g.Error(err, "Error Parsing url: "+path)
 		return
 	}
-	key = cleanKey(key)
+	key = cleanKeyGoogle(key)
 	keyArr := strings.Split(key, "/")
 
 	query := &gcstorage.Query{Prefix: key}
@@ -181,7 +187,7 @@ func (fs *GoogleFileSysClient) ListRecursive(path string) (paths []string, err e
 		err = g.Error(err, "Error Parsing url: "+path)
 		return
 	}
-	key = cleanKey(key)
+	key = cleanKeyGoogle(key)
 	ts := fs.GetRefTs()
 
 	query := &gcstorage.Query{Prefix: key}
@@ -216,7 +222,7 @@ func (fs *GoogleFileSysClient) delete(urlStr string) (err error) {
 		err = g.Error(err, "Error Parsing url: "+urlStr)
 		return
 	}
-	key = cleanKey(key)
+	key = cleanKeyGoogle(key)
 	urlStrs, err := fs.ListRecursive(urlStr)
 	if err != nil {
 		err = g.Error(err, "Error List from url: "+urlStr)
@@ -243,7 +249,7 @@ func (fs *GoogleFileSysClient) delete(urlStr string) (err error) {
 			err = g.Error(err, "Error Parsing url: "+path)
 			return
 		}
-		key = cleanKey(key)
+		key = cleanKeyGoogle(key)
 		fs.Context().Wg.Write.Add()
 		go delete(key)
 	}
