@@ -161,6 +161,15 @@ func GetLocalConns(force ...bool) []ConnEntry {
 	return connArr
 }
 
+func LocalFileConnEntry() ConnEntry {
+	c, _ := NewConnection("LOCAL", "file", nil)
+	return ConnEntry{
+		Name:       "LOCAL",
+		Source:     "built-in",
+		Connection: c,
+	}
+}
+
 type EnvConns struct {
 	EnvFile *env.EnvFile
 }
