@@ -3,7 +3,6 @@ package database
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -129,9 +128,8 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		sameCols := g.Marshal(ds.Columns.Names(true, true)) == g.Marshal(columns.Names(true, true))
 
 		// write to temp CSV
-		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-		csvPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".csv")
-		sqlPath := path.Join(tempDir, g.NewTsID("sqlite.temp")+".sql")
+		csvPath := path.Join(getTempFolder(), g.NewTsID("sqlite.temp")+".csv")
+		sqlPath := path.Join(getTempFolder(), g.NewTsID("sqlite.temp")+".sql")
 
 		// set header. not needed if not creating a temp table
 		cfgMap := ds.GetConfig()
@@ -274,10 +272,9 @@ func (conn *SQLiteConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFi
 }
 
 func writeTempSQL(sql string, filePrefix ...string) (sqlPath string, err error) {
-	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-	sqlPath = path.Join(tempDir, g.NewTsID(filePrefix...)+".sql")
+	sqlPath = path.Join(getTempFolder(), g.NewTsID(filePrefix...)+".sql")
 
-	err = ioutil.WriteFile(sqlPath, []byte(sql), 0777)
+	err = os.WriteFile(sqlPath, []byte(sql), 0777)
 	if err != nil {
 		return "", g.Error(err, "could not create temp sql")
 	}
@@ -419,9 +416,9 @@ func EnsureBinSQLite() (binPath string, err error) {
 		switch runtime.GOOS + "/" + runtime.GOARCH {
 
 		case "windows/386":
-			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win32-x86-3410000.zip"
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-win-x64-3440000.zip" // there is no preompiled x86?
 		case "windows/amd64":
-			downloadURL = "https://www.sqlite.org/2023/sqlite-dll-win64-x64-3410000.zip"
+			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-win-x64-3440000.zip"
 
 		case "darwin/386":
 			downloadURL = "https://www.sqlite.org/2023/sqlite-tools-osx-x86-3410000.zip"
@@ -608,4 +605,12 @@ func (conn *SQLiteConn) GetSchemata(schemaName string, tableNames ...string) (Sc
 	ctx.Wg.Read.Wait()
 
 	return schemata, nil
+}
+
+func getTempFolder() string {
+	return cleanWindowsPath(strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\"))
+}
+
+func cleanWindowsPath(path string) string {
+	return strings.ReplaceAll(path, `\`, `/`)
 }

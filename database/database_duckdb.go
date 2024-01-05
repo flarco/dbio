@@ -631,8 +631,7 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		}
 
 		// write to temp CSV
-		tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
-		csvPath := path.Join(tempDir, g.NewTsID("duckdb.temp")+".csv")
+		csvPath := path.Join(getTempFolder(), g.NewTsID("duckdb.temp")+".csv")
 
 		// set header false
 		cfgMap := ds.GetConfig()
@@ -663,13 +662,12 @@ func (conn *DuckDbConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 			csvPath = "/dev/stdin"
 		}
 
-		columnNames := lo.Map(columns.Names(true, true), func(col string, i int) string {
-			name, _ := ParseColumnName(col, conn.Type)
-			return name
+		columnNames := lo.Map(columns.Names(), func(col string, i int) string {
+			return `"` + col + `"`
 		})
 
 		sqlLines := []string{
-			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s);`, table.FDQN(), strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
+			g.F(`insert into %s (%s) select * from read_csv('%s', delim=',', header=True, columns=%s, max_line_size=134217728, parallel=false);`, table.FDQN(), strings.Join(columnNames, ", "), csvPath, conn.generateCsvColumns(ds.Columns)),
 		}
 
 		var out []byte

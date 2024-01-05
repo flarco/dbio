@@ -119,7 +119,7 @@ type Connection interface {
 	PropsArr() []string
 	Query(sql string, options ...map[string]interface{}) (iop.Dataset, error)
 	QueryContext(ctx context.Context, sql string, options ...map[string]interface{}) (iop.Dataset, error)
-	Quote(field string) string
+	Quote(field string, normalize ...bool) string
 	RenameTable(table string, newTable string) (err error)
 	Rollback() error
 	RunAnalysis(string, map[string]interface{}) (iop.Dataset, error)
@@ -192,13 +192,13 @@ var (
 	// UseBulkExportFlowCSV to use BulkExportFlowCSV
 	UseBulkExportFlowCSV = false
 
-	ddlDefDecScale  = 6
 	ddlDefDecLength = 20
 
-	ddlMaxDecLength = 30
-	ddlMaxDecScale  = 9
+	ddlMinDecLength = 24
+	ddlMaxDecScale  = 24
 
-	ddlMinDecScale = 6
+	ddlMaxDecLength = 38
+	ddlMinDecScale  = 9
 
 	filePathStorageSlug = "temp"
 
@@ -405,6 +405,10 @@ func (conn *BaseConn) Init() (err error) {
 		}
 	}
 
+	if string(conn.Type) == "" {
+		return g.Error("Could not determine database type.")
+	}
+
 	err = conn.LoadTemplates()
 	if err != nil {
 		return err
@@ -567,6 +571,7 @@ func (conn *BaseConn) Connect(timeOut ...int) (err error) {
 			TgtHost:    connHost,
 			TgtPort:    connPort,
 			PrivateKey: conn.GetProp("SSH_PRIVATE_KEY"),
+			Passphrase: conn.GetProp("SSH_PASSPHRASE"),
 		}
 
 		localPort, err := conn.sshClient.OpenPortForward()
@@ -894,24 +899,30 @@ func (conn *BaseConn) StreamRowsContext(ctx context.Context, query string, optio
 		}
 
 		colTypes = lo.Map(dbColTypes, func(ct *sql.ColumnType, i int) ColumnType {
-			var precision, scale, length int64
 			nullable, _ := ct.Nullable()
-			length, ok := ct.Length()
-			if !ok {
-				precision, scale, ok = ct.DecimalSize()
-			}
+			length, ok1 := ct.Length()
+			precision, scale, ok2 := ct.DecimalSize()
+
 			if length == math.MaxInt64 {
 				length = math.MaxInt32
 			}
 
+			dataType := ct.DatabaseTypeName()
+
+			if conn.Type == dbio.TypeDbSnowflake {
+				if dataType == "FIXED" && scale == 0 {
+					dataType = "BIGINT"
+				}
+			}
+
 			return ColumnType{
 				Name:             ct.Name(),
-				DatabaseTypeName: ct.DatabaseTypeName(),
+				DatabaseTypeName: dataType,
 				Length:           cast.ToInt(length),
 				Precision:        cast.ToInt(precision),
 				Scale:            cast.ToInt(scale),
 				Nullable:         nullable,
-				Sourced:          ok,
+				Sourced:          lo.Ternary(ok1, ok1, ok2),
 			}
 		})
 	}
@@ -1342,9 +1353,23 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 		}
 
 		col.Stats.MaxLen = colType.Length
-		col.Stats.MaxDecLen = lo.Ternary(colType.Scale > 9, 9, colType.Scale)
-		col.Sourced = colType.Sourced
-		col.Sourced = false // TODO: cannot use sourced length/scale, unreliable.
+		col.Stats.MaxDecLen = 0
+
+		if colType.Sourced {
+			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake) {
+				col.Sourced = colType.Sourced
+				col.DbPrecision = colType.Precision
+				col.DbScale = colType.Scale
+				col.Stats.MaxDecLen = lo.Ternary(colType.Scale > ddlMinDecScale, colType.Scale, ddlMinDecScale)
+			}
+
+			if g.In(conn.GetType(), dbio.TypeDbMySQL) {
+				// TODO: cannot use sourced length/scale, unreliable.
+				col.DbPrecision = 0
+				col.DbScale = 0
+				col.Stats.MaxDecLen = 0
+			}
+		}
 
 		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
 
@@ -2111,9 +2136,14 @@ func (conn *BaseConn) Unquote(field string) string {
 }
 
 // Quote adds quotes to the field name
-func (conn *BaseConn) Quote(field string) string {
+func (conn *BaseConn) Quote(field string, normalize ...bool) string {
+	Normalize := true
+	if len(normalize) > 0 {
+		Normalize = normalize[0]
+	}
+
 	// always normalize if case is uniform. Why would you quote and not normalize?
-	if !HasVariedCase(field) {
+	if !HasVariedCase(field) && Normalize {
 		if g.In(conn.Type, dbio.TypeDbOracle, dbio.TypeDbSnowflake) {
 			field = strings.ToUpper(field)
 		} else {
@@ -2250,36 +2280,22 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 			)
 		}
 	} else if strings.HasSuffix(nativeType, "(,)") {
-		length := col.Stats.MaxLen
-		scale := col.Stats.MaxDecLen
 
-		if !col.Sourced {
-			length = ddlMaxDecLength // max out
-			scale = ddlMaxDecScale   // max out
-
-			if col.IsNumber() {
-				if length < ddlMaxDecScale {
-					length = ddlMaxDecScale
-				} else if length > ddlMaxDecLength {
-					length = ddlMaxDecLength
-				}
-
-				if scale < ddlMinDecScale {
-					scale = ddlMinDecScale
-				} else if scale > ddlMaxDecScale {
-					scale = ddlMaxDecScale
-				}
-
-				if length-scale < ddlDefDecLength {
-					length = scale + ddlDefDecLength
-				}
-			}
+		scale := lo.Ternary(col.DbScale < ddlMinDecScale, ddlMinDecScale, col.DbScale)
+		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
+		scale = lo.Ternary(scale > ddlMaxDecScale, ddlMaxDecScale, scale)
+		if maxDecimals := cast.ToInt(os.Getenv("MAX_DECIMALS")); maxDecimals > scale {
+			scale = maxDecimals
 		}
+
+		precision := lo.Ternary(col.DbPrecision < ddlMinDecLength, ddlMinDecLength, col.DbPrecision)
+		precision = lo.Ternary(precision < (scale*2), scale*2, precision)
+		precision = lo.Ternary(precision > ddlMaxDecLength, ddlMaxDecLength, precision)
 
 		nativeType = strings.ReplaceAll(
 			nativeType,
 			"(,)",
-			fmt.Sprintf("(%d,%d)", length, scale),
+			fmt.Sprintf("(%d,%d)", precision, scale),
 		)
 	}
 
@@ -2476,7 +2492,7 @@ func (conn *BaseConn) BulkExportFlowCSV(tables ...Table) (df *iop.Dataflow, err 
 		}
 	}
 
-	folderPath := path.Join(os.TempDir(), "sling", "stream", string(conn.GetType()), g.NowFileStr())
+	folderPath := path.Join(getTempFolder(), "sling", "stream", string(conn.GetType()), g.NowFileStr())
 
 	go func() {
 		defer df.Close()
@@ -2625,7 +2641,7 @@ func (conn *BaseConn) GetColumnStats(tableName string, fields ...string) (column
 		}
 
 		if column.Stats.MaxDecLen == 0 {
-			column.Stats.MaxDecLen = ddlDefDecScale
+			column.Stats.MaxDecLen = ddlMinDecScale
 		}
 		columns = append(columns, column)
 	}
@@ -2820,6 +2836,8 @@ func (conn *BaseConn) CompareChecksums(tableName string, columns iop.Columns) (e
 				// datalength can return higher counts since it counts bytes
 			} else if refCol.IsDatetime() && conn.GetType() == dbio.TypeDbSQLite && checksum1/1000 == checksum2 {
 				// sqlite can only handle timestamps up to milliseconds
+			} else if checksum1 > 1500000000000 && ((checksum2-checksum1) == 1 || (checksum1-checksum2) == 1) {
+				// something micro seconds are off by 1 msec
 			} else {
 				eg.Add(g.Error("checksum failure for %s (sling-side vs db-side): %d != %d -- (%s)", col.Name, checksum1, checksum2, exprMap[strings.ToLower(col.Name)]))
 			}

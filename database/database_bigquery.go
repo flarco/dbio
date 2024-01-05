@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path"
@@ -82,7 +81,7 @@ func (conn *BigQueryConn) Init() error {
 	}
 
 	// set MAX_DECIMALS to fix bigquery import for numeric types
-	os.Setenv("MAX_DECIMALS", "9")
+	conn.SetProp("MAX_DECIMALS", "9")
 
 	return nil
 }
@@ -90,6 +89,7 @@ func (conn *BigQueryConn) Init() error {
 func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client, err error) {
 	var authOption option.ClientOption
 	var credJsonBody string
+	var useDefault bool
 
 	to := 15
 	if len(timeOut) > 0 {
@@ -101,7 +101,7 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := conn.GetProp("GC_KEY_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
@@ -110,14 +110,13 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		authOption = option.WithAPIKey(val)
 	} else if val := conn.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return client, g.Error(err, "could not read google cloud key file")
 		}
 		credJsonBody = string(b)
 	} else {
-		err = g.Error("no Google credentials provided")
-		return
+		useDefault = true
 	}
 
 	if conn.ProjectID == "" && credJsonBody != "" {
@@ -128,6 +127,11 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 
 	ctx, cancel := context.WithTimeout(conn.BaseConn.Context().Ctx, time.Duration(to)*time.Second)
 	defer cancel()
+
+	if useDefault {
+		g.Debug("no BigQuery Google credentials provided, using Application Default Credentials")
+		return bigquery.NewClient(ctx, conn.ProjectID)
+	}
 	return bigquery.NewClient(ctx, conn.ProjectID, authOption)
 }
 
@@ -514,7 +518,7 @@ func (conn *BigQueryConn) importViaLocalStorage(tableFName string, df *iop.Dataf
 		return
 	}
 
-	localPath := path.Join(os.TempDir(), "bigquery", tableFName, g.NowFileStr())
+	localPath := path.Join(getTempFolder(), "bigquery", tableFName, g.NowFileStr())
 	err = filesys.Delete(fs, localPath)
 	if err != nil {
 		return count, g.Error(err, "Could not Delete: "+localPath)
@@ -910,8 +914,14 @@ func (conn *BigQueryConn) CastColumnForSelect(srcCol iop.Column, tgtCol iop.Colu
 	switch {
 	case srcCol.IsString() && !srcCol.Type.IsJSON() && tgtCol.Type.IsJSON():
 		selectStr = g.F("to_json(%s) as %s", qName, qName)
-	case srcCol.IsString() && tgtCol.IsNumber():
+	case srcCol.IsString() && tgtCol.IsDecimal():
+		selectStr = g.F("parse_numeric(%s) as %s", qName, qName)
+	case !srcCol.IsDecimal() && tgtCol.IsDecimal():
 		selectStr = g.F("cast(%s as numeric) as %s", qName, qName)
+	case !srcCol.IsInteger() && tgtCol.IsInteger():
+		selectStr = g.F("cast(%s as int64) as %s", qName, qName)
+	case !srcCol.IsString() && tgtCol.IsString():
+		selectStr = g.F("cast(%s as string) as %s", qName, qName)
 	case srcCol.IsString() && tgtCol.IsDatetime():
 		selectStr = g.F("cast(%s as timestamp) as %s", qName, qName)
 	default:

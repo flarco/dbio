@@ -39,7 +39,7 @@ func (fs *S3FileSysClient) Init(ctx context.Context) (err error) {
 	fs.BaseFileSysClient.instance = &instance
 	fs.BaseFileSysClient.context = g.NewContext(ctx)
 
-	for _, key := range g.ArrStr("BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "REGION", "SESSION_TOKEN", "ENDPOINT") {
+	for _, key := range g.ArrStr("BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "REGION", "DEFAULT_REGION", "SESSION_TOKEN", "ENDPOINT") {
 		if fs.GetProp(key) == "" {
 			fs.SetProp(key, fs.GetProp("AWS_"+key))
 		}
@@ -63,12 +63,8 @@ func (fw fakeWriterAt) WriteAt(p []byte, offset int64) (n int, err error) {
 }
 
 func cleanKey(key string) string {
-	if strings.HasPrefix(key, "/") {
-		key = key[1:]
-	}
-	if strings.HasSuffix(key, "/") {
-		key = key[:len(key)]
-	}
+	key = strings.TrimPrefix(key, "/")
+	key = strings.TrimSuffix(key, "/")
 	return key
 }
 
@@ -79,8 +75,8 @@ func (fs *S3FileSysClient) Connect() (err error) {
 		return g.Error("Need to set 'ACCESS_KEY_ID' and 'SECRET_ACCESS_KEY' to interact with S3")
 	}
 
-	region := fs.GetProp("REGION")
 	endpoint := fs.GetProp("ENDPOINT")
+	region := fs.GetProp("REGION", "DEFAULT_REGION")
 	if region == "" {
 		region = defaultRegion
 	}

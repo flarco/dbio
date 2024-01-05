@@ -42,6 +42,7 @@ func (fs *SftpFileSysClient) Connect() (err error) {
 		} else {
 			defPrivKey := path.Join(g.UserHomeDir(), ".ssh", "id_rsa")
 			if g.PathExists(defPrivKey) {
+				g.Debug("adding default private key (%s) as auth method for SFTP", defPrivKey)
 				fs.SetProp("PRIVATE_KEY", defPrivKey)
 			}
 		}
@@ -80,7 +81,8 @@ func (fs *SftpFileSysClient) Connect() (err error) {
 		Port:       cast.ToInt(fs.GetProp("PORT")),
 		User:       fs.GetProp("USER"),
 		Password:   fs.GetProp("PASSWORD"),
-		PrivateKey: fs.GetProp("PRIVATE_KEY"), // path to ssh key file
+		PrivateKey: fs.GetProp("PRIVATE_KEY"), // raw value or path to ssh key file
+		Passphrase: fs.GetProp("PASSPHRASE"),
 	}
 
 	err = fs.sshClient.Connect()

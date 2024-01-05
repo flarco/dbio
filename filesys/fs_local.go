@@ -39,7 +39,7 @@ func (fs *LocalFileSysClient) delete(path string) (err error) {
 	path = cleanLocalFilePath(path)
 	file, err := os.Stat(path)
 	if err != nil {
-		if strings.Contains(err.Error(), "no such file or directory") {
+		if strings.Contains(err.Error(), "no such file or directory") || strings.Contains(err.Error(), "cannot find") {
 			// path is already deleted
 			return nil
 		}
@@ -89,9 +89,9 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 	ds.SetMetadata(fs.GetProp("METADATA"))
 	ds.Metadata.StreamURL.Value = path
 	ds.SetConfig(fs.Props())
-	g.Debug("%s, reading datastream from %s", ds.ID, path)
 
 	if strings.Contains(strings.ToLower(path), ".xlsx") {
+		g.Debug("%s, reading datastream from %s", ds.ID, path)
 		eDs, err := getExcelStream(fs.Self(), bufio.NewReader(file))
 		if err != nil {
 			err = g.Error(err, "Error consuming Excel reader")
@@ -107,16 +107,10 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 
 		fileFormat := FileType(cast.ToString(fs.GetProp("FORMAT")))
 		if string(fileFormat) == "" {
-			if strings.Contains(strings.ToLower(path), FileTypeJson.Ext()) {
-				fileFormat = FileTypeJson
-			} else if strings.HasSuffix(strings.ToLower(path), FileTypeXml.Ext()) {
-				fileFormat = FileTypeXml
-			} else if strings.HasSuffix(strings.ToLower(path), FileTypeParquet.Ext()) {
-				fileFormat = FileTypeParquet
-			} else {
-				fileFormat = FileTypeCsv
-			}
+			fileFormat = InferFileFormat(path)
 		}
+
+		g.Debug("%s, reading datastream from %s [format=%s]", ds.ID, path, fileFormat)
 
 		switch fileFormat {
 		case FileTypeJson, FileTypeJsonLines:
@@ -125,10 +119,15 @@ func (fs *LocalFileSysClient) GetDatastream(path string) (ds *iop.Datastream, er
 			err = ds.ConsumeXmlReader(bufio.NewReader(file))
 		case FileTypeParquet:
 			err = ds.ConsumeParquetReaderSeeker(file)
+		case FileTypeAvro:
+			err = ds.ConsumeAvroReaderSeeker(file)
+		case FileTypeSAS:
+			err = ds.ConsumeSASReaderSeeker(file)
 		case FileTypeCsv:
 			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		default:
-			g.Warn("LocalFileSysClient | File Format not recognized: %s", fileFormat)
+			g.Warn("LocalFileSysClient | File Format not recognized: %s. Using CSV parsing", fileFormat)
+			err = ds.ConsumeCsvReader(bufio.NewReader(file))
 		}
 
 		if err != nil {
@@ -172,7 +171,7 @@ func (fs *LocalFileSysClient) Write(filePath string, reader io.Reader) (bw int64
 	if !g.PathExists(folderPath) {
 		err = os.MkdirAll(folderPath, 0777)
 		if err != nil {
-			go io.Copy(ioutil.Discard, reader)
+			go io.Copy(io.Discard, reader)
 			err = g.Error(err, "Unable to create folder "+folderPath)
 			return
 		}
@@ -180,10 +179,12 @@ func (fs *LocalFileSysClient) Write(filePath string, reader io.Reader) (bw int64
 
 	file, err := os.Create(filePath)
 	if err != nil {
-		go io.Copy(ioutil.Discard, reader)
+		go io.Copy(io.Discard, reader)
 		err = g.Error(err, "Unable to open "+filePath)
 		return
 	}
+	defer file.Close()
+
 	bw, err = io.Copy(io.Writer(file), reader)
 	if err != nil {
 		err = g.Error(err, "Error writing from reader")

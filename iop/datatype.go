@@ -26,15 +26,16 @@ type Column struct {
 	Name        string       `json:"name"`
 	Type        ColumnType   `json:"type"`
 	DbType      string       `json:"db_type,omitempty"`
-	DbPrecision int          `json:"-"`
-	DbScale     int          `json:"-"`
+	DbPrecision int          `json:"db_precision,omitempty"`
+	DbScale     int          `json:"db_scale,omitempty"`
 	Sourced     bool         `json:"-"` // whether is was sourced from a typed source
 	Stats       ColumnStats  `json:"stats,omitempty"`
 	goType      reflect.Type `json:"-"`
 
-	Table    string `json:"table,omitempty"`
-	Schema   string `json:"schema,omitempty"`
-	Database string `json:"database,omitempty"`
+	Table       string `json:"table,omitempty"`
+	Schema      string `json:"schema,omitempty"`
+	Database    string `json:"database,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // Columns represent many columns
@@ -360,6 +361,48 @@ func (cols Columns) Dataset() Dataset {
 	return d
 }
 
+// Coerce casts columns into specified types
+func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
+	newCols = cols
+	colMap := castCols.FieldMap(true)
+	for i, col := range newCols {
+		if !hasHeader && len(castCols) == len(newCols) {
+			// assume same order since same number of columns and no header
+			newCols[i].Name = castCols[i].Name
+			newCols[i].Type = castCols[i].Type
+			if !newCols[i].Type.IsValid() {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", newCols[i].Type, newCols[i].Name)
+				newCols[i].Type = StringType
+			}
+			continue
+		}
+
+		if j, found := colMap[strings.ToLower(col.Name)]; found {
+			col = castCols[j]
+			if col.Type.IsValid() {
+				g.Debug("casting column '%s' as '%s'", col.Name, col.Type)
+				newCols[i].Type = col.Type
+			} else {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, col.Name)
+				newCols[i].Type = StringType
+			}
+		}
+
+		if len(castCols) == 1 && castCols[0].Name == "*" {
+			col = castCols[0]
+			if col.Type.IsValid() {
+				g.Debug("casting column '%s' as '%s'", newCols[i].Name, col.Type)
+				newCols[i].Type = col.Type
+			} else {
+				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, newCols[i].Name)
+				newCols[i].Type = StringType
+			}
+
+		}
+	}
+	return newCols
+}
+
 // GetColumn returns the matched Col
 func (cols Columns) GetColumn(name string) Column {
 	colsMap := map[string]Column{}
@@ -517,10 +560,13 @@ func InferFromStats(columns []Column, safe bool, noDebug bool) []Column {
 			} else {
 				columns[j].Type = IntegerType
 			}
-			if safe {
-				columns[j].Type = BigIntType // max out
-			}
 			columns[j].goType = reflect.TypeOf(int64(0))
+
+			if safe {
+				// cast as decimal for safety
+				columns[j].Type = DecimalType
+				columns[j].goType = reflect.TypeOf(float64(0.0))
+			}
 		} else if colStats.DateCnt+colStats.NullCnt == colStats.TotalCnt {
 			columns[j].Type = DatetimeType
 			columns[j].goType = reflect.TypeOf(time.Now())

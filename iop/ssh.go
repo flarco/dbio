@@ -3,18 +3,15 @@ package iop
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"time"
 
 	"github.com/flarco/g"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // SSHClient is a client to connect to a ssh server
@@ -27,6 +24,7 @@ type SSHClient struct {
 	TgtHost       string
 	TgtPort       int
 	PrivateKey    string
+	Passphrase    string
 	Err           error
 	allConns      []net.Conn
 	localListener net.Listener
@@ -50,35 +48,56 @@ func (s *SSHClient) Connect() (err error) {
 	if s.PrivateKey != "" {
 		_, err := os.Stat(s.PrivateKey)
 		if err == nil {
-			prvKeyBytes, err := ioutil.ReadFile(s.PrivateKey)
+			prvKeyBytes, err := os.ReadFile(s.PrivateKey)
 			if err != nil {
 				return g.Error(err, "Could not read private key: "+s.PrivateKey)
 			}
 			s.PrivateKey = string(prvKeyBytes)
 		}
-		signer, err := ssh.ParsePrivateKey([]byte(s.PrivateKey))
+
+		var signer ssh.Signer
+		if s.Passphrase != "" {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(s.PrivateKey), []byte(s.Passphrase))
+		} else {
+			signer, err = ssh.ParsePrivateKey([]byte(s.PrivateKey))
+		}
 		if err != nil {
 			return g.Error(err, "unable to parse private key")
 		}
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
-	} else if s.Password != "" {
+	}
+
+	if s.Password != "" {
 		authMethods = append(authMethods, ssh.Password(s.Password))
-	} else if s.Password == "" {
+	}
+
+	if len(authMethods) == 0 {
 		return g.Error("need to provide password, public key or private key")
 	}
 
-	homeDir := g.UserHomeDir()
-	hostKeyCallback, err := knownhosts.New(path.Join(homeDir, ".ssh", "known_hosts"))
-	if err != nil {
-		g.Info("could not create hostkeycallback function, using InsecureIgnoreHostKey")
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
-	}
-	hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	// homeDir := g.UserHomeDir()
+	// hostKeyCallback, err := knownhosts.New(path.Join(homeDir, ".ssh", "known_hosts"))
+	// if err != nil {
+	// 	g.Debug("could not create hostkeycallback function, using InsecureIgnoreHostKey")
+	// 	hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	// }
+	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+
+	var config ssh.Config
+	config.SetDefaults()
+
+	// from ssh common.go (supportedCiphers)
+	// allow all supported cyphers
+	config.Ciphers = append(
+		config.Ciphers,
+		[]string{"arcfour256", "arcfour128", "arcfour", "aes128-cbc", "3des-cbc"}...,
+	)
 
 	s.config = &ssh.ClientConfig{
 		User:            s.User,
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
+		Config:          config,
 	}
 
 	// Connect to the remote server and perform the SSH handshake.

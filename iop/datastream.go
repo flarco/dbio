@@ -187,6 +187,11 @@ func (ds *Datastream) SetConfig(configMap map[string]string) {
 	}
 	ds.Sp.SetConfig(configMap)
 	ds.config = ds.Sp.config
+
+	// set metadata
+	if metadata, ok := configMap["metadata"]; ok {
+		ds.SetMetadata(metadata)
+	}
 }
 
 // GetConfig get config
@@ -454,6 +459,8 @@ loop:
 		sampleData.InferColumnTypes()
 		ds.Columns = sampleData.Columns
 		ds.Inferred = true
+	} else if len(ds.Sp.config.Columns) > 0 {
+		ds.Columns = ds.Columns.Coerce(ds.Sp.config.Columns, true)
 	}
 
 	// set to have it loop process
@@ -650,8 +657,12 @@ func (ds *Datastream) Rows() chan []any {
 
 func (ds *Datastream) SetMetadata(jsonStr string) {
 	if jsonStr != "" {
+		streamValue := ds.Metadata.StreamURL.Value
 		g.Unmarshal(jsonStr, &ds.Metadata)
 		ds.Metadata.LoadedAt.Value = cast.ToInt64(ds.Metadata.LoadedAt.Value)
+		if ds.Metadata.StreamURL.Value == nil {
+			ds.Metadata.StreamURL.Value = streamValue
+		}
 	}
 }
 
@@ -796,11 +807,12 @@ func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
 		return g.Error(err, "Unable to create temp file: "+parquetPath)
 	}
 
+	g.Debug("downloading to temp file on disk: %s", parquetPath)
 	bw, err := io.Copy(file, reader)
 	if err != nil {
 		return g.Error(err, "Unable to write to temp file: "+parquetPath)
 	}
-	g.DebugLow("wrote %d bytes to %s", bw, parquetPath)
+	g.Debug("wrote %d bytes to %s", bw, parquetPath)
 
 	_, err = file.Seek(0, 0) // reset to beginning
 	if err != nil {
@@ -808,6 +820,98 @@ func (ds *Datastream) ConsumeParquetReader(reader io.Reader) (err error) {
 	}
 
 	return ds.ConsumeParquetReaderSeeker(file)
+}
+
+// ConsumeAvroReaderSeeker uses the provided reader to stream rows
+func (ds *Datastream) ConsumeAvroReaderSeeker(reader io.ReadSeeker) (err error) {
+	a, err := NewAvroStream(reader, Columns{})
+	if err != nil {
+		return g.Error(err, "could create avro stream")
+	}
+
+	ds.Columns = a.Columns()
+	ds.Inferred = true
+	ds.it = ds.NewIterator(ds.Columns, a.nextFunc)
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
+// ConsumeAvroReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeAvroReader(reader io.Reader) (err error) {
+	// need to write to temp file prior
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	avroPath := path.Join(tempDir, g.NewTsID("avro.temp")+".avro")
+	ds.Defer(func() { os.Remove(avroPath) })
+
+	file, err := os.Create(avroPath)
+	if err != nil {
+		return g.Error(err, "Unable to create temp file: "+avroPath)
+	}
+
+	g.Debug("downloading to temp file on disk: %s", avroPath)
+	bw, err := io.Copy(file, reader)
+	if err != nil {
+		return g.Error(err, "Unable to write to temp file: "+avroPath)
+	}
+	g.Debug("wrote %d bytes to %s", bw, avroPath)
+
+	_, err = file.Seek(0, 0) // reset to beginning
+	if err != nil {
+		return g.Error(err, "Unable to seek to beginning of temp file: "+avroPath)
+	}
+
+	return ds.ConsumeAvroReaderSeeker(file)
+}
+
+// ConsumeSASReaderSeeker uses the provided reader to stream rows
+func (ds *Datastream) ConsumeSASReaderSeeker(reader io.ReadSeeker) (err error) {
+	s, err := NewSASStream(reader, Columns{})
+	if err != nil {
+		return g.Error(err, "could create SAS stream")
+	}
+
+	ds.Columns = s.Columns()
+	ds.Inferred = false
+	ds.it = ds.NewIterator(ds.Columns, s.nextFunc)
+
+	err = ds.Start()
+	if err != nil {
+		return g.Error(err, "could start datastream")
+	}
+
+	return
+}
+
+// ConsumeSASReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeSASReader(reader io.Reader) (err error) {
+	// need to write to temp file prior
+	tempDir := strings.TrimRight(strings.TrimRight(os.TempDir(), "/"), "\\")
+	sasPath := path.Join(tempDir, g.NewTsID("sas.temp")+".sas7bdat")
+	ds.Defer(func() { os.Remove(sasPath) })
+
+	file, err := os.Create(sasPath)
+	if err != nil {
+		return g.Error(err, "Unable to create temp file: "+sasPath)
+	}
+
+	g.Debug("downloading to temp file on disk: %s", sasPath)
+	bw, err := io.Copy(file, reader)
+	if err != nil {
+		return g.Error(err, "Unable to write to temp file: "+sasPath)
+	}
+	g.Debug("wrote %d bytes to %s", bw, sasPath)
+
+	_, err = file.Seek(0, 0) // reset to beginning
+	if err != nil {
+		return g.Error(err, "Unable to seek to beginning of temp file: "+sasPath)
+	}
+
+	return ds.ConsumeSASReaderSeeker(file)
 }
 
 // AddBytes add bytes as processed
@@ -1353,7 +1457,7 @@ func (ds *Datastream) NewJsonLinesReaderChnl(rowLimit int, bytesLimit int64) (re
 
 // NewParquetReaderChnl provides a channel of readers as the limit is reached
 // each channel flows as fast as the consumer consumes
-func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64) (readerChn chan *BatchReader) {
+func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compression CompressorType) (readerChn chan *BatchReader) {
 	readerChn = make(chan *BatchReader, 100)
 
 	pipeR, pipeW := io.Pipe()
@@ -1573,5 +1677,16 @@ func (it *Iterator) next() bool {
 			}
 		}
 		return next
+	}
+}
+
+// WaitClosed waits until dataflow is closed
+// hack to make sure all streams are pushed
+func (ds *Datastream) WaitClosed() {
+	for {
+		if ds.closed {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

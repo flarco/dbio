@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"runtime"
 	"strings"
@@ -65,6 +66,7 @@ func (conn *MsSQLServerConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
 		connURL = newURL[0]
 	}
+
 	url, err := dburl.Parse(connURL)
 	if err != nil {
 		g.LogError(err, "could not parse SQL Server URL")
@@ -74,13 +76,21 @@ func (conn *MsSQLServerConn) GetURL(newURL ...string) string {
 	user := url.User.Username()
 	password, _ := url.User.Password()
 	port := url.Port()
-	host := strings.ReplaceAll(url.Host, ":"+port, "")
+	server := strings.ReplaceAll(url.Host, ":"+port, "")
 	database := strings.ReplaceAll(url.Path, "/", "")
-
-	return fmt.Sprintf(
+	instance := conn.GetProp("instance")
+	if instance != "" {
+		server = g.F("%s\\\\%s", server, instance)
+	}
+	adoConnStr := fmt.Sprintf(
 		"server=%s;user id=%s;password=%s;port=%s;database=%s;",
-		host, user, password, port, database,
+		server, user, password, port, database,
 	)
+	_ = adoConnStr
+
+	// return adoConnStr
+
+	return url.String()
 }
 
 func getVersion(URL string) (version string) {
@@ -222,12 +232,8 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 		ds.Unpause()
 
 		// Write the ds to a temp file
-		file, err := os.CreateTemp(os.TempDir(), g.F("sqlserver.%d.csv", len(ds.Batches)))
-		if err != nil {
-			return 0, g.Error(err, "Error opening temp file")
-		}
-		filePath := file.Name()
 
+		filePath := path.Join(getTempFolder(), g.NewTsID("sqlserver")+g.F("%d.csv", len(ds.Batches)))
 		csvRowCnt, err := writeCsvWithoutQuotes(filePath, batch, fileRowLimit)
 		if err != nil {
 			os.Remove(filePath)
@@ -304,7 +310,6 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 // Limitation: if comma or delimite is in field, it will error.
 // need to use delimiter not in field, or do some other transformation
 func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count uint64, err error) {
-	var errFile *os.File
 	var stderr, stdout bytes.Buffer
 	url, err := dburl.Parse(conn.URL)
 	if err != nil {
@@ -329,16 +334,16 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	password, _ := url.User.Password()
 	port := url.Port()
 	host := strings.ReplaceAll(url.Host, ":"+port, "")
-	database := strings.ReplaceAll(url.Path, "/", "")
+	instance := strings.ReplaceAll(url.Path, "/", "")
+	database := url.Query().Get("database")
 	user := url.User.Username()
 	hostPort := fmt.Sprintf("tcp:%s,%s", host, port)
+	if instance != "" {
+		hostPort = g.F("%s\\%s", hostPort, instance)
+	}
 	errPath := "/dev/stderr"
 	if runtime.GOOS == "windows" || true {
-		errFile, err = os.CreateTemp(os.TempDir(), "sqlserver.error")
-		if err != nil {
-			return 0, g.Error(err, "Error opening temp file")
-		}
-		errPath = errFile.Name()
+		errPath = path.Join(getTempFolder(), g.NewTsID("sqlserver")+".error")
 		defer os.Remove(errPath)
 	}
 
@@ -361,7 +366,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	proc.Stderr = &stderr
 	proc.Stdout = &stdout
 
-	if version <= 15 {
+	if version <= 14 {
 		g.Warn("bcp version %d is old. This may give issues with sling, consider upgrading.", version)
 	} else if version >= 18 {
 		// add u for version 18
@@ -392,8 +397,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 
 	if err != nil {
 		errOut := stderr.String()
-		if errFile != nil {
-			errFile.Close()
+		if errPath != "/dev/stderr" {
 			errOutB, _ := os.ReadFile(errPath)
 			errOut = string(errOutB)
 		}
@@ -551,6 +555,7 @@ func (conn *MsSQLServerConn) CopyFromAzure(tableFName, azPath string) (count uin
 		"azure_sas_token", azToken,
 		"date_format", "ymd",
 	)
+
 	conn.SetProp("azToken", azToken) // to not log it in debug logging
 
 	g.Info("copying into azure DWH")

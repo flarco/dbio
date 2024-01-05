@@ -96,11 +96,7 @@ func NewConnectionFromMap(m map[string]interface{}) (c Connection, err error) {
 	)
 
 	if c.Type == "" {
-		U, err := net.NewURL(c.URL())
-		if err != nil {
-			return c, g.Error(err, "invalid url")
-		}
-		c.Type, _ = dbio.ValidateType(U.U.Scheme)
+		c.Type = SchemeType(c.URL())
 	}
 
 	return
@@ -164,7 +160,7 @@ func (c *Connection) Hash() string {
 	keys := lo.Keys(c.Data)
 	sort.Strings(keys)
 	for _, key := range keys {
-		value := g.F("%s=%s", key, cast.ToString(c.Data[key]))
+		value := g.F("%s=%s", key, g.Marshal(c.Data[key]))
 		parts = append(parts, value)
 	}
 
@@ -173,7 +169,15 @@ func (c *Connection) Hash() string {
 
 // ToMap transforms DataConn to a Map
 func (c *Connection) ToMap() map[string]interface{} {
-	return g.M("name", c.Name, "type", c.Type, "data", c.Data)
+	data := g.M()
+	g.JSONConvert(c.Data, &data) // so that pointers are not modified downstream
+	return g.M("name", c.Name, "type", c.Type, "data", data)
+}
+
+// ToMap transforms DataConn to a Map
+func (c *Connection) Copy() *Connection {
+	nc, _ := NewConnectionFromMap(c.ToMap())
+	return &nc
 }
 
 // Set sets key/values from a map
@@ -214,14 +218,23 @@ func (c *Connection) URL() string {
 		switch c.Type {
 		case dbio.TypeFileLocal:
 			url = "file://"
+		case dbio.TypeFileSftp:
+			url = g.F("%s://%s", c.Type.String(), c.Data["host"])
 		case dbio.TypeFileS3:
 			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileGoogle:
 			url = g.F("%s://%s", c.Type.String(), c.Data["bucket"])
 		case dbio.TypeFileAzure:
-			url = g.F("%s://%s.blob.core.windows.net/%s", c.Type.String(), c.Data["account"], c.Data["container"])
+			url = g.F("https://%s.blob.core.windows.net/%s", c.Data["account"], c.Data["container"])
 		}
 	}
+
+	switch c.Type {
+	case dbio.TypeDbDuckDb:
+		// fix windows path
+		url = strings.ReplaceAll(url, `\`, `/`)
+	}
+
 	return url
 }
 
@@ -307,7 +320,10 @@ func (c *Connection) setURL() (err error) {
 	}
 
 	// if URL is provided, extract properties from it
-	if c.URL() != "" {
+	if strings.HasPrefix(c.URL(), "file://") {
+		c.Type = dbio.TypeFileLocal
+		setIfMissing("type", c.Type)
+	} else if c.URL() != "" {
 		U, err := net.NewURL(c.URL())
 		if err != nil {
 			// this does not return the full error since that can leak passwords
@@ -316,13 +332,12 @@ func (c *Connection) setURL() (err error) {
 			return g.Error("could not parse provided credentials / url")
 		}
 
-		c.Type, _ = dbio.ValidateType(U.U.Scheme)
+		c.Type = SchemeType(c.URL())
 		setIfMissing("type", c.Type)
 
 		if c.Type.IsDb() {
 			// set props from URL
-
-			setIfMissing("database", strings.ReplaceAll(U.Path(), "/", ""))
+			pathValue := strings.ReplaceAll(U.Path(), "/", "")
 			setIfMissing("schema", U.PopParam("schema"))
 
 			if !g.In(c.Type, dbio.TypeDbMotherDuck, dbio.TypeDbDuckDb, dbio.TypeDbSQLite, dbio.TypeDbBigQuery) {
@@ -343,19 +358,32 @@ func (c *Connection) setURL() (err error) {
 				setIfMissing("project", U.Hostname())
 			} else if c.Type == dbio.TypeDbBigTable {
 				setIfMissing("project", U.Hostname())
-				setIfMissing("instance", strings.ReplaceAll(U.Path(), "/", ""))
+				setIfMissing("instance", pathValue)
 			} else if c.Type == dbio.TypeDbSQLite || c.Type == dbio.TypeDbDuckDb {
 				setIfMissing("instance", U.Path())
 				setIfMissing("schema", "main")
 			} else if c.Type == dbio.TypeDbMotherDuck {
 				setIfMissing("schema", "main")
+			} else if c.Type == dbio.TypeDbSQLServer {
+				setIfMissing("instance", pathValue)
+				setIfMissing("database", U.PopParam("database"))
 			}
+
+			// set database
+			setIfMissing("database", pathValue)
 		}
 		if c.Type == dbio.TypeFileSftp {
 			setIfMissing("user", U.Username())
 			setIfMissing("host", U.Hostname())
 			setIfMissing("password", U.Password())
 			setIfMissing("port", U.Port(c.Info().Type.DefPort()))
+		}
+		if c.Type == dbio.TypeFileS3 || c.Type == dbio.TypeFileGoogle {
+			setIfMissing("bucket", U.U.Host)
+		}
+		if c.Type == dbio.TypeFileAzure {
+			setIfMissing("account", strings.ReplaceAll(U.U.Host, ".blob.core.windows.net", ""))
+			setIfMissing("container", strings.ReplaceAll(U.U.Path, "/", ""))
 		}
 	}
 
@@ -454,15 +482,19 @@ func (c *Connection) setURL() (err error) {
 			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
 				setIfMissing("http_url", dbURL.String())
 				c.Data["instance"] = dbURL.Path()
+			} else {
+				c.Data["instance"] = strings.ReplaceAll(cast.ToString(val), `\`, `/`) // windows path fix
 			}
 		}
-		template = "sqlite://{instance}?cache=shared&mode=rwc&_journal_mode=WAL"
+		template = "sqlite://{instance}?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL"
 	case dbio.TypeDbDuckDb:
 		if val, ok := c.Data["instance"]; ok {
 			dbURL, err := net.NewURL(cast.ToString(val))
 			if err == nil && g.In(dbURL.U.Scheme, "s3", "http", "https") {
 				setIfMissing("http_url", dbURL.String())
 				c.Data["instance"] = dbURL.Path()
+			} else {
+				c.Data["instance"] = strings.ReplaceAll(cast.ToString(val), `\`, `/`) // windows path fix
 			}
 		}
 		setIfMissing("schema", "main")
@@ -475,9 +507,40 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
-		template = "sqlserver://{username}:{password}@{host}:{port}/{database}"
+
+		template = "sqlserver://{username}:{password}@{host}:{port}"
+		if _, ok := c.Data["instance"]; ok {
+			template = template + "/{instance}"
+		}
+		template = template + "?"
+		if _, ok := c.Data["database"]; ok {
+			template = template + "&database={database}"
+		}
+		if _, ok := c.Data["encrypt"]; ok {
+			// disable, false, true
+			template = template + "&encrypt={encrypt}"
+		}
+		if _, ok := c.Data["TrustServerCertificate"]; ok {
+			// false, true
+			template = template + "&TrustServerCertificate={TrustServerCertificate}"
+		}
+		if _, ok := c.Data["hostNameInCertificate"]; ok {
+			template = template + "&hostNameInCertificate={hostNameInCertificate}"
+		}
+		if _, ok := c.Data["certificate"]; ok {
+			template = template + "&certificate={certificate}"
+		}
+		if _, ok := c.Data["user id"]; ok {
+			template = template + "&user id={user id}"
+		}
+		if _, ok := c.Data["app name"]; ok {
+			template = template + "&app name={app name}"
+		} else {
+			template = template + "&app name=sling"
+		}
+
 	case dbio.TypeDbClickhouse:
-		setIfMissing("username", "")
+		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")
 		setIfMissing("schema", c.Data["database"])
 		setIfMissing("port", c.Type.DefPort())
@@ -633,7 +696,7 @@ func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection
 					continue
 				}
 
-				if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+				if connType := SchemeType(U.String()); !connType.IsUnknown() {
 					connName := k
 					data := v
 					conn, err := NewConnectionFromMap(
@@ -658,7 +721,7 @@ func ReadConnectionsEnv(env map[string]interface{}) (conns map[string]Connection
 				continue
 			}
 
-			if connType, ok := dbio.ValidateType(U.U.Scheme); ok {
+			if connType := SchemeType(U.String()); !connType.IsUnknown() {
 				connName := k
 				data := v
 				conn, err := NewConnectionFromMap(
@@ -739,4 +802,23 @@ func ReadConnections(env map[string]interface{}) (conns map[string]Connection, e
 
 func (i *Info) IsURL() bool {
 	return strings.Contains(i.Name, "://")
+}
+
+// SchemeType returns the correct scheme of the url
+func SchemeType(url string) dbio.Type {
+	if !strings.Contains(url, "://") {
+		return dbio.TypeUnknown
+	}
+
+	if strings.HasPrefix(url, "file://") {
+		return dbio.TypeFileLocal
+	}
+
+	if strings.HasPrefix(url, "https") && strings.Contains(url, ".core.windows.") {
+		return dbio.TypeFileAzure
+	}
+
+	scheme := strings.Split(url, "://")[0]
+	t, _ := dbio.ValidateType(scheme)
+	return t
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/flarco/g"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	parquet "github.com/parquet-go/parquet-go"
 	"github.com/parquet-go/parquet-go/compress"
@@ -199,6 +200,68 @@ func (groupType) Kind() parquet.Kind {
 func (groupType) Compare(parquet.Value, parquet.Value) int {
 	panic("cannot compare values on parquet group")
 }
+
+func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) {
+
+	colTexts := []string{}
+	for _, col := range cols {
+		// logical-type ::= 'STRING'
+		//   | 'DATE'
+		//   | 'TIMESTAMP' '(' <time-unit> ',' <boolean> ')'
+		//   | 'UUID'
+		//   | 'ENUM'
+		//   | 'JSON'
+		//   | 'BSON'
+		//   | 'INT' '(' <bit-width> ',' <boolean> ')'
+		//   | 'DECIMAL' '(' <precision> ',' <scale> ')'
+
+		// type ::= 'binary'
+		// | 'float'
+		// | 'double'
+		// | 'boolean'
+		// | 'int32'
+		// | 'int64'
+		// | 'int96'
+		// | 'fixed_len_byte_array' '(' <number> ')'
+
+		lt := ""
+		t := ""
+		switch col.Type {
+		case StringType, TextType, BinaryType, TimeType, TimezType:
+			lt = "(STRING)"
+			t = "binary"
+		case JsonType:
+			lt = "(JSON)"
+			t = "binary"
+		case DateType, DatetimeType, TimestampType, TimestampzType:
+			lt = "(TIMESTAMP(NANOS, true))"
+			t = "int64"
+		case SmallIntType:
+			lt = ""
+			t = "int32"
+		case IntegerType, BigIntType:
+			lt = ""
+			t = "int64"
+		case DecimalType, FloatType:
+
+			scale := lo.Ternary(col.DbScale < 9, 9, col.DbScale)
+			scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
+			scale = lo.Ternary(scale > 24, 24, scale)
+
+			precision := lo.Ternary(col.DbPrecision < 24, 24, col.DbPrecision)
+			precision = lo.Ternary(precision < (scale*2), scale*2, precision)
+			precision = lo.Ternary(precision > 38, 38, precision)
+
+			lt = g.F("(DECIMAL(%d,%d))", precision, scale)
+			t = "binary"
+		case BoolType:
+			lt = ""
+			t = "boolean"
+		default:
+			g.Warn("unhandled parquet column type: %s", col.Type)
+			lt = "(STRING)"
+			t = "binary"
+		}
 
 func (groupType) NewColumnIndexer(int) parquet.ColumnIndexer {
 	panic("cannot create column indexer from parquet group")

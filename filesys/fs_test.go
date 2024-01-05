@@ -1,6 +1,9 @@
 package filesys
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/g/net"
+	"github.com/linkedin/goavro/v2"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/dbio/iop"
@@ -240,6 +244,91 @@ func TestFileSysLocalParquet(t *testing.T) {
 
 }
 
+func TestFileSysLocalSAS(t *testing.T) {
+	t.Parallel()
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	// https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/sas/ed2021_sas.zip
+	df1, err := fs.ReadDataflow("test/test1/sas7bdat/ed2021_sas.sas7bdat")
+	assert.NoError(t, err)
+
+	data1, err := df1.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 16207, len(data1.Rows))
+	assert.EqualValues(t, 912, len(data1.Columns))
+
+	// g.Info(g.Marshal(data1.Columns.Types()))
+	// g.Info(g.Marshal(data1.Rows[0]))
+	// g.P(data1.Rows[0])
+}
+
+func TestFileSysLocalAvro(t *testing.T) {
+	t.Parallel()
+
+	fs, err := NewFileSysClient(dbio.TypeFileLocal)
+	assert.NoError(t, err)
+
+	df1, err := fs.ReadDataflow("test/test1/avro/twitter.avro")
+	assert.NoError(t, err)
+
+	data1, err := df1.Collect()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 2, len(data1.Rows))
+	assert.EqualValues(t, 3, len(data1.Columns))
+
+	avroSchema := `
+	{
+	  "type": "record",
+	  "name": "test_schema",
+	  "fields": [
+		{
+		  "name": "time",
+		  "type": "long"
+		},
+		{
+		  "name": "customer",
+		  "type": "string"
+		}
+	  ]
+	}`
+
+	// Writing OCF data
+	var ocfFileContents bytes.Buffer
+	writer, err := goavro.NewOCFWriter(goavro.OCFConfig{
+		W:      &ocfFileContents,
+		Schema: avroSchema,
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = writer.Append([]map[string]interface{}{
+		{
+			"time":     1617104831727,
+			"customer": "customer1",
+		},
+		{
+			"time":     1717104831727,
+			"customer": "customer2",
+		},
+	})
+	assert.NoError(t, err)
+	// fmt.Println("ocfFileContents", ocfFileContents.String())
+
+	reader := strings.NewReader(ocfFileContents.String())
+
+	ds := iop.NewDatastream(nil)
+	err = ds.ConsumeAvroReader(reader)
+	assert.NoError(t, err)
+
+	data, err := ds.Collect(0)
+	assert.NoError(t, err)
+
+	assert.EqualValues(t, 2, len(data.Rows))
+	assert.EqualValues(t, 2, len(data.Columns))
+
+}
+
 func TestFileSysDOSpaces(t *testing.T) {
 	fs, err := NewFileSysClient(
 		dbio.TypeFileS3,
@@ -286,6 +375,7 @@ func TestFileSysDOSpaces(t *testing.T) {
 	assert.NotContains(t, paths, testPath)
 
 	paths, err = fs.ListRecursive("s3://ocral/test/")
+	assert.NoError(t, err)
 
 	// Test datastream
 	df, err := fs.ReadDataflow("s3://ocral/test/")
@@ -395,7 +485,7 @@ func TestFileSysS3(t *testing.T) {
 		return
 	}
 
-	testBytes, err := ioutil.ReadAll(reader2)
+	testBytes, err := io.ReadAll(reader2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, testString, string(testBytes))

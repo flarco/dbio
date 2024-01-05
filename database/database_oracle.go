@@ -17,7 +17,6 @@ import (
 	"github.com/flarco/dbio/iop"
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
-	"github.com/spf13/cast"
 	"github.com/xo/dburl"
 )
 
@@ -43,7 +42,7 @@ func (conn *OracleConn) Init() error {
 	conn.BaseConn.instance = &instance
 
 	// set MAX_DECIMALS to import for numeric types
-	os.Setenv("MAX_DECIMALS", "9")
+	conn.SetProp("MAX_DECIMALS", "9")
 
 	return conn.BaseConn.Init()
 }
@@ -125,7 +124,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		return
 	}
 
-	file, err := os.CreateTemp(os.TempDir(), "oracle."+tableFName+".*.sqlldr.ctl")
+	file, err := os.CreateTemp(getTempFolder(), "oracle."+tableFName+".*.sqlldr.ctl")
 	if err != nil {
 		err = g.Error(err, "Error opening temp file")
 		return
@@ -168,6 +167,7 @@ func (conn *OracleConn) SQLLoad(tableFName string, ds *iop.Datastream) (count ui
 		"bad=/dev/stderr",
 	)
 
+	ds.SetConfig(conn.Props())
 	stdIn, pu := sqlLoadCsvReader(ds)
 	proc.Stderr = &stderr
 	proc.Stdout = &stdout
@@ -273,7 +273,7 @@ func sqlLoadCsvReader(ds *iop.Datastream) (*io.PipeReader, *struct{ cols map[int
 					continue
 				}
 
-				valS := cast.ToString(val)
+				valS := ds.Sp.CastToString(i, val, ds.Columns[i].Type)
 				if strings.Contains(valS, "\n") {
 					valS = strings.ReplaceAll(valS, "\r", "")
 					valS = strings.ReplaceAll(valS, "\n", `~/N/~`)

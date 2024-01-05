@@ -56,29 +56,10 @@ func (conn *MySQLConn) GetURL(newURL ...string) string {
 		return connURL
 	}
 
-	// Add tcp explicitly...
-	// https://github.com/go-sql-driver/mysql/issues/427#issuecomment-474034276
-	URL := strings.ReplaceAll(
-		connURL,
-		"@"+u.Host,
-		fmt.Sprintf("@tcp(%s)", u.Host),
-	)
-
-	// remove scheme
-	URL = strings.ReplaceAll(
-		URL,
-		"mysql://",
-		"",
-	)
-
 	// add parseTime
-	if strings.Contains(URL, "?") {
-		URL = URL + "&parseTime=true"
-	} else {
-		URL = URL + "?parseTime=true"
-	}
+	u.Query().Add("parseTime", "true")
 
-	return URL
+	return u.DSN
 }
 
 // BulkInsert
