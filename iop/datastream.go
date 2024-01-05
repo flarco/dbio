@@ -16,9 +16,8 @@ import (
 	"github.com/flarco/g"
 	"github.com/flarco/g/csv"
 	"github.com/flarco/g/json"
-	goparquet "github.com/fraugster/parquet-go"
-	"github.com/fraugster/parquet-go/parquet"
 	jit "github.com/json-iterator/go"
+	parquet "github.com/parquet-go/parquet-go"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -777,8 +776,8 @@ func (ds *Datastream) ConsumeCsvReader(reader io.Reader) (err error) {
 	return
 }
 
-// ConsumeParquetReaderSeeker uses the provided reader to stream rows
-func (ds *Datastream) ConsumeParquetReaderSeeker(reader io.ReadSeeker) (err error) {
+// ConsumeParquetReader uses the provided reader to stream rows
+func (ds *Datastream) ConsumeParquetReaderSeeker(reader io.ReaderAt) (err error) {
 	p, err := NewParquetStream(reader, Columns{})
 	if err != nil {
 		return g.Error(err, "could create parquet stream")
@@ -1466,7 +1465,7 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compr
 	tbw := int64(0)
 
 	go func() {
-		var fw *goparquet.FileWriter
+		var fw *parquet.Writer
 		var br *BatchReader
 
 		defer close(readerChn)
@@ -1482,32 +1481,13 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compr
 			// new reader
 			pipeR, pipeW = io.Pipe()
 
-			schemaDef, err := getParquetSchemaDef(batch.Columns)
+			config, err := parquet.NewWriterConfig()
 			if err != nil {
-				return g.Error(err, "could not generate parquet schema definition")
+				return g.Error(err, "could not create parquet writer config")
 			}
+			config.Schema = getParquetSchema(batch.Columns)
 
-			codec := parquet.CompressionCodec_SNAPPY // is default
-
-			switch compression {
-			case NoneCompressorType:
-				codec = parquet.CompressionCodec_UNCOMPRESSED
-			case SnappyCompressorType:
-				codec = parquet.CompressionCodec_SNAPPY
-			case GzipCompressorType:
-				codec = parquet.CompressionCodec_GZIP
-			case ZStandardCompressorType:
-				codec = parquet.CompressionCodec_ZSTD
-			}
-
-			fw = goparquet.NewFileWriter(pipeW,
-				goparquet.WithCompressionCodec(codec),
-				goparquet.WithSchemaDefinition(schemaDef),
-				goparquet.WithCreator("flarco/dbio"),
-			)
-
-			// flush row groups only once
-			fw.FlushRowGroup()
+			fw = parquet.NewWriter(pipeW, config)
 
 			br = &BatchReader{batch, batch.Columns, pipeR, 0}
 			readerChn <- br
@@ -1525,7 +1505,7 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compr
 			}
 
 			for row := range batch.Rows {
-				rec := g.M()
+				rec := make([]parquet.Value, len(batch.Columns))
 
 				for i, col := range batch.Columns {
 					switch {
@@ -1542,12 +1522,12 @@ func (ds *Datastream) NewParquetReaderChnl(rowLimit int, bytesLimit int64, compr
 						}
 					}
 					if i < len(row) {
-						rec[col.Name] = row[i]
+						rec[i] = parquet.ValueOf(row[i])
 					}
 				}
 				// g.PP(rec)
 
-				err := fw.AddData(rec)
+				_, err := fw.WriteRows([]parquet.Row{rec})
 				if err != nil {
 					ds.Context.CaptureErr(g.Error(err, "error writing row"))
 					ds.Context.Cancel()
