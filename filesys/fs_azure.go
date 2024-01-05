@@ -129,6 +129,12 @@ func (fs *AzureFileSysClient) Buckets() (paths []string, err error) {
 	return
 }
 
+func cleanKeyAzure(key string) string {
+	key = strings.TrimPrefix(key, "/")
+	key = strings.TrimSuffix(key, "/")
+	return key
+}
+
 // List list objects in path
 func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 	host, path, err := ParseURL(url)
@@ -137,7 +143,7 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 		return
 	}
 
-	path = cleanKey(path)
+	path = cleanKeyAzure(path)
 	ts := fs.GetRefTs()
 
 	svc := fs.client.GetBlobService()
@@ -164,6 +170,7 @@ func (fs *AzureFileSysClient) List(url string) (paths []string, err error) {
 			err = g.Error(err, "Could not ListBlobs for: "+url)
 			return paths, err
 		}
+		g.P(blobs)
 		for _, blob := range blobs {
 			lastModified := time.Time(blob.Properties.LastModified)
 			if ts.IsZero() || lastModified.IsZero() || lastModified.After(ts) {
@@ -238,7 +245,8 @@ func (fs *AzureFileSysClient) ListRecursive(url string) (paths []string, err err
 		return
 	}
 
-	path = cleanKey(path)
+	path = cleanKeyAzure(path)
+	g.Trace("listing recursively => %s", path)
 
 	if path != "" {
 		// list blobs
@@ -278,7 +286,7 @@ func (fs *AzureFileSysClient) delete(urlStr string) (err error) {
 		return
 	}
 
-	path = cleanKey(path)
+	path = cleanKeyAzure(path)
 	svc := fs.client.GetBlobService()
 
 	pathArr := strings.Split(path, "/")
@@ -392,7 +400,7 @@ func (fs *AzureFileSysClient) Write(urlStr string, reader io.Reader) (bw int64, 
 		return
 	}
 
-	path = cleanKey(path)
+	path = cleanKeyAzure(path)
 
 	pathArr := strings.Split(path, "/")
 
@@ -460,7 +468,7 @@ func (fs *AzureFileSysClient) GetReader(urlStr string) (reader io.Reader, err er
 		return
 	}
 
-	path = cleanKey(path)
+	path = cleanKeyAzure(path)
 
 	pathArr := strings.Split(path, "/")
 
