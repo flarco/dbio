@@ -209,7 +209,7 @@ func (fs *LocalFileSysClient) List(path string) (paths []string, err error) {
 
 	for _, file := range files {
 		// file.ModTime()
-		paths = append(paths, path+"/"+file.Name())
+		paths = append(paths, "file://"+path+"/"+file.Name())
 	}
 	return
 }
@@ -224,7 +224,7 @@ func (fs *LocalFileSysClient) ListRecursive(path string) (paths []string, err er
 			return err
 		}
 		if !info.IsDir() && (ts.IsZero() || info.ModTime().IsZero() || info.ModTime().After(ts)) {
-			paths = append(paths, subPath)
+			paths = append(paths, "file://"+subPath)
 		}
 		return nil
 	}

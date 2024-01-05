@@ -164,7 +164,7 @@ func (conn *SQLiteConn) BulkImportStream(tableFName string, ds *iop.Datastream) 
 		tempTable := g.RandSuffix("temp_", 4)
 		columnNames := lo.Map(columns.Names(), func(col string, i int) string {
 			name, _ := ParseColumnName(col, conn.Type)
-			return name
+			return conn.Quote(name)
 		})
 
 		// set empty as null, since nulls are not ingested

@@ -470,6 +470,8 @@ func (fs *BaseFileSysClient) GetDatastream(urlStr string) (ds *iop.Datastream, e
 			err = ds.ConsumeAvroReader(reader)
 		case FileTypeSAS:
 			err = ds.ConsumeSASReader(reader)
+		case FileTypeCsv:
+			err = ds.ConsumeCsvReader(reader)
 		default:
 			g.Warn("GetDatastream | File Format not recognized: %s. Using CSV parsing", fileFormat)
 			err = ds.ConsumeCsvReader(reader)
