@@ -6,11 +6,11 @@ import (
 
 	"io"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/flarco/g"
 	"github.com/google/uuid"
-	"github.com/samber/lo"
 
 	parquet "github.com/parquet-go/parquet-go"
 	"github.com/parquet-go/parquet-go/compress"
@@ -70,7 +70,7 @@ func (p *Parquet) Columns() Columns {
 }
 
 func (p *Parquet) nextFunc(it *Iterator) bool {
-	row := []parquet.Value{}
+	row := map[string]any{}
 	err := p.Reader.Read(&row)
 	if err == io.EOF {
 		return false
@@ -80,20 +80,10 @@ func (p *Parquet) nextFunc(it *Iterator) bool {
 	}
 
 	it.Row = make([]interface{}, len(it.ds.Columns))
-	for i, v := range row {
-		col := it.ds.Columns[i]
-		switch {
-		case col.IsBool():
-			it.Row[i] = v.Boolean()
-		case col.Type == IntegerType:
-			it.Row[i] = v.Int32()
-		case col.IsInteger():
-			it.Row[i] = v.Int64()
-		case col.IsDecimal():
-			it.Row[i] = v.Float()
-		default:
-			it.Row[i] = v.String()
-		}
+	for k, v := range row {
+		col := it.ds.Columns[p.colMap[strings.ToLower(k)]]
+		i := col.Position - 1
+		it.Row[i] = v
 	}
 	return true
 }
@@ -120,6 +110,8 @@ func NewRecNode(cols Columns) *RecNode {
 type RecNode struct {
 	fields []structField
 }
+
+func (rn *RecNode) ID() int { return 0 }
 
 func (rn *RecNode) String() string { return "" }
 
@@ -200,68 +192,6 @@ func (groupType) Kind() parquet.Kind {
 func (groupType) Compare(parquet.Value, parquet.Value) int {
 	panic("cannot compare values on parquet group")
 }
-
-func getParquetSchemaDef(cols Columns) (*parquetschema.SchemaDefinition, error) {
-
-	colTexts := []string{}
-	for _, col := range cols {
-		// logical-type ::= 'STRING'
-		//   | 'DATE'
-		//   | 'TIMESTAMP' '(' <time-unit> ',' <boolean> ')'
-		//   | 'UUID'
-		//   | 'ENUM'
-		//   | 'JSON'
-		//   | 'BSON'
-		//   | 'INT' '(' <bit-width> ',' <boolean> ')'
-		//   | 'DECIMAL' '(' <precision> ',' <scale> ')'
-
-		// type ::= 'binary'
-		// | 'float'
-		// | 'double'
-		// | 'boolean'
-		// | 'int32'
-		// | 'int64'
-		// | 'int96'
-		// | 'fixed_len_byte_array' '(' <number> ')'
-
-		lt := ""
-		t := ""
-		switch col.Type {
-		case StringType, TextType, BinaryType, TimeType, TimezType:
-			lt = "(STRING)"
-			t = "binary"
-		case JsonType:
-			lt = "(JSON)"
-			t = "binary"
-		case DateType, DatetimeType, TimestampType, TimestampzType:
-			lt = "(TIMESTAMP(NANOS, true))"
-			t = "int64"
-		case SmallIntType:
-			lt = ""
-			t = "int32"
-		case IntegerType, BigIntType:
-			lt = ""
-			t = "int64"
-		case DecimalType, FloatType:
-
-			scale := lo.Ternary(col.DbScale < 9, 9, col.DbScale)
-			scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)
-			scale = lo.Ternary(scale > 24, 24, scale)
-
-			precision := lo.Ternary(col.DbPrecision < 24, 24, col.DbPrecision)
-			precision = lo.Ternary(precision < (scale*2), scale*2, precision)
-			precision = lo.Ternary(precision > 38, 38, precision)
-
-			lt = g.F("(DECIMAL(%d,%d))", precision, scale)
-			t = "binary"
-		case BoolType:
-			lt = ""
-			t = "boolean"
-		default:
-			g.Warn("unhandled parquet column type: %s", col.Type)
-			lt = "(STRING)"
-			t = "binary"
-		}
 
 func (groupType) NewColumnIndexer(int) parquet.ColumnIndexer {
 	panic("cannot create column indexer from parquet group")
@@ -345,10 +275,18 @@ func nodeOf(t reflect.Type, tag []string) parquet.Node {
 		n = parquet.Uint(t.Bits())
 
 	case reflect.Float32:
-		n = parquet.Leaf(parquet.FloatType)
+		// n = parquet.Leaf(parquet.FloatType)
+		// n = parquet.Decimal(9, 24, parquet.FixedLenByteArrayType(64))
+		// n = parquet.Decimal(9, 24, parquet.DoubleType)
+		// n = parquet.Decimal(1, 1, parquet.FixedLenByteArrayType(1))
+		n = parquet.String()
 
 	case reflect.Float64:
-		n = parquet.Leaf(parquet.DoubleType)
+		// n = parquet.Leaf(parquet.DoubleType)
+		// n = parquet.Decimal(9, 24, parquet.DoubleType)
+		// n = parquet.Decimal(1, 5, parquet.FixedLenByteArrayType(5))
+		// parquet.DoubleValue(0.9).
+		n = parquet.String()
 
 	case reflect.String:
 		n = parquet.String()

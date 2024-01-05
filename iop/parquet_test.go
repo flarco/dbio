@@ -14,7 +14,7 @@ func TestParquetRead1(t *testing.T) {
 	g.LogFatal(err)
 	reader := parquet.NewReader(file)
 	g.P(reader.Schema())
-	row := []parquet.Value{}
+	row := map[string]any{}
 	err = reader.Read(&row)
 	g.LogFatal(err)
 	g.P(row)

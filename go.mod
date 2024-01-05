@@ -19,7 +19,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/flarco/bigquery v0.0.9
 	github.com/flarco/g v0.1.67
-	github.com/fraugster/parquet-go v0.12.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/google/uuid v1.3.0
@@ -29,17 +28,20 @@ require (
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/compress v1.16.7
+	github.com/kshedden/datareader v0.0.0-20210325133423-816b6ffdd011
 	github.com/lib/pq v1.10.2
+	github.com/linkedin/goavro/v2 v2.12.0
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/nqd/flat v0.1.1
 	github.com/opencontainers/image-spec v1.0.2
+	github.com/parquet-go/parquet-go v0.20.0
 	github.com/pkg/sftp v1.12.0
 	github.com/psanford/sqlite3vfs v0.0.0-20220823065410-bd28ac7ee3c2
 	github.com/psanford/sqlite3vfshttp v0.0.0-20220827153928-a19f096e6eb4
 	github.com/samber/lo v1.25.0
 	github.com/snowflakedb/gosnowflake v1.6.25
 	github.com/spf13/cast v1.5.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/turbot/steampipe-plugin-github v0.21.0
 	github.com/xo/dburl v0.3.0
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
@@ -77,7 +79,7 @@ require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/agext/levenshtein v1.2.2 // indirect
 	github.com/allegro/bigcache/v3 v3.0.2 // indirect
-	github.com/andybalholm/brotli v1.0.4 // indirect
+	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/andybalholm/cascadia v1.1.0 // indirect
 	github.com/apache/arrow/go/v12 v12.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
@@ -168,8 +170,6 @@ require (
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/kshedden/datareader v0.0.0-20210325133423-816b6ffdd011 // indirect
-	github.com/linkedin/goavro/v2 v2.12.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-ieproxy v0.0.9 // indirect
@@ -205,6 +205,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/zerolog v1.20.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
+	github.com/segmentio/encoding v0.3.6 // indirect
 	github.com/sethvargo/go-retry v0.1.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.7 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
