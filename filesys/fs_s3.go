@@ -62,9 +62,8 @@ func (fw fakeWriterAt) WriteAt(p []byte, offset int64) (n int, err error) {
 	return fw.w.Write(p)
 }
 
-func cleanKey(key string) string {
+func cleanKeyS3(key string) string {
 	key = strings.TrimPrefix(key, "/")
-	key = strings.TrimSuffix(key, "/")
 	return key
 }
 
@@ -151,7 +150,7 @@ func (fs *S3FileSysClient) delete(path string) (err error) {
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	// Create S3 service client
 	svc := s3.New(fs.getSession())
@@ -168,7 +167,7 @@ func (fs *S3FileSysClient) delete(path string) (err error) {
 			err = g.Error(err, "Error Parsing url: "+path)
 			return
 		}
-		subPath = cleanKey(subPath)
+		subPath = cleanKeyS3(subPath)
 		objects = append(objects, &s3.ObjectIdentifier{Key: aws.String(subPath)})
 	}
 
@@ -218,7 +217,7 @@ func (fs *S3FileSysClient) GetReader(path string) (reader io.Reader, err error) 
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	// https://github.com/chanzuckerberg/s3parcp
 	PartSize := int64(os.Getpagesize()) * 1024 * 10
@@ -269,7 +268,7 @@ func (fs *S3FileSysClient) GetWriter(path string) (writer io.Writer, err error) 
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	// https://github.com/chanzuckerberg/s3parcp
 	PartSize := int64(os.Getpagesize()) * 1024 * 10
@@ -318,7 +317,7 @@ func (fs *S3FileSysClient) Write(path string, reader io.Reader) (bw int64, err e
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	uploader := s3manager.NewUploader(fs.getSession())
 	uploader.Concurrency = fs.Context().Wg.Limit
@@ -376,7 +375,7 @@ func (fs *S3FileSysClient) List(path string) (paths []string, err error) {
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	urlPrefix := fmt.Sprintf("s3://%s/", bucket)
 	input := &s3.ListObjectsV2Input{
@@ -407,8 +406,11 @@ func (fs *S3FileSysClient) List(path string) (paths []string, err error) {
 	}
 
 	// if path is folder, need to read inside
-	if len(path2) == 1 && strings.HasSuffix(path2[0], "/") {
-		return fs.List(path2[0])
+	if len(path2) == 1 {
+		nPath := path2[0]
+		if strings.HasSuffix(nPath, "/") && strings.TrimSuffix(nPath, "/") == strings.TrimSuffix(path, "/") {
+			return fs.List(nPath)
+		}
 	}
 	return path2, err
 }
@@ -423,7 +425,7 @@ func (fs *S3FileSysClient) ListRecursive(path string) (paths []string, err error
 		return
 	}
 	fs.bucket = bucket
-	key = cleanKey(key)
+	key = cleanKeyS3(key)
 
 	urlPrefix := fmt.Sprintf("s3://%s/", bucket)
 	input := &s3.ListObjectsV2Input{
