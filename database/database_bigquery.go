@@ -118,7 +118,7 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 	} else {
 		creds, err := google.FindDefaultCredentials(conn.BaseConn.Context().Ctx)
 		if err != nil {
-			return client, g.Error(err, "could not find Application Default Credentials")
+			return client, g.Error(err, "No Google credentials provided or could not find Application Default Credentials.")
 		}
 		authOption = option.WithCredentials(creds)
 	}
