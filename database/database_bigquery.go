@@ -17,6 +17,7 @@ import (
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/filesys"
 	"github.com/flarco/g/net"
+	"golang.org/x/oauth2/google"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
@@ -89,7 +90,6 @@ func (conn *BigQueryConn) Init() error {
 func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client, err error) {
 	var authOption option.ClientOption
 	var credJsonBody string
-	var useDefault bool
 
 	to := 15
 	if len(timeOut) > 0 {
@@ -116,7 +116,11 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 		}
 		credJsonBody = string(b)
 	} else {
-		useDefault = true
+		creds, err := google.FindDefaultCredentials(conn.BaseConn.Context().Ctx)
+		if err != nil {
+			return client, g.Error(err, "could not find Application Default Credentials")
+		}
+		authOption = option.WithCredentials(creds)
 	}
 
 	if conn.ProjectID == "" && credJsonBody != "" {
@@ -128,10 +132,6 @@ func (conn *BigQueryConn) getNewClient(timeOut ...int) (client *bigquery.Client,
 	ctx, cancel := context.WithTimeout(conn.BaseConn.Context().Ctx, time.Duration(to)*time.Second)
 	defer cancel()
 
-	if useDefault {
-		g.Debug("no BigQuery Google credentials provided, using Application Default Credentials")
-		return bigquery.NewClient(ctx, conn.ProjectID)
-	}
 	return bigquery.NewClient(ctx, conn.ProjectID, authOption)
 }
 
@@ -151,7 +151,7 @@ func (conn *BigQueryConn) Connect(timeOut ...int) error {
 			err = nil
 			break
 		} else if err != nil {
-			return g.Error(err, "Failed to get datasets")
+			return g.Error(err, "Failed to get datasets in project: %s", conn.Client.Project())
 		}
 		conn.Datasets = append(conn.Datasets, dataset.DatasetID)
 		if conn.Location == "" {
