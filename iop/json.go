@@ -99,7 +99,7 @@ func (js *jsonStream) nextFunc(it *Iterator) bool {
 		recordsInterf = []map[string]interface{}{}
 		recList := payloadV
 		if len(recList) == 0 {
-			return false
+			return js.nextFunc(it)
 		}
 
 		switch recList[0].(type) {
