@@ -2,3 +2,4 @@
 database/test.db
 filesys/test/test_write/
 filesys/test/test1/sas7bdat/ed2021_sas.sas7bdat
+.DS_Store

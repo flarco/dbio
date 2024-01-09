@@ -2,7 +2,7 @@ package connection
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -612,6 +612,7 @@ func CopyDirect(conn database.Connection, tableFName string, srcFile Connection)
 
 func ReadDbtConnections() (conns map[string]Connection, err error) {
 	conns = map[string]Connection{}
+	envVarRegex := `{{ *env_var\(['"]+([0-9a-zA-Z_-]+)['"]+\) *}}`
 
 	profileDir := strings.TrimSuffix(os.Getenv("DBT_PROFILES_DIR"), "/")
 	if profileDir == "" {
@@ -628,7 +629,7 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 		return
 	}
 
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		err = g.Error(err, "error reading bytes from yaml: %s", path)
 		return
@@ -650,6 +651,24 @@ func ReadDbtConnections() (conns map[string]Connection, err error) {
 		for target, data := range pc.Outputs {
 			connName := strings.ToUpper(pName + "/" + target)
 			data["dbt"] = true
+
+			// expand env_var
+			// https://docs.getdbt.com/reference/dbt-jinja-functions/env_var
+			for key, val := range data {
+				if valS, ok := val.(string); ok {
+					for _, match := range g.Matches(valS, envVarRegex) {
+						matchVal := match.Full
+						envVarKey := match.Group[0]
+						envVarVal, ok := os.LookupEnv(envVarKey)
+						if ok {
+							valS = strings.ReplaceAll(valS, matchVal, envVarVal)
+						} else {
+							g.Warn("Unable to expand env_var '%s' for dbt profile %s / %s, key %s", envVarKey, pName, target, key)
+						}
+					}
+					data[key] = valS
+				}
+			}
 
 			conn, err := NewConnectionFromMap(
 				g.M("name", connName, "data", data, "type", data["type"]),
@@ -752,7 +771,7 @@ func ReadConnectionsFromFile(path string) (conns map[string]Connection, err erro
 		return
 	}
 
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		err = g.Error(err, "error reading bytes from yaml")
 		return
