@@ -823,7 +823,7 @@ func (conn *SnowflakeConn) GetTables(schema string) (data iop.Dataset, err error
 		return data1, err
 	}
 
-	return data1.Pick("table_name"), nil
+	return data1.Pick("name"), nil
 }
 
 // GetTables returns tables
