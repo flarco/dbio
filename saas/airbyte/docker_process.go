@@ -25,7 +25,7 @@ type Container struct {
 	ID           string
 	Err          error
 	Context      *g.Context
-	DoneOK       <-chan container.ContainerWaitOKBody
+	DoneOK       <-chan container.WaitResponse
 	DoneErr      <-chan error
 	exited       chan struct{} // process killed
 	StdoutReader io.ReadCloser
@@ -290,7 +290,8 @@ func (c *Container) listenCancel() {
 
 	g.Debug("stopping container %s", c.ID)
 	to := time.Duration(5 * time.Second)
-	go c.client.ContainerStop(context.Background(), c.ID, &to)
+	opts := container.StopOptions{Timeout: g.Int(5)}
+	go c.client.ContainerStop(context.Background(), c.ID, opts)
 
 	select {
 	case <-c.DoneOK:

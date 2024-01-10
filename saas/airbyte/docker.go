@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/flarco/g"
 	"github.com/flarco/g/process"
@@ -151,7 +152,8 @@ func (c *Connector) startUsingShell(args ...string) (msgChan chan AirbyteMessage
 
 		g.Debug("stopping container %s (%s)", contName, contID)
 		to := time.Duration(5 * time.Second)
-		go dockerClient.ContainerStop(context.Background(), contID, &to)
+		opts := container.StopOptions{Timeout: g.Int(5)}
+		go dockerClient.ContainerStop(context.Background(), contID, opts)
 
 		select {
 		case <-p.Done:
