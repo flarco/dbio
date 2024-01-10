@@ -32,6 +32,15 @@ func (conn *ClickhouseConn) Init() error {
 	return conn.BaseConn.Init()
 }
 
+func (conn *ClickhouseConn) ConnString() string {
+
+	if url := conn.GetProp("http_url"); url != "" {
+		return url
+	}
+
+	return conn.BaseConn.ConnString()
+}
+
 // NewTransaction creates a new transaction
 func (conn *ClickhouseConn) NewTransaction(ctx context.Context, options ...*sql.TxOptions) (Transaction, error) {
 
