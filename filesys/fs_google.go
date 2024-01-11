@@ -3,12 +3,13 @@ package filesys
 import (
 	"context"
 	"io"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	gcstorage "cloud.google.com/go/storage"
 	"github.com/flarco/g"
 	"github.com/spf13/cast"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -51,7 +52,7 @@ func (fs *GoogleFileSysClient) Connect() (err error) {
 		authOption = option.WithCredentialsJSON([]byte(val))
 	} else if val := fs.GetProp("KEY_FILE"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return g.Error(err, "could not read google cloud key file")
 		}
@@ -60,13 +61,17 @@ func (fs *GoogleFileSysClient) Connect() (err error) {
 		authOption = option.WithAPIKey(val)
 	} else if val := fs.GetProp("GOOGLE_APPLICATION_CREDENTIALS"); val != "" {
 		authOption = option.WithCredentialsFile(val)
-		b, err := ioutil.ReadFile(val)
+		b, err := os.ReadFile(val)
 		if err != nil {
 			return g.Error(err, "could not read google cloud key file")
 		}
 		credJsonBody = string(b)
 	} else {
-		return g.Error("Could not connect. Did not provide Google credentials")
+		creds, err := google.FindDefaultCredentials(fs.Context().Ctx)
+		if err != nil {
+			return g.Error(err, "No Google credentials provided or could not find Application Default Credentials.")
+		}
+		authOption = option.WithCredentials(creds)
 	}
 
 	fs.bucket = fs.GetProp("BUCKET")
