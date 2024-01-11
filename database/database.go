@@ -2890,7 +2890,7 @@ func settingMppBulkImportFlow(conn Connection, compressor iop.CompressorType) {
 	}
 
 	if val := conn.GetProp("FILE_MAX_BYTES"); val == "" {
-		conn.SetProp("FILE_MAX_BYTES", "16000000")
+		conn.SetProp("FILE_MAX_BYTES", "50000000")
 	}
 
 	compr := strings.ToUpper(conn.GetProp("COMPRESSION"))
