@@ -633,11 +633,16 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
 		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
 	}
-	if concurrency == 0 || concurrency > runtime.NumCPU() {
-		concurrency = runtime.NumCPU()
-	}
-	if concurrency > 7 {
+
+	// set default concurrency
+	// let's set 7 as a safe limit
+	if concurrency == 0 {
 		concurrency = 7
+	}
+
+	// concurrency should not be higher than number of CPUs
+	if concurrency > runtime.NumCPU() {
+		concurrency = runtime.NumCPU()
 	}
 
 	if fileFormat == FileTypeNone {
