@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -630,9 +629,7 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	fileFormat := FileType(strings.ToLower(cast.ToString(fs.GetProp("FORMAT"))))
 	fileRowLimit := cast.ToInt(fs.GetProp("FILE_MAX_ROWS"))
 	fileBytesLimit := cast.ToInt64(fs.GetProp("FILE_MAX_BYTES")) // uncompressed file size
-	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
-		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
-	}
+	fileExt := cast.ToString(fs.GetProp("FILE_EXTENSION"))
 
 	// set default concurrency
 	// let's set 7 as a safe limit
@@ -652,6 +649,27 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	url = strings.TrimSuffix(url, "/")
 
 	singleFile := fileRowLimit == 0 && fileBytesLimit == 0 && len(df.Streams) == 1
+
+	// parse file partitioning notation (*), determine single-file vs folder mode
+	if singleFile {
+		parts := strings.Split(url, "/")
+		lastPart := parts[len(parts)-1]
+		if strings.HasPrefix(lastPart, "*") {
+			singleFile = false
+			// set partition file defaults
+			fileRowLimit = lo.Ternary(fileRowLimit == 0, 100000, fileRowLimit)
+			fileBytesLimit = lo.Ternary(fileBytesLimit == 0, 50000000, fileBytesLimit)
+			if suffix := strings.TrimPrefix(lastPart, "*"); suffix != "" {
+				fileExt = suffix
+			}
+			url = strings.TrimSuffix(url, "/"+lastPart)
+		}
+	}
+
+	// adjust fileBytesLimit due to compression
+	if g.In(compression, iop.GzipCompressorType, iop.ZStandardCompressorType, iop.SnappyCompressorType) {
+		fileBytesLimit = fileBytesLimit * 6 // compressed, multiply
+	}
 
 	processStream := func(ds *iop.Datastream, partURL string) {
 		defer df.Context.Wg.Read.Done()
@@ -685,7 +703,8 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 
 		processReader := func(batchR *iop.BatchReader) error {
 			fileCount++
-			subPartURL := fmt.Sprintf("%s.%04d%s", partURL, fileCount, fileFormat.Ext())
+			fileSuffix := lo.Ternary(fileExt == "", fileFormat.Ext(), fileExt)
+			subPartURL := fmt.Sprintf("%s.%04d%s", partURL, fileCount, fileSuffix)
 			if singleFile {
 				subPartURL = partURL
 				for _, comp := range []iop.CompressorType{
@@ -1048,7 +1067,7 @@ func TestFsPermissions(fs FileSysClient, pathURL string) (err error) {
 		return g.Error(err, "failed testing permissions: Read File")
 	}
 
-	content, err := ioutil.ReadAll(reader)
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		return g.Error(err, "failed testing permissions: Read File, reading reader")
 	}
