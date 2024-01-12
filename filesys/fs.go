@@ -651,19 +651,16 @@ func (fs *BaseFileSysClient) WriteDataflowReady(df *iop.Dataflow, url string, fi
 	singleFile := fileRowLimit == 0 && fileBytesLimit == 0 && len(df.Streams) == 1
 
 	// parse file partitioning notation (*), determine single-file vs folder mode
-	if singleFile {
-		parts := strings.Split(url, "/")
-		lastPart := parts[len(parts)-1]
-		if strings.HasPrefix(lastPart, "*") {
-			singleFile = false
-			// set partition file defaults
-			fileRowLimit = lo.Ternary(fileRowLimit == 0, 100000, fileRowLimit)
-			fileBytesLimit = lo.Ternary(fileBytesLimit == 0, 50000000, fileBytesLimit)
-			if suffix := strings.TrimPrefix(lastPart, "*"); suffix != "" {
-				fileExt = suffix
-			}
-			url = strings.TrimSuffix(url, "/"+lastPart)
+	parts := strings.Split(url, "/")
+	if lastPart := parts[len(parts)-1]; strings.HasPrefix(lastPart, "*") {
+		singleFile = false
+		// set partition file defaults
+		fileRowLimit = lo.Ternary(fileRowLimit == 0, 100000, fileRowLimit)
+		fileBytesLimit = lo.Ternary(fileBytesLimit == 0, 50000000, fileBytesLimit)
+		if suffix := strings.TrimPrefix(lastPart, "*"); suffix != "" {
+			fileExt = suffix
 		}
+		url = strings.TrimSuffix(url, "/"+lastPart)
 	}
 
 	// adjust fileBytesLimit due to compression
