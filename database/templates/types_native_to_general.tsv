@@ -318,7 +318,7 @@ azuredwh	time	time	col_time time	TRUE	TRUE
 azuredwh	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	
 azuredwh	varbinary	binary	col_varbinary varbinary(100)	FALSE	FALSE	
 azuredwh	varchar	text	col_varchar varchar	TRUE	TRUE	
-clickhouse	array	text	col_array array	FALSE	FALSE	
+clickhouse	array	json	col_array array	FALSE	FALSE	
 clickhouse	uuid	string	col_uuid array	FALSE	FALSE	
 clickhouse	date	date	col_date date	TRUE	TRUE	
 clickhouse	datetime	datetime	col_datetime datetime	TRUE	TRUE	
