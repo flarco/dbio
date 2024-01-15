@@ -106,7 +106,7 @@ postgres	bit varying	string	col_bit_varying bit varying	FALSE	FALSE	variable-len
 postgres	bool	bool	col_bool bool	TRUE	FALSE	logical Boolean (true/false)
 postgres	boolean	bool	col_boolean boolean	TRUE	FALSE	logical Boolean (true/false)
 postgres	box	string	col_box box	FALSE	FALSE	rectangular box on a plane
-postgres	bytea	binary	col_bytea bytea	TRUE	FALSE	binary data ("byte array")
+postgres	bytea	binary	col_bytea bytea	TRUE	FALSE	binary data (byte array)
 postgres	char	string	col_char char(17)	TRUE	TRUE	fixed-length character string
 postgres	bpchar	string	col_bpchar bpchar(17)	FALSE	TRUE	
 postgres	character	string	col_character character(17)	TRUE	TRUE	fixed-length character string
@@ -165,7 +165,7 @@ postgres	information_schema.character_data	string		FALSE	FALSE	Steampipe Data Ty
 postgres	information_schema.yes_or_no	string		FALSE	FALSE	Steampipe Data Type
 postgres	information_schema.cardinal_number	integer		FALSE	FALSE	Steampipe Data Type
 postgres	information_schema.time_stamp	string		FALSE	FALSE	Steampipe Data Type
-postgres	"char"	string		FALSE	FALSE	Steampipe Data Type
+postgres	char	string		FALSE	FALSE	Steampipe Data Type
 postgres	oid	string		FALSE	FALSE	Steampipe Data Type
 postgres	xid	string		FALSE	FALSE	Steampipe Data Type
 postgres	regproc	string		FALSE	FALSE	Steampipe Data Type
@@ -177,9 +177,9 @@ postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
 postgres	anyarray	json		FALSE	FALSE	Steampipe Data Type
 postgres	oid[]	json		FALSE	FALSE	Steampipe Data Type
 postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
-postgres	"""char"""	string		FALSE	FALSE	Steampipe Data Type
+postgres	char	string		FALSE	FALSE	Steampipe Data Type
 postgres	oidvector	string		FALSE	FALSE	Steampipe Data Type
-postgres	"""char""[]"	json		FALSE	FALSE	Steampipe Data Type
+postgres	char[]	json		FALSE	FALSE	Steampipe Data Type
 postgres	pg_ndistinct	string		FALSE	FALSE	Steampipe Data Type
 postgres	pg_dependencies	string		FALSE	FALSE	Steampipe Data Type
 postgres	pg_mcv_list	string		FALSE	FALSE	Steampipe Data Type
