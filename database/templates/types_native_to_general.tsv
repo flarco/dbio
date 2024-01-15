@@ -165,7 +165,7 @@ postgres	information_schema.character_data	string		FALSE	FALSE	Steampipe Data Ty
 postgres	information_schema.yes_or_no	string		FALSE	FALSE	Steampipe Data Type
 postgres	information_schema.cardinal_number	integer		FALSE	FALSE	Steampipe Data Type
 postgres	information_schema.time_stamp	string		FALSE	FALSE	Steampipe Data Type
-postgres	char	string		FALSE	FALSE	Steampipe Data Type
+postgres	"char"	string		FALSE	FALSE	Steampipe Data Type
 postgres	oid	string		FALSE	FALSE	Steampipe Data Type
 postgres	xid	string		FALSE	FALSE	Steampipe Data Type
 postgres	regproc	string		FALSE	FALSE	Steampipe Data Type
@@ -177,9 +177,9 @@ postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
 postgres	anyarray	json		FALSE	FALSE	Steampipe Data Type
 postgres	oid[]	json		FALSE	FALSE	Steampipe Data Type
 postgres	aclitem[]	json		FALSE	FALSE	Steampipe Data Type
-postgres	char	string		FALSE	FALSE	Steampipe Data Type
+postgres	"""char"""	string		FALSE	FALSE	Steampipe Data Type
 postgres	oidvector	string		FALSE	FALSE	Steampipe Data Type
-postgres	char[]	json		FALSE	FALSE	Steampipe Data Type
+postgres	"""char""[]"	json		FALSE	FALSE	Steampipe Data Type
 postgres	pg_ndistinct	string		FALSE	FALSE	Steampipe Data Type
 postgres	pg_dependencies	string		FALSE	FALSE	Steampipe Data Type
 postgres	pg_mcv_list	string		FALSE	FALSE	Steampipe Data Type
