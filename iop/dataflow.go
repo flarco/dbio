@@ -354,8 +354,15 @@ func (df *Dataflow) SyncColumns() {
 	for _, ds := range df.Streams {
 		colMap := df.Columns.FieldMap(true)
 		for i, col := range ds.Columns {
+			maxLen := ds.Columns[i].Stats.MaxLen // old max length
+
 			// sync stats
 			ds.Columns[i].Stats = *ds.Sp.colStats[i]
+
+			// keep max len if greater (from manual column length spec)
+			if maxLen > ds.Columns[i].Stats.MaxLen {
+				ds.Columns[i].Stats.MaxLen = maxLen
+			}
 
 			colName := strings.ToLower(col.Name)
 			if _, ok := colMap[colName]; !ok {
@@ -381,6 +388,7 @@ func (df *Dataflow) SyncStats() {
 		dfCols = append(dfCols, Column{
 			Name:        col.Name,
 			Type:        col.Type,
+			Description: col.Description,
 			Position:    col.Position,
 			DbType:      col.DbType,
 			DbPrecision: col.DbPrecision,
@@ -390,6 +398,7 @@ func (df *Dataflow) SyncStats() {
 			Table:       col.Table,
 			Schema:      col.Schema,
 			Database:    col.Database,
+			Stats:       ColumnStats{MaxLen: col.Stats.MaxLen}, // keep manual column length spec
 		})
 	}
 

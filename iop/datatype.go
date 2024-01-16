@@ -368,8 +368,12 @@ func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
 	for i, col := range newCols {
 		if !hasHeader && len(castCols) == len(newCols) {
 			// assume same order since same number of columns and no header
-			newCols[i].Name = castCols[i].Name
-			newCols[i].Type = castCols[i].Type
+			col = castCols[i]
+			newCols[i].Name = col.Name
+			newCols[i].Type = col.Type
+			newCols[i].Stats.MaxLen = lo.Ternary(col.Stats.MaxLen > 0, col.Stats.MaxLen, newCols[i].Stats.MaxLen)
+			newCols[i].DbPrecision = lo.Ternary(col.DbPrecision > 0, col.DbPrecision, newCols[i].DbPrecision)
+			newCols[i].DbScale = lo.Ternary(col.DbScale > 0, col.DbScale, newCols[i].DbScale)
 			if !newCols[i].Type.IsValid() {
 				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", newCols[i].Type, newCols[i].Name)
 				newCols[i].Type = StringType
@@ -382,6 +386,9 @@ func (cols Columns) Coerce(castCols Columns, hasHeader bool) (newCols Columns) {
 			if col.Type.IsValid() {
 				g.Debug("casting column '%s' as '%s'", col.Name, col.Type)
 				newCols[i].Type = col.Type
+				newCols[i].Stats.MaxLen = lo.Ternary(col.Stats.MaxLen > 0, col.Stats.MaxLen, newCols[i].Stats.MaxLen)
+				newCols[i].DbPrecision = lo.Ternary(col.DbPrecision > 0, col.DbPrecision, newCols[i].DbPrecision)
+				newCols[i].DbScale = lo.Ternary(col.DbScale > 0, col.DbScale, newCols[i].DbScale)
 			} else {
 				g.Warn("Provided unknown column type (%s) for column '%s'. Using string.", col.Type, col.Name)
 				newCols[i].Type = StringType

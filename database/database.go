@@ -1356,7 +1356,11 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 		col.Stats.MaxDecLen = 0
 
 		if colType.Sourced {
-			if g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake) {
+			if col.IsString() && g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake, dbio.TypeDbOracle, dbio.TypeDbPostgres, dbio.TypeDbRedshift) {
+				col.Sourced = colType.Sourced
+			}
+
+			if col.IsNumber() && g.In(conn.GetType(), dbio.TypeDbSQLServer, dbio.TypeDbSnowflake) {
 				col.Sourced = colType.Sourced
 				col.DbPrecision = colType.Precision
 				col.DbScale = colType.Scale
@@ -2258,17 +2262,23 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 	if strings.HasSuffix(nativeType, "()") {
 		length := col.Stats.MaxLen
 		if col.IsString() {
-			if !col.Sourced {
+			if !col.Sourced || length == 0 {
 				length = col.Stats.MaxLen * 2
 				if length < 255 {
 					length = 255
 				}
 			}
-			nativeType = strings.ReplaceAll(
-				nativeType,
-				"()",
-				fmt.Sprintf("(%d)", length),
-			)
+
+			if length > 255 {
+				// let's make text since high
+				nativeType = conn.template.GeneralTypeMap["text"]
+			} else {
+				nativeType = strings.ReplaceAll(
+					nativeType,
+					"()",
+					fmt.Sprintf("(%d)", length),
+				)
+			}
 		} else if col.IsInteger() {
 			if !col.Sourced && length < ddlDefDecLength {
 				length = ddlDefDecLength
