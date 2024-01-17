@@ -420,7 +420,11 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 	switch {
 	case col.Type.IsString():
 		if sVal == "" && val != nil {
-			sVal = cast.ToString(val)
+			if reflect.TypeOf(val).Kind() == reflect.Slice || reflect.TypeOf(val).Kind() == reflect.Map {
+				sVal = g.Marshal(val)
+			} else {
+				sVal = cast.ToString(val)
+			}
 		}
 
 		// apply transforms
