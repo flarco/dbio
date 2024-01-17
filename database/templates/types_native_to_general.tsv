@@ -329,14 +329,14 @@ clickhouse	fixedstring	text	col_fixedstring fixedstring	TRUE	TRUE
 clickhouse	float32	float	col_float32 float32	TRUE	TRUE	
 clickhouse	float64	float	col_float64 float64	TRUE	TRUE	
 clickhouse	int16	smallint	col_int16 int16	TRUE	TRUE	
-clickhouse	int32	integer	col_int32 int32	TRUE	TRUE	
+clickhouse	int32	bigint	col_int32 int32	TRUE	TRUE	
 clickhouse	int64	bigint	col_int64 int64	TRUE	TRUE	
 clickhouse	int8	integer	col_int8 int8	TRUE	TRUE	
 clickhouse	string	text	col_string string	TRUE	TRUE	
 clickhouse	tuple	string	col_tuple tuple	TRUE	TRUE	
 clickhouse	uint16	integer	col_uint16 uint16	TRUE	TRUE	
-clickhouse	uint32	integer	col_uint32 uint32	TRUE	TRUE	
-clickhouse	uint64	bigint	col_uint64 uint64	TRUE	TRUE	
+clickhouse	uint32	bigint	col_uint32 uint32	TRUE	TRUE	
+clickhouse	uint64	decimal	col_uint64 uint64	TRUE	TRUE	
 clickhouse	uint8	integer	col_uint8 uint8	TRUE	TRUE	
 clickhouse	json	json	col_json json	FALSE	FALSE	
 clickhouse	map	json	col_map json	FALSE	FALSE	
