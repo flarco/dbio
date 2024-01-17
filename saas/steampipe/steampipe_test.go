@@ -1,7 +1,7 @@
 package steampipe
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/flarco/g"
@@ -32,8 +32,8 @@ import (
 // }
 
 func TestCredentials(t *testing.T) {
-	credPath := "/Users/fritz/.steampipe/config/github.spc"
-	bytes, _ := ioutil.ReadFile(credPath)
+	credPath := g.UserHomeDir() + "/.steampipe/config/github.spc"
+	bytes, _ := os.ReadFile(credPath)
 	m := g.M()
 	err := hcl.Decode(&m, string(bytes))
 	assert.NoError(t, err)

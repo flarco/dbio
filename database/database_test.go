@@ -219,7 +219,7 @@ var DBs = map[string]*testDB{
 		propStrs: []string{
 			"PROJECT=proven-cider-633",
 			"INSTANCE=test-instance-1",
-			"GOOGLE_APPLICATION_CREDENTIALS=/Users/fritz/.sling/proven-cider-633-ce219ceaef95.json",
+			"GOOGLE_APPLICATION_CREDENTIALS=/__/devbox/slingelt-prod-10fbedc838ea.json",
 		},
 	},
 
@@ -1547,7 +1547,6 @@ func TestInteractiveMotherDuck(t *testing.T) {
 		io.Copy(stdin, strings.NewReader(".quit\n"))
 		// io.Copy(stdin, strings.NewReader(".quit\n"))
 		// io.Copy(stdin, strings.NewReader("set -m\n"))
-		// io.Copy(stdin, strings.NewReader("/Users/fritz/duckdb/0.8.1/duckdb\n"))
 		// io.Copy(stdin, strings.NewReader("/usr/bin/python3\n"))
 		// io.Copy(stdin, strings.NewReader("print('hey')\n"))
 	}()
