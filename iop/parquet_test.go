@@ -109,8 +109,7 @@ func TestParquetWrite2(t *testing.T) {
 }
 
 func TestParquet(t *testing.T) {
-	file, err := os.Open("/Users/fritz/__/Git/suaobra/suaobra-data/data/duckdb.db.export/raw_cno.parquet")
-	// file, err := os.Open("/tmp/test.parquet")
+	file, err := os.Open("/tmp/test.parquet")
 	g.LogFatal(err)
 
 	stat, err := file.Stat()
@@ -122,33 +121,4 @@ func TestParquet(t *testing.T) {
 	g.Info("NumRows = %d", pfile.NumRows())
 	g.Info("len(RowGroups) = %d", len(pfile.RowGroups()))
 	g.P(pfile.Schema())
-
-	return
-
-	for _, rowGroup := range pfile.RowGroups() {
-
-		var rows []parquet.Row
-		n, err := rowGroup.Rows().ReadRows(rows)
-		g.Warn("b = %d , len = %d", n, len(rows))
-		g.LogFatal(err)
-		break
-		for _, columnChunk := range rowGroup.ColumnChunks() {
-			g.P(columnChunk)
-			g.P(columnChunk.Type())
-		}
-		break
-	}
-	return
-
-	// // rows, err := parquet.ReadFile[[]any]("/Users/fritz/__/Git/suaobra/suaobra-data/data/duckdb.db.export/raw_cno.parquet")
-	// g.LogFatal(err)
-
-	reader := parquet.NewReader(file, pfile.Schema())
-	g.LogFatal(err)
-
-	var rows []parquet.Row
-	n, err := reader.ReadRows(rows)
-	g.LogFatal(err)
-
-	g.Warn("b = %d , len = %d", n, len(rows))
 }

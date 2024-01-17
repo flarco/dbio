@@ -284,7 +284,9 @@ func nodeOf(t reflect.Type, tag []string) parquet.Node {
 	case reflect.Float64:
 		// n = parquet.Leaf(parquet.DoubleType)
 		// n = parquet.Decimal(9, 24, parquet.DoubleType)
-		// n = parquet.Decimal(1, 5, parquet.FixedLenByteArrayType(5))
+		// l := int(math.Ceil((math.Log10(2) + float64(10)) / math.Log10(256)))
+		// g.Warn("length => %d", l)
+		// n = parquet.Decimal(0, 10, parquet.FixedLenByteArrayType(l))
 		// parquet.DoubleValue(0.9).
 		n = parquet.String()
 
