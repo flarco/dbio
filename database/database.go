@@ -1346,7 +1346,7 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 
 	for i, colType := range colTypes {
 		col := iop.Column{
-			Name:     colType.Name,
+			Name:     strings.ReplaceAll(colType.Name, ".", "_"),
 			Position: i + 1,
 			Type:     NativeTypeToGeneral(colType.Name, colType.DatabaseTypeName, conn),
 			DbType:   colType.DatabaseTypeName,
