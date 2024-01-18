@@ -538,23 +538,32 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 			return sVal
 		}
 
-		if int64(fVal) > cs.Max {
-			cs.Max = int64(fVal)
+		intVal := int64(fVal)
+		if intVal > cs.Max {
+			cs.Max = intVal
 		}
-		if int64(fVal) < cs.Min {
-			cs.Min = int64(fVal)
+		if intVal < cs.Min {
+			cs.Min = intVal
 		}
-		cs.DecCnt++
+
 		if fVal < 0 {
 			sp.rowChecksum[i] = uint64(-fVal)
 		} else {
 			sp.rowChecksum[i] = uint64(fVal)
 		}
-		// max 9 decimals for bigquery compatibility
-		if sp.config.MaxDecimals > -1 {
-			nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
+
+		if float64(intVal) == fVal {
+			// is an integer
+			cs.IntCnt++
+			nVal = intVal
 		} else {
-			nVal = val // use string to keep accuracy
+			cs.DecCnt++
+			// max 9 decimals for bigquery compatibility
+			if sp.config.MaxDecimals > -1 {
+				nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
+			} else {
+				nVal = val // use string to keep accuracy
+			}
 		}
 	case col.Type.IsBool():
 		var err error
