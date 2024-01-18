@@ -553,18 +553,18 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		}
 
 		if float64(intVal) == fVal {
-			// is an integer
-			cs.IntCnt++
-			nVal = intVal
+			cs.IntCnt++ // is an integer
 		} else {
 			cs.DecCnt++
-			// max 9 decimals for bigquery compatibility
-			if sp.config.MaxDecimals > -1 {
-				nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
-			} else {
-				nVal = val // use string to keep accuracy
-			}
 		}
+
+		// max 9 decimals for bigquery compatibility
+		if sp.config.MaxDecimals > -1 {
+			nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
+		} else {
+			nVal = val // use string to keep accuracy
+		}
+
 	case col.Type.IsBool():
 		var err error
 		bVal, err := cast.ToBoolE(val)
