@@ -9,6 +9,7 @@ import (
 
 	"github.com/flarco/dbio"
 	"github.com/flarco/dbio/iop"
+	"github.com/shopspring/decimal"
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
@@ -146,6 +147,15 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 			}
 
 			for row := range batch.Rows {
+				// set decimals correctly
+				for i, col := range batch.Columns {
+					if col.Type.IsDecimal() {
+						if val, err := decimal.NewFromString(cast.ToString(row[i])); err == nil {
+							row[i] = val
+						}
+					}
+				}
+
 				count++
 				// Do insert
 				ds.Context.Lock()

@@ -2289,7 +2289,7 @@ func (conn *BaseConn) GetNativeType(col iop.Column) (nativeType string, err erro
 				fmt.Sprintf("(%d)", length),
 			)
 		}
-	} else if strings.HasSuffix(nativeType, "(,)") {
+	} else if strings.Contains(nativeType, "(,)") {
 
 		scale := lo.Ternary(col.DbScale < ddlMinDecScale, ddlMinDecScale, col.DbScale)
 		scale = lo.Ternary(scale < col.Stats.MaxDecLen, col.Stats.MaxDecLen, scale)

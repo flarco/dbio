@@ -560,7 +560,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 
 		// max 9 decimals for bigquery compatibility
 		if sp.config.MaxDecimals > -1 {
-			nVal = math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals
+			nVal = cast.ToString(math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals)
 		} else {
 			nVal = val // use string to keep accuracy
 		}
