@@ -146,13 +146,18 @@ func (conn *ClickhouseConn) BulkImportStream(tableFName string, ds *iop.Datastre
 				return g.Error(err, "could not prepare statement")
 			}
 
+			decimalCols := []int{}
+			for i, col := range batch.Columns {
+				if col.Type.IsDecimal() {
+					decimalCols = append(decimalCols, i)
+				}
+			}
+
 			for row := range batch.Rows {
 				// set decimals correctly
-				for i, col := range batch.Columns {
-					if col.Type.IsDecimal() {
-						if val, err := decimal.NewFromString(cast.ToString(row[i])); err == nil {
-							row[i] = val
-						}
+				for _, colI := range decimalCols {
+					if val, err := decimal.NewFromString(cast.ToString(row[colI])); err == nil {
+						row[colI] = val
 					}
 				}
 
