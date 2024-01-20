@@ -562,7 +562,7 @@ func (sp *StreamProcessor) CastVal(i int, val interface{}, col *Column) interfac
 		if sp.config.MaxDecimals > -1 {
 			nVal = cast.ToString(math.Round(fVal*sp.config.MaxDecimals) / sp.config.MaxDecimals)
 		} else {
-			nVal = val // use string to keep accuracy
+			nVal = cast.ToString(val) // use string to keep accuracy
 		}
 
 	case col.Type.IsBool():
