@@ -250,6 +250,7 @@ func (s *Schemata) Columns() map[string]iop.Column {
 				for _, column := range table.Columns {
 					// get general type
 					column.Type = NativeTypeToGeneral(column.Name, column.DbType, s.conn)
+					column.SetLengthPrecisionScale()
 					key := strings.ToLower(g.F("%s.%s.%s.%s", db.Name, schema.Name, table.Name, column.Name))
 					columns[key] = column
 				}

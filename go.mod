@@ -18,7 +18,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/flarco/bigquery v0.0.9
-	github.com/flarco/g v0.1.67
+	github.com/flarco/g v0.1.68
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/godror/godror v0.31.0
 	github.com/google/uuid v1.5.0

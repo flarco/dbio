@@ -324,6 +324,8 @@ func (conn *BigQueryConn) getItColumns(itSchema bigquery.Schema) (cols iop.Colum
 			Type:     NativeTypeToGeneral(field.Name, string(field.Type), conn),
 			DbType:   string(field.Type),
 		}
+		cols[i].SetLengthPrecisionScale()
+
 		if g.In(field.Type, bigquery.NumericFieldType, bigquery.FloatFieldType) {
 			bQTC.numericCols = append(bQTC.numericCols, i)
 		} else if field.Type == "DATETIME" || field.Type == bigquery.TimestampFieldType {

@@ -1375,6 +1375,9 @@ func SQLColumns(colTypes []ColumnType, conn Connection) (columns iop.Columns) {
 			}
 		}
 
+		// parse length, precision, scale manually specified in mapping
+		col.SetLengthPrecisionScale()
+
 		// g.Trace("col %s (%s -> %s) has %d length, %d scale, sourced: %t", colType.Name(), colType.DatabaseTypeName(), Type, length, scale, ok)
 
 		columns[i] = col

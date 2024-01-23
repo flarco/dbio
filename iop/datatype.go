@@ -600,6 +600,43 @@ func MakeRowsChan() chan []any {
 	return make(chan []any)
 }
 
+const regexExtractPrecisionScale = `[a-zA-Z]+ *\( *(\d+) *(, *\d+)* *\)`
+
+// SetLengthPrecisionScale parse length, precision, scale
+func (col *Column) SetLengthPrecisionScale() {
+	colType := strings.TrimSpace(string(col.Type))
+	if !strings.HasSuffix(colType, ")") {
+		return
+	}
+
+	// fix type value
+	parts := strings.Split(colType, "(")
+	col.Type = ColumnType(strings.TrimSpace(parts[0]))
+
+	matches := g.Matches(colType, regexExtractPrecisionScale)
+	if len(matches) == 1 {
+		vals := matches[0].Group
+
+		if len(vals) > 0 {
+			vals[0] = strings.TrimSpace(vals[0])
+			// grab length or precision
+			if col.Type.IsString() {
+				col.Stats.MaxLen = cast.ToInt(vals[0])
+			} else if col.Type.IsNumber() {
+				col.DbPrecision = cast.ToInt(vals[0])
+			}
+		}
+
+		if len(vals) > 1 {
+			vals[1] = strings.TrimSpace(strings.ReplaceAll(vals[1], ",", ""))
+			// grab scale
+			if col.Type.IsNumber() {
+				col.DbScale = cast.ToInt(vals[1])
+			}
+		}
+	}
+}
+
 func (col *Column) Key() string {
 	parts := []string{}
 	if col.Database != "" {
