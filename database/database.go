@@ -364,6 +364,9 @@ func (conn *BaseConn) BaseURL() string {
 
 // ConnString returns the connection string needed for connection
 func (conn *BaseConn) ConnString() string {
+	if val := conn.GetProp("CONN_STR"); val != "" {
+		return val
+	}
 	return conn.URL
 }
 
