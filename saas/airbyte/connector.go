@@ -3,7 +3,6 @@ package airbyte
 import (
 	"context"
 	"embed"
-	"io/ioutil"
 	"os"
 	"path"
 	"runtime"
@@ -47,7 +46,7 @@ func GetSourceConnectors(fetch bool) (connectors Connectors, err error) {
 			if ok {
 				filePath := g.F("%s/sources.yaml", path.Dir(filename))
 				if g.PathExists(filePath) {
-					err = ioutil.WriteFile(filePath, respBytes, 0755)
+					err = os.WriteFile(filePath, respBytes, 0755)
 					if !g.LogError(err) {
 						g.Debug("wrote latest to %s", filePath)
 					}
@@ -176,7 +175,7 @@ func (c *Connector) Check(config map[string]interface{}) (s AirbyteConnectionSta
 	}
 	defer os.RemoveAll(c.tempFolder)
 
-	err = ioutil.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
+	err = os.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to config file")
 		return
@@ -212,7 +211,7 @@ func (c *Connector) Discover(config map[string]interface{}) (ac AirbyteCatalog, 
 	}
 	defer os.RemoveAll(c.tempFolder)
 
-	err = ioutil.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
+	err = os.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to config file")
 		return
@@ -243,13 +242,13 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 		return
 	}
 
-	err = ioutil.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
+	err = os.WriteFile(c.file("config.json"), []byte(g.Marshal(config)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to config file")
 		return
 	}
 
-	err = ioutil.WriteFile(c.file("catalog.json"), []byte(g.Marshal(catalog)), 0755)
+	err = os.WriteFile(c.file("catalog.json"), []byte(g.Marshal(catalog)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to catalog file")
 		return
@@ -261,7 +260,7 @@ func (c *Connector) Read(config map[string]interface{}, catalog ConfiguredAirbyt
 	if props == nil {
 		props = map[string]string{}
 	}
-	err = ioutil.WriteFile(c.file("state.json"), []byte(g.Marshal(state)), 0755)
+	err = os.WriteFile(c.file("state.json"), []byte(g.Marshal(state)), 0755)
 	if err != nil {
 		err = g.Error(err, "could not write to state file")
 		return

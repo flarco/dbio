@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -69,7 +68,7 @@ func getSpecification(c airbyte.Connector, force bool) (err error) {
 		g.LogError(err, "could not marshall spec for: "+c.Definition.Name)
 		return
 	}
-	err = ioutil.WriteFile(filePath, specBytes, 0755)
+	err = os.WriteFile(filePath, specBytes, 0755)
 	if err != nil {
 		g.LogError(err, "could not write spec for: "+c.Definition.Name)
 		return

@@ -129,7 +129,7 @@ func (home *Home) Authenticate(url string) (err error) {
 		return
 	}
 
-	err = ioutil.WriteFile(home.authPath, fileBytes, 0600)
+	err = os.WriteFile(home.authPath, fileBytes, 0600)
 	if err != nil {
 		err = g.Error(err, "could not create dbio auth.json")
 	}
@@ -142,7 +142,7 @@ func (home *Home) Authenticate(url string) (err error) {
 func (home *Home) APIKey() (key string) {
 	key = os.Getenv("dbio_API_KEY")
 	if key == "" {
-		fileBytes, err := ioutil.ReadFile(home.authPath)
+		fileBytes, err := os.ReadFile(home.authPath)
 		if err != nil {
 			return
 		}

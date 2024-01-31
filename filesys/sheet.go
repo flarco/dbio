@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -441,7 +440,7 @@ func NewGoogleSheet(props ...string) (ggs *GoogleSheet, err error) {
 	ggs.Props["GOOGLE_PASSWORD"] = os.Getenv("GOOGLE_PASSWORD")
 
 	// https://developers.google.com/sheets/api/quickstart/go
-	b, err := ioutil.ReadFile(ggs.Props["GSHEETS_CRED_FILE"])
+	b, err := os.ReadFile(ggs.Props["GSHEETS_CRED_FILE"])
 	if err != nil {
 		err = g.Error(err, "Unable to read client secret file: "+ggs.Props["GSHEETS_CRED_FILE"])
 		return

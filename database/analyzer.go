@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/flarco/dbio/iop"
@@ -396,7 +396,7 @@ func (da *DataAnalyzer) WriteRelationsYaml(path string) (err error) {
 		return g.Error(err, "could not marshal to yaml")
 	}
 
-	err = ioutil.WriteFile(path, out, 0755)
+	err = os.WriteFile(path, out, 0755)
 	if err != nil {
 		return g.Error(err, "could not write to yaml")
 	}

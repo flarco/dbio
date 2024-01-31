@@ -2,7 +2,6 @@ package env
 
 import (
 	"embed"
-	"io/ioutil"
 	"os"
 	"path"
 	"sort"
@@ -85,7 +84,9 @@ func (ef *EnvFile) WriteEnvFile() (err error) {
 
 	output := []byte(ef.TopComment + string(envBytes))
 
-	err = ioutil.WriteFile(ef.Path, formatYAML(output), 0644)
+	// fix windows path
+	ef.Path = strings.ReplaceAll(ef.Path, `\`, `/`)
+	err = os.WriteFile(ef.Path, formatYAML(output), 0644)
 	if err != nil {
 		return g.Error(err, "could not write YAML file")
 	}
@@ -133,7 +134,7 @@ func formatYAML(input []byte) []byte {
 }
 
 func LoadEnvFile(path string) (ef EnvFile) {
-	bytes, _ := ioutil.ReadFile(path)
+	bytes, _ := os.ReadFile(path)
 	err := yaml.Unmarshal(bytes, &ef)
 	if err != nil {
 		err = g.Error(err, "error parsing yaml string")

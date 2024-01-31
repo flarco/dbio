@@ -2,7 +2,6 @@ package filesys
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -154,7 +153,7 @@ func TestGoogleSheet(t *testing.T) {
 	err = ggs.deleteSheet("new")
 	assert.NoError(t, err)
 
-	jsonBody, err := ioutil.ReadFile(os.Getenv("GSHEETS_CRED_FILE"))
+	jsonBody, err := os.ReadFile(os.Getenv("GSHEETS_CRED_FILE"))
 	assert.NoError(t, err)
 
 	httpFs, err := NewFileSysClient(
