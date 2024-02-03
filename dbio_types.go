@@ -40,6 +40,7 @@ const (
 	TypeDbPostgres   Type = "postgres"
 	TypeDbRedshift   Type = "redshift"
 	TypeDbMySQL      Type = "mysql"
+	TypeDbMariaDB    Type = "mariadb"
 	TypeDbOracle     Type = "oracle"
 	TypeDbBigTable   Type = "bigtable"
 	TypeDbBigQuery   Type = "bigquery"
@@ -79,7 +80,7 @@ func ValidateType(tStr string) (Type, bool) {
 	switch t {
 	case
 		TypeFileLocal, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp,
-		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH, TypeDbDuckDb, TypeDbMotherDuck:
+		TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbMariaDB, TypeDbOracle, TypeDbBigQuery, TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbAzureDWH, TypeDbDuckDb, TypeDbMotherDuck:
 		return t, true
 	}
 
@@ -101,6 +102,7 @@ func (t Type) DefPort() int {
 		TypeDbPostgres:   5432,
 		TypeDbRedshift:   5439,
 		TypeDbMySQL:      3306,
+		TypeDbMariaDB:    3306,
 		TypeDbOracle:     1521,
 		TypeDbSQLServer:  1433,
 		TypeDbAzure:      1433,
@@ -118,7 +120,7 @@ func (t Type) DBNameUpperCase() bool {
 // Kind returns the kind of connection
 func (t Type) Kind() Kind {
 	switch t {
-	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbOracle, TypeDbBigQuery, TypeDbBigTable,
+	case TypeDbPostgres, TypeDbRedshift, TypeDbMySQL, TypeDbMariaDB, TypeDbOracle, TypeDbBigQuery, TypeDbBigTable,
 		TypeDbSnowflake, TypeDbSQLite, TypeDbSQLServer, TypeDbAzure, TypeDbClickhouse, TypeDbDuckDb, TypeDbMotherDuck:
 		return KindDatabase
 	case TypeFileLocal, TypeFileHDFS, TypeFileS3, TypeFileAzure, TypeFileGoogle, TypeFileSftp, TypeFileHTTP, Type("https"):
@@ -176,6 +178,7 @@ func (t Type) NameLong() string {
 		TypeDbPostgres:   "DB - PostgreSQL",
 		TypeDbRedshift:   "DB - Redshift",
 		TypeDbMySQL:      "DB - MySQL",
+		TypeDbMariaDB:    "DB - MariaDB",
 		TypeDbOracle:     "DB - Oracle",
 		TypeDbBigQuery:   "DB - BigQuery",
 		TypeDbBigTable:   "DB - BigTable",
@@ -213,6 +216,7 @@ func (t Type) Name() string {
 		TypeDbPostgres:   "PostgreSQL",
 		TypeDbRedshift:   "Redshift",
 		TypeDbMySQL:      "MySQL",
+		TypeDbMariaDB:    "MariaDB",
 		TypeDbOracle:     "Oracle",
 		TypeDbBigQuery:   "BigQuery",
 		TypeDbBigTable:   "BigTable",

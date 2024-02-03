@@ -15,7 +15,7 @@ import (
 	"github.com/xo/dburl"
 )
 
-// MySQLConn is a Postgres connection
+// MySQLConn is a MySQL or MariaDB connection
 type MySQLConn struct {
 	BaseConn
 	URL string
@@ -27,6 +27,10 @@ func (conn *MySQLConn) Init() error {
 	conn.BaseConn.URL = conn.URL
 	conn.BaseConn.Type = dbio.TypeDbMySQL
 	conn.BaseConn.defaultPort = 3306
+
+	if strings.HasPrefix(conn.URL, "maria") {
+		conn.BaseConn.Type = dbio.TypeDbMariaDB
+	}
 
 	// Turn off Bulk export for now
 	// the LoadDataOutFile needs special circumstances
@@ -229,11 +233,28 @@ func (conn *MySQLConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFie
 		return
 	}
 
+	srcT, err := ParseTableName(srcTable, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not generate parse srcTable")
+		return
+	}
+
+	tgtT, err := ParseTableName(tgtTable, conn.GetType())
+	if err != nil {
+		err = g.Error(err, "could not generate parse tgtTable")
+		return
+	}
+
+	// replace src & tgt to make compatible to MariaDB
+	// see https://github.com/slingdata-io/sling-cli/issues/135
+	upsertMap["src_tgt_pk_equal"] = strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "src.", srcT.NameQ()+".")
+	upsertMap["src_tgt_pk_equal"] = strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", tgtT.NameQ()+".")
+
 	sqlTemplate := `
-	DELETE FROM {tgt_table} tgt
+	DELETE FROM {tgt_table}
 	WHERE EXISTS (
 			SELECT 1
-			FROM {src_table} src
+			FROM {src_table}
 			WHERE {src_tgt_pk_equal}
 	)
 	;

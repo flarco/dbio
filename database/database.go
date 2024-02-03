@@ -274,6 +274,8 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &MsSQLServerConn{URL: URL}
 	} else if strings.HasPrefix(URL, "mysql:") {
 		conn = &MySQLConn{URL: URL}
+	} else if strings.HasPrefix(URL, "mariadb:") {
+		conn = &MySQLConn{URL: URL}
 	} else if strings.HasPrefix(URL, "oracle:") {
 		conn = &OracleConn{URL: URL}
 		// concurrency = 2
@@ -320,7 +322,7 @@ func getDriverName(dbType dbio.Type) (driverName string) {
 	switch dbType {
 	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 		driverName = "postgres"
-	case dbio.TypeDbMySQL:
+	case dbio.TypeDbMySQL, dbio.TypeDbMariaDB:
 		driverName = "mysql"
 	case dbio.TypeDbOracle:
 		driverName = "godror"

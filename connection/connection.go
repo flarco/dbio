@@ -436,6 +436,11 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("password", "")
 		setIfMissing("port", c.Type.DefPort())
 		template = "mysql://{username}:{password}@{host}:{port}/{database}"
+	case dbio.TypeDbMariaDB:
+		setIfMissing("username", c.Data["user"])
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
+		template = "mariadb://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeDbBigQuery:
 		setIfMissing("dataset", c.Data["schema"])
 		setIfMissing("schema", c.Data["dataset"])
