@@ -399,6 +399,7 @@ func (df *Dataflow) SyncStats() {
 			Schema:      col.Schema,
 			Database:    col.Database,
 			Stats:       ColumnStats{MaxLen: col.Stats.MaxLen}, // keep manual column length spec
+			Metadata:    col.Metadata,
 		})
 	}
 

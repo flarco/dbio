@@ -431,6 +431,11 @@ func (c *Connection) setURL() (err error) {
 		setIfMissing("port", c.Type.DefPort())
 		setIfMissing("database", c.Data["dbname"])
 		template = "redshift://{username}:{password}@{host}:{port}/{database}?sslmode={sslmode}"
+	case dbio.TypeDbStarRocks:
+		setIfMissing("username", c.Data["user"])
+		setIfMissing("password", "")
+		setIfMissing("port", c.Type.DefPort())
+		template = "starrocks://{username}:{password}@{host}:{port}/{database}"
 	case dbio.TypeDbMySQL:
 		setIfMissing("username", c.Data["user"])
 		setIfMissing("password", "")

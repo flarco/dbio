@@ -272,6 +272,8 @@ func NewConnContext(ctx context.Context, URL string, props ...string) (Connectio
 		conn = &RedshiftConn{URL: URL}
 	} else if strings.HasPrefix(URL, "sqlserver:") {
 		conn = &MsSQLServerConn{URL: URL}
+	} else if strings.HasPrefix(URL, "starrocks:") {
+		conn = &StarRocksConn{URL: URL}
 	} else if strings.HasPrefix(URL, "mysql:") {
 		conn = &MySQLConn{URL: URL}
 	} else if strings.HasPrefix(URL, "mariadb:") {
@@ -322,7 +324,7 @@ func getDriverName(dbType dbio.Type) (driverName string) {
 	switch dbType {
 	case dbio.TypeDbPostgres, dbio.TypeDbRedshift:
 		driverName = "postgres"
-	case dbio.TypeDbMySQL, dbio.TypeDbMariaDB:
+	case dbio.TypeDbMySQL, dbio.TypeDbMariaDB, dbio.TypeDbStarRocks:
 		driverName = "mysql"
 	case dbio.TypeDbOracle:
 		driverName = "godror"
@@ -1706,8 +1708,9 @@ func (conn *BaseConn) DropTable(tableNames ...string) (err error) {
 		sql := g.R(conn.template.Core["drop_table"], "table", tableName)
 		_, err = conn.Self().Exec(sql)
 		if err != nil {
-			errIgnoreWord := conn.template.Variable["error_ignore_drop_table"]
-			if !(errIgnoreWord != "" && strings.Contains(cast.ToString(err), errIgnoreWord)) {
+			errMsg := strings.ToLower(err.Error())
+			errIgnoreWord := strings.ToLower(conn.Template().Variable["error_ignore_drop_table"])
+			if !(errIgnoreWord != "" && strings.Contains(errMsg, errIgnoreWord)) {
 				return g.Error(err, "Error for "+sql)
 			}
 			g.Debug("table %s does not exist", tableName)
@@ -2541,7 +2544,31 @@ func (conn *BaseConn) BulkExportFlowCSV(tables ...Table) (df *iop.Dataflow, err 
 
 // GenerateUpsertSQL returns a sql for upsert
 func (conn *BaseConn) GenerateUpsertSQL(srcTable string, tgtTable string, pkFields []string) (sql string, err error) {
-	return "", g.Error("GenerateUpsertSQL is not implemented for %s", conn.Type)
+
+	upsertMap, err := conn.GenerateUpsertExpressions(srcTable, tgtTable, pkFields)
+	if err != nil {
+		err = g.Error(err, "could not generate upsert variables")
+		return
+	}
+
+	sqlTemplate := conn.Template().Core["upsert"]
+	if sqlTemplate == "" {
+		return "", g.Error("Did not find upsert in template for %s", conn.GetType())
+	}
+
+	sql = g.R(
+		sqlTemplate,
+		"src_table", srcTable,
+		"tgt_table", tgtTable,
+		"src_tgt_pk_equal", upsertMap["src_tgt_pk_equal"],
+		"src_upd_pk_equal", strings.ReplaceAll(upsertMap["src_tgt_pk_equal"], "tgt.", "upd."),
+		"pk_fields", upsertMap["pk_fields"],
+		"set_fields", upsertMap["set_fields"],
+		"insert_fields", upsertMap["insert_fields"],
+		"src_fields", upsertMap["src_fields"],
+	)
+
+	return
 }
 
 // GenerateUpsertExpressions returns a map with needed expressions
@@ -3215,7 +3242,7 @@ func ParseSQLMultiStatements(sql string) (sqls g.Strings) {
 	return
 }
 
-// GenerateDDL genrate a DDL based on a dataset
+// GenerateAlterDDL generate a DDL based on a dataset
 func GenerateAlterDDL(conn Connection, table Table, newColumns iop.Columns) (bool, error) {
 
 	if len(table.Columns) != len(newColumns) {

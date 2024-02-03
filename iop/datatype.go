@@ -36,6 +36,8 @@ type Column struct {
 	Schema      string `json:"schema,omitempty"`
 	Database    string `json:"database,omitempty"`
 	Description string `json:"description,omitempty"`
+
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // Columns represent many columns
@@ -60,6 +62,15 @@ const (
 	FloatType      ColumnType = "float"
 	TimeType       ColumnType = "time"
 	TimezType      ColumnType = "timez"
+)
+
+type KeyType string
+
+const (
+	PrimaryKey   KeyType = "primary_key"
+	AggregateKey KeyType = "aggregate_key"
+	UpdateKey    KeyType = "update_key"
+	SortKey      KeyType = "sort_key"
 )
 
 // ColumnStats holds statistics for a column
@@ -133,6 +144,29 @@ func NewColumnsFromFields(fields ...string) (cols Columns) {
 		cols[i].Position = i + 1
 	}
 	return
+}
+
+// GetKeys gets key columns
+func (cols Columns) GetKeys(keyType KeyType) Columns {
+	keys := Columns{}
+	for _, col := range cols {
+		if cast.ToBool(col.Metadata[string(keyType)]) {
+			keys = append(keys, col)
+		}
+	}
+	return keys
+}
+
+// SetKeys sets key columns
+func (cols Columns) SetKeys(keyType KeyType, names ...string) {
+	for i, col := range cols {
+		for _, name := range names {
+			if strings.EqualFold(name, col.Name) {
+				col.SetMetadata(string(keyType), "true")
+				cols[i] = col
+			}
+		}
+	}
 }
 
 // IsDummy returns true if the columns are injected by CreateDummyFields
@@ -635,6 +669,13 @@ func (col *Column) SetLengthPrecisionScale() {
 			}
 		}
 	}
+}
+
+func (col *Column) SetMetadata(key string, value string) {
+	if col.Metadata == nil {
+		col.Metadata = map[string]string{}
+	}
+	col.Metadata[key] = value
 }
 
 func (col *Column) Key() string {

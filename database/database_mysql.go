@@ -28,7 +28,7 @@ func (conn *MySQLConn) Init() error {
 	conn.BaseConn.Type = dbio.TypeDbMySQL
 	conn.BaseConn.defaultPort = 3306
 
-	if strings.HasPrefix(conn.URL, "maria") {
+	if strings.HasPrefix(conn.URL, "mariadb://") {
 		conn.BaseConn.Type = dbio.TypeDbMariaDB
 	}
 
@@ -54,6 +54,8 @@ func (conn *MySQLConn) GetURL(newURL ...string) string {
 	if len(newURL) > 0 {
 		connURL = newURL[0]
 	}
+
+	connURL = strings.Replace(connURL, "mariadb://", "mysql://", 1)
 	u, err := dburl.Parse(connURL)
 	if err != nil {
 		g.LogError(err, "could not parse MySQL URL")

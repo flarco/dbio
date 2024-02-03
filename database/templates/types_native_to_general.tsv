@@ -403,3 +403,80 @@ motherduck	utinyint	integer	col_utinyint utinyint	TRUE	TRUE
 motherduck	uuid	string	col_uuid uuid	TRUE	TRUE	
 motherduck	hugeint	bigint	col_hugeint hugeint	TRUE	TRUE	
 motherduck	interval	string	col_interval interval	TRUE	TRUE	
+mariadb	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
+mariadb	binary	binary	col_binary binary(100)	TRUE	TRUE	A fixed-length binary string
+mariadb	bit	smallint	col_bit bit	FALSE	FALSE	A bit field
+mariadb	blob	text	col_blob blob	TRUE	TRUE	A small BLOB
+mariadb	char	string	col_char char(17)	TRUE	TRUE	A fixed-length nonbinary (character) string
+mariadb	date	date	col_date date	TRUE	TRUE	A date value in CCYY-MM-DD format
+mariadb	datetime	datetime	col_datetime datetime	TRUE	TRUE	A date and time value inCCYY-MM-DD hh:mm:ssformat
+mariadb	decimal	decimal	col_decimal decimal	TRUE	TRUE	A fixed-point number
+mariadb	double	float	col_double double	TRUE	TRUE	A double-precision floating point number
+mariadb	enum	string	col_enum enum ('value1','value2','value3')	FALSE	FALSE	An enumeration; each column value may be assigned one enumeration member
+mariadb	float	float	col_float float	TRUE	TRUE	A single-precision floating point number
+mariadb	geometry	string	col_geometry geometry	FALSE	FALSE	A spatial value of any type
+mariadb	geometrycollection	string	col_geometrycollection geometrycollection	FALSE	FALSE	A collection of GEOMETRYvalues
+mariadb	geomcollection	string		FALSE	FALSE	
+mariadb	int	integer	col_int int	TRUE	TRUE	A standard integer
+mariadb	json	json	col_json json	TRUE	TRUE	JSON Data Type
+mariadb	linestring	string	col_linestring linestring	FALSE	FALSE	A curve (one or more POINT values)
+mariadb	longblob	text	col_longblob longblob	TRUE	TRUE	A large BLOB
+mariadb	longtext	text	col_longtext longtext	TRUE	TRUE	A large non-binary string
+mariadb	mediumblob	text	col_mediumblob mediumblob	TRUE	TRUE	A medium-sized BLOB
+mariadb	mediumint	integer	col_mediumint mediumint	TRUE	TRUE	A medium-sized integer
+mariadb	mediumtext	text	col_mediumtext mediumtext	TRUE	TRUE	A medium-sized non-binary string
+mariadb	multilinestring	string	col_multilinestring multilinestring	FALSE	FALSE	A collection of LINESTRINGvalues
+mariadb	multipoint	string	col_multipoint multipoint	FALSE	FALSE	A collection of POINTvalues
+mariadb	multipolygon	string	col_multipolygon multipolygon	FALSE	FALSE	A collection of POLYGONvalues
+mariadb	point	string	col_point point	FALSE	FALSE	A point (a pair of X-Y coordinates)
+mariadb	polygon	string	col_polygon polygon	FALSE	FALSE	A polygon
+mariadb	set	string	col_set set('one', 'two')	FALSE	FALSE	A set; each column value may be assigned zero or more SET members
+mariadb	smallint	smallint	col_smallint smallint	TRUE	TRUE	A small integer
+mariadb	text	text	col_text text	TRUE	TRUE	A small non-binary string
+mariadb	time	time	col_time time	TRUE	TRUE	A time value in hh:mm:ss format
+mariadb	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	A timestamp value in CCYY-MM-DD hh:mm:ss format
+mariadb	tinyblob	text	col_tinyblob tinyblob	TRUE	TRUE	A very small BLOB (binary large object)
+mariadb	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	A very small integer
+mariadb	tinytext	text	col_tinytext tinytext	TRUE	TRUE	A very small non-binary string
+mariadb	varbinary	binary	col_varbinary varbinary(100)	TRUE	FALSE	A variable-length binary string
+mariadb	varchar	text	col_varchar varchar(100)	TRUE	TRUE	A variable-length non-binary string
+mariadb	year	string	col_year year	FALSE	FALSE	A year value in CCYY or YY format
+starrocks	bigint	bigint	col_bigint bigint	TRUE	TRUE	A large integer
+starrocks	binary	binary	col_binary binary(100)	TRUE	TRUE	A fixed-length binary string
+starrocks	bit	smallint	col_bit bit	FALSE	FALSE	A bit field
+starrocks	blob	text	col_blob blob	TRUE	TRUE	A small BLOB
+starrocks	char	string	col_char char(17)	TRUE	TRUE	A fixed-length nonbinary (character) string
+starrocks	date	date	col_date date	TRUE	TRUE	A date value in CCYY-MM-DD format
+starrocks	datetime	datetime	col_datetime datetime	TRUE	TRUE	A date and time value inCCYY-MM-DD hh:mm:ssformat
+starrocks	decimal	decimal	col_decimal decimal	TRUE	TRUE	A fixed-point number
+starrocks	double	float	col_double double	TRUE	TRUE	A double-precision floating point number
+starrocks	enum	string	col_enum enum ('value1','value2','value3')	FALSE	FALSE	An enumeration; each column value may be assigned one enumeration member
+starrocks	float	float	col_float float	TRUE	TRUE	A single-precision floating point number
+starrocks	geometry	string	col_geometry geometry	FALSE	FALSE	A spatial value of any type
+starrocks	geometrycollection	string	col_geometrycollection geometrycollection	FALSE	FALSE	A collection of GEOMETRYvalues
+starrocks	geomcollection	string		FALSE	FALSE	
+starrocks	int	integer	col_int int	TRUE	TRUE	A standard integer
+starrocks	json	json	col_json json	TRUE	TRUE	JSON Data Type
+starrocks	linestring	string	col_linestring linestring	FALSE	FALSE	A curve (one or more POINT values)
+starrocks	longblob	text	col_longblob longblob	TRUE	TRUE	A large BLOB
+starrocks	longtext	text	col_longtext longtext	TRUE	TRUE	A large non-binary string
+starrocks	mediumblob	text	col_mediumblob mediumblob	TRUE	TRUE	A medium-sized BLOB
+starrocks	mediumint	integer	col_mediumint mediumint	TRUE	TRUE	A medium-sized integer
+starrocks	mediumtext	text	col_mediumtext mediumtext	TRUE	TRUE	A medium-sized non-binary string
+starrocks	multilinestring	string	col_multilinestring multilinestring	FALSE	FALSE	A collection of LINESTRINGvalues
+starrocks	multipoint	string	col_multipoint multipoint	FALSE	FALSE	A collection of POINTvalues
+starrocks	multipolygon	string	col_multipolygon multipolygon	FALSE	FALSE	A collection of POLYGONvalues
+starrocks	point	string	col_point point	FALSE	FALSE	A point (a pair of X-Y coordinates)
+starrocks	polygon	string	col_polygon polygon	FALSE	FALSE	A polygon
+starrocks	set	string	col_set set('one', 'two')	FALSE	FALSE	A set; each column value may be assigned zero or more SET members
+starrocks	smallint	smallint	col_smallint smallint	TRUE	TRUE	A small integer
+starrocks	string	text	col_string string	TRUE	TRUE	A small non-binary string
+starrocks	text	text	col_text text	TRUE	TRUE	A small non-binary string
+starrocks	time	time	col_time time	TRUE	TRUE	A time value in hh:mm:ss format
+starrocks	timestamp	timestamp	col_timestamp timestamp	TRUE	TRUE	A timestamp value in CCYY-MM-DD hh:mm:ss format
+starrocks	tinyblob	text	col_tinyblob tinyblob	TRUE	TRUE	A very small BLOB (binary large object)
+starrocks	tinyint	smallint	col_tinyint tinyint	TRUE	TRUE	A very small integer
+starrocks	tinytext	text	col_tinytext tinytext	TRUE	TRUE	A very small non-binary string
+starrocks	varbinary	binary	col_varbinary varbinary(100)	TRUE	FALSE	A variable-length binary string
+starrocks	varchar	text	col_varchar varchar(100)	TRUE	TRUE	A variable-length non-binary string
+starrocks	year	string	col_year year	FALSE	FALSE	A year value in CCYY or YY format
