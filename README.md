@@ -1,3 +1,5 @@
+**MIGRATED TO https://github.com/slingdata-io/sling-cli** 
+
 # dbio
 
 `dbio` is a golang library for all things Database, Storage, API I/O processing.
